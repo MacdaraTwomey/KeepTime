@@ -1,0 +1,332 @@
+
+Create a application monitoring application, will browser integration, to assist in
+of personal accountability and awareness of how time is spent on the computer.
+
+Personal goals;
+ * To learn how to use a GUI library
+ * To learn (minimally) how web stuff works
+ * Make a fully fleshed applicaiton that I can use
+
+Goals:
+ * Easy to use: require only one press or so to download extension and program,
+   and then can just open report to get time based summary of usages.
+
+Main features:
+ * Browser integration
+ * Creates a report (text and graphs) of used apps and visited websites
+ 
+Possible other features:
+ * Can detect if multiple windows are being viewed even if just one is in focus
+ * Detect that window is opened in second monitor and is being read from
+ * Informative analysis: you have short attention span/you quickly visit time wasters/time using this has increased
+ * Detect idling
+ 
+User interface:
+ * Can choose a schedule for service to run, or can click to start/stop timing for the day,
+   or can start at system startup
+ * Can click programs to disable from tracking
+ * Can create a list of programs to track for the session
+ * Choose time period to show, Day, Week, Month
+
+What it does not do:
+ * User identified time wasters vs work (maybe this is ok as a possible feature, esp websites)
+ * Sophisticated graphing and reports
+
+Roadmap:
+ 1. Record times and names of in foces desktop programs
+ 2. Show times in GUI with text
+ 3. Add graphs
+ 4. Browser integration with firefox and chrome
+ 5. Other platforms
+
+
+Gotchas:
+ * Procrastitracker source says win 8/10 hide real process in a wrapper
+   https://github.com/aardappel/procrastitracker/blob/master/src/timercallback.h
+     - Can solve this by tracking process status and be notified when closed
+ * .exes with the same name, give same record
+   
+Browser integration:
+ * Some browsers once supported dde functions (e.g. DdeCreateStringHandleA) allowing to
+   get the URL, probably not anymore?
+ * Maybe can use Microsoft UI Automation to get URLS from browsers?
+   https://stackoverflow.com/questions/20798935/how-can-i-get-the-url-from-running-instance-of-firefox-and-chrome-web-browser-in
+   
+
+Implementation ideas:
+
+Best idea - one .exe, up to two instances open, 
+ * Two versions backgrond and GUI
+ * Background visible in 
+ * Have two versions of program in .exe, background (collects elapsed app times) and GUI (charts)
+ * When the program is first opened it recognises no others are open, so runs background code
+   and opens a GUI in a different process
+ * The background is visible in tray
+ * When GUI is closed continues to run background code
+ * When program is reopened from icon/exe/shortcut (it detects that an instance is already running
+   in the background, so runs GUI code in this separate program, and communicates with already
+   running background program.
+ * When closed closes this second opened program, and background remains running
+ * Can close background from GUI (somehow), and also from tray icon
+ * Communicate between GUI and background with IPC or something
+
+ Can use IPC to signal other app to close (close background from GUI)
+ Or some type of shared database thing
+
+Problems
+ 1. When starting background on startup or on schedule, we don't want to open GUI,
+    but would have to because opening program invokes GUI
+ 2. When closing background from GUI, re-running while GUI still open is another situation to account
+ 3. Reopening background with button in GUI, another situation to account for
+
+Possible solutions:
+ 1. Get user to add shortcut (with command line args), to startup folder.
+     - This doesn't need registry access, so is more portable, and controllable.
+ 2. Assuming program is running (as with startup program), checks time of day then collects data.
+     - Doesn't need to use windows scheduler etc.
+ 3. Reopening from GUI with button can pass command line args, to tell program to just run background
+
+ Possible startup states
+ 1. Nothing open              -> start background and then create GUI process
+ 2. Background open           -> Open as GUI
+ 3. Background and GUI open   -> go to gui instance (or open new GUI if not possible)
+ 4. GUI open		      -> Open another GUI, but also background (but play nice with previously
+                                 open GUI)
+
+
+
+Other Idea - Single .exe, single user program, single process
+//
+// When app started from icon/shortcut opens gui
+// When 'x' pressed just closes gui but leaves program running (can see in tray)
+// If icon pressed again reopens GUI, but knows program was already open (TODO: Not sure how)
+// Tray icon allows you to quit or open GUI etc
+// Can stop program from running in GUI menu too
+// All this is configurable (can disallow running as 'backround' program), so 'x' closes program
+// 
+// Problems
+// 1. Not sure if can run from startup without GUI this way, or start with a kind of scheduler
+// 2. May not make it appear program closed properly, if gui is just hidden
+
+
+
+
+
+
+
+
+
+
+Services
+// Can't catch window events in service, as service is in different window station (desktop) than user
+// Maybe create a process with no windows in user space and use IPC to communicate with service
+// (but then why even have a service?)
+// CreateProcessAsUserA from service
+
+/*
+A service program can start one or more services (specified in SERVICE_TABLE_ENTRY which contains 
+the name and main function for each service).
+When Service Control Manager recieves request to start a service, it starts the service process 
+(if not already running). This service process calls StartServiceCtrlDispatcher with pointer to the
+SERVICE_TABLE_ENTRY array. The SCM then sends start request to the Service Control Dispatcher for 
+this service process. The Service Control Dispatcher then creates thread to execute ServiceMain of 
+service to be started.
+
+ServiceMain function should register a HandlerEx function to handle control requests. Then call
+SetServiceStatus to send status info to SCM. Then the service should complete initialisation.
+
+The SCM waits until service reports SERVICE_RUNNING status (recommended to report this quickly).
+Only after a service reports to SCM that is has successfully started can it call StartService.
+
+You should not call any system functions during service initialisation. Service code should call 
+only after report SERVICE_RUNNING.
+
+The ServiceMain function should create a global event, and call RegisterWaitForSingleObject on the
+event, and exit. This will terminate thread running ServiceMain, but will not terminate the service.
+When the service is stopping, the Service Control Handler should call SetServiceStatus with 
+SERVICE_STOP_PENDING and signal this event. A thread will execute the wait callback function, which 
+will preform cleanup tasks, including closing the global event, and call SetServiceStatus with 
+SERVICE_STOPPED. 
+
+After the service has stopped you should not execute more service code. 
+
+
+A service requires:
+    A main entry point
+    A service entry point
+    A service control handler
+*/
+
+#if 0
+
+SERVICE_STATUS        global_service_status;
+SERVICE_STATUS_HANDLE global_status_handle; 
+HANDLE                global_service_stop_event;
+
+static DWORD global_checkpoint = 1;
+
+VOID WINAPI ServiceMain(DWORD argc, LPTSTR *args);
+VOID WINAPI ServiceCtrlHandler(DWORD control_code);
+DWORD WINAPI ServiceWorkerThread(LPVOID lpParam);
+
+#define SERVICE_NAME  "MyServiceName"
+
+
+// May have to be _tMain or something
+int NOTMAIN(int argc, char *args[])
+{
+    // Specifies the ServiceMain function that can run in the calling process
+    SERVICE_TABLE_ENTRY service_table[] = {
+        { SERVICE_NAME, (LPSERVICE_MAIN_FUNCTION)ServiceMain },
+        { nullptr, nullptr }
+    };
+        
+    // Does not return until all running services have entered SERVICE_STOPPED state
+    BOOL success = StartServiceCtrlDispatcherA(service_table);
+    if (!success) return GetLastError();
+
+    return 0;
+}
+
+VOID WINAPI ServiceMain(DWORD argc, LPTSTR *args)
+{
+    // Entry point for service
+    DWORD status = E_FAIL;
+
+    global_status_handle = RegisterServiceCtrlHandler(SERVICE_NAME, ServiceCtrlHandler);
+    if (!global_status_handle)
+    {
+        return;
+    }
+
+    // Perform initialisation here
+    // (if expected to be short <1s no problems, if longer use other techniques specified in win docs)
+
+    // To simplify logic dont accept controls while initialising
+    global_service_status = {};
+    global_service_status.dwServiceType             = SERVICE_WIN32_OWN_PROCESS; 
+    global_service_status.dwCurrentState            = SERVICE_START_PENDING;
+    global_service_status.dwControlsAccepted        = 0;
+    global_service_status.dwWin32ExitCode           = NO_ERROR;
+    global_service_status.dwServiceSpecificExitCode = 0;
+    global_service_status.dwCheckPoint              = global_checkpoint++;
+    global_service_status.dwWaitHint                = 3000;
+
+    // Notify SCM of SERVICE_START_PENDING
+    SetServiceStatus(global_status_handle, &global_service_status);
+
+    // Create event to wait on later
+    global_service_stop_event = CreateEvent(
+        NULL,    // default security attributes
+        TRUE,    // manual reset event
+        FALSE,   // not signaled
+        NULL);   // no name
+
+    if (global_service_stop_event == nullptr)
+    {
+        global_service_status.dwCurrentState = SERVICE_STOPPED;
+        global_service_status.dwWaitHint = 0;
+        global_service_status.dwControlsAccepted = SERVICE_ACCEPT_STOP;
+        global_service_status.dwWin32ExitCode = GetLastError();
+        global_service_status.dwCheckPoint = 0;
+
+        SetServiceStatus(global_status_handle, &global_service_status);
+        return;
+    }
+
+    // Can specifiy other control requests to accept here
+    global_service_status.dwCurrentState = SERVICE_RUNNING;
+    global_service_status.dwWaitHint = 0;
+    global_service_status.dwControlsAccepted = SERVICE_ACCEPT_STOP;
+    global_service_status.dwWin32ExitCode = NO_ERROR;
+    global_service_status.dwCheckPoint = 0;
+
+    // Tell SCM we are running
+    SetServiceStatus(global_status_handle, &global_service_status);
+
+    //
+    // Can run normal code from here on
+    //
+
+    FILE *file = fopen("c:\\dev\\projects\\monitor\\build\\log_service.txt", "w");
+    fprintf(file, "Successfully started service\n");
+
+#if 1
+    // Wait for stop event to be signalled
+    while (WaitForSingleObject(global_service_stop_event, 0) != WAIT_OBJECT_0)
+    {
+        // Do stuff
+
+        Sleep(300);
+    }
+
+    CloseHandle(global_service_stop_event);
+    global_service_status.dwCurrentState = SERVICE_STOPPED;
+    global_service_status.dwWaitHint = 0;
+    global_service_status.dwControlsAccepted = SERVICE_ACCEPT_STOP;
+    global_service_status.dwWin32ExitCode = NO_ERROR;
+    global_service_status.dwCheckPoint = 0;
+
+    SetServiceStatus(global_status_handle, &global_service_status);
+
+
+    fprintf(file, "Stopping service\n");
+
+    return;
+
+#else
+    for (;;)
+    {
+        // Check whether to stop the service
+        WaitForSingleObject(global_service_stop_event, INFINITE);
+
+        global_service_status.dwCurrentState = SERVICE_STOPPED;
+        global_service_status.dwWaitHint = 0;
+        global_service_status.dwControlsAccepted = SERVICE_ACCEPT_STOP;
+        global_service_status.dwWin32ExitCode = NO_ERROR;
+        global_service_status.dwCheckPoint = 0;
+
+        SetServiceStatus(global_status_handle, &global_service_status);
+
+        return;
+    }
+#endif
+
+}
+
+VOID WINAPI ServiceCtrlHandler(DWORD control_code)
+{
+    // Handles control requests from the SCM
+    // TODO: Can implement other requests such as SERVICE_CONTROL_SHUTDOWN
+    switch (control_code)
+    {
+        case SERVICE_CONTROL_STOP:
+        {
+            global_service_status.dwCurrentState = SERVICE_STOP_PENDING;
+            global_service_status.dwWaitHint = 0;
+            global_service_status.dwControlsAccepted = SERVICE_ACCEPT_STOP;
+            global_service_status.dwWin32ExitCode = NO_ERROR;
+            global_service_status.dwCheckPoint = global_checkpoint++;
+            
+            SetServiceStatus(global_status_handle, &global_service_status);
+
+            // Signal the service to stop
+            SetEvent(global_service_stop_event);
+
+            // Necessary?
+            global_service_status.dwCheckPoint = global_checkpoint++;
+            SetServiceStatus(global_status_handle, &global_service_status);
+
+            return;
+
+        } break;
+
+        case SERVICE_CONTROL_INTERROGATE:
+            break;
+
+        default:
+            break;
+    } 
+
+}
+#endif
