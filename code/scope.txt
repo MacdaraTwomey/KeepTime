@@ -14,23 +14,22 @@ Goals:
 Main features:
  * Browser integration
  * Creates a report (text and graphs) of used apps and visited websites
- 
+
 Possible other features:
  * Can detect if multiple windows are being viewed even if just one is in focus
  * Detect that window is opened in second monitor and is being read from
  * Informative analysis: you have short attention span/you quickly visit time wasters/time using this has increased
  * Detect idling
- 
+ * User identified time wasters vs work
+
 User interface:
  * Can choose a schedule for service to run, or can click to start/stop timing for the day,
    or can start at system startup
  * Can click programs to disable from tracking
  * Can create a list of programs to track for the session
  * Choose time period to show, Day, Week, Month
-
-What it does not do:
- * User identified time wasters vs work (maybe this is ok as a possible feature, esp websites)
- * Sophisticated graphing and reports
+ * Should not be realtime in GUI (timers ticking up etc), just snapshop when opened
+   and when gains focus (maybe not focus could be confusin g)
 
 Roadmap:
  1. Record times and names of in foces desktop programs
@@ -40,58 +39,112 @@ Roadmap:
  5. Other platforms
 
 
+
+TODO:
+ * Create appropriate action of program for all possible opening states
+
+ 1. Nothing open              
+     - no flag			-> start background and then create GUI process
+     - background flag (could be from registry or startup folder)	-> start background
+     - gui flag			-> start GUI
+
+ 2. Background open
+     - no flag			-> start GUI
+     - background flag		-> ???
+       (could be from startup folder, after registry started,
+       or user just passed -background and ran program).
+     - gui flag			-> start GUI
+
+ 3. Background and GUI open
+     - no flag			-> start another GUI
+     - background flag		-> ???
+     (could be from startup folder, after registry started,
+     or user just passed -background flag).
+     - gui flag			-> start another GUI
+
+ 4. GUI open
+     - no flag			-> open another GUI, and background
+     - background flag		-> open background
+     - guiflag			-> open another GUI
+
+
+
+Polishing TODOs:
+ * When serialising data pack data into file, then unpack into memory (to minimise file size)
+
+
+
+
+
+
+
+
 Gotchas:
  * Procrastitracker source says win 8/10 hide real process in a wrapper
    https://github.com/aardappel/procrastitracker/blob/master/src/timercallback.h
      - Can solve this by tracking process status and be notified when closed
  * .exes with the same name, give same record
-   
+ * Closing programs (without switching to new program)
+ * Shutdown and sleep
+ * Messaging other process when it isn't open
+
 Browser integration:
  * Some browsers once supported dde functions (e.g. DdeCreateStringHandleA) allowing to
    get the URL, probably not anymore?
  * Maybe can use Microsoft UI Automation to get URLS from browsers?
    https://stackoverflow.com/questions/20798935/how-can-i-get-the-url-from-running-instance-of-firefox-and-chrome-web-browser-in
-   
 
-Implementation ideas:
+Time management:
+ * Could just use time of day (day starts at 12:00 am) but ignores late night users (would include previous 'day' in current day)
+ * So can try to track when shutdowns occur, or when they go to sleep. Have to consider, people who don't shutdown PC, and if app
+   isn't run for a few days
+ * Can set a date collection daily schedule by checking time then starting collection (assuming program is running)
+     - Doesn't need to use windows scheduler
 
-Best idea - one .exe, up to two instances open, 
- * Two versions backgrond and GUI
- * Background visible in 
- * Have two versions of program in .exe, background (collects elapsed app times) and GUI (charts)
- * When the program is first opened it recognises no others are open, so runs background code
-   and opens a GUI in a different process
- * The background is visible in tray
- * When GUI is closed continues to run background code
- * When program is reopened from icon/exe/shortcut (it detects that an instance is already running
-   in the background, so runs GUI code in this separate program, and communicates with already
-   running background program.
- * When closed closes this second opened program, and background remains running
- * Can close background from GUI (somehow), and also from tray icon
- * Communicate between GUI and background with IPC or something
-
- Can use IPC to signal other app to close (close background from GUI)
- Or some type of shared database thing
+Best idea - one .exe, up to two instances open,
 
 Problems
  1. When starting background on startup or on schedule, we don't want to open GUI,
-    but would have to because opening program invokes GUI
- 2. When closing background from GUI, re-running while GUI still open is another situation to account
- 3. Reopening background with button in GUI, another situation to account for
+    but would have to because opening program invokes GUI.
+ 2. Running program with background running and GUI already open, so have multiple GUIs
+ 3. Starting background from GUI, when background not running
+ 4. Multiple GUIs trying to read at same time, if opened 
+ 5. Have shortcut with -background flag but also have run at startup registry edit)
 
 Possible solutions:
  1. Get user to add shortcut (with command line args), to startup folder.
      - This doesn't need registry access, so is more portable, and controllable.
- 2. Assuming program is running (as with startup program), checks time of day then collects data.
-     - Doesn't need to use windows scheduler etc.
+ 1. Or can have setting to run from startup by editing registry, which will run program with a commmand line
  3. Reopening from GUI with button can pass command line args, to tell program to just run background
 
- Possible startup states
- 1. Nothing open              -> start background and then create GUI process
- 2. Background open           -> Open as GUI
- 3. Background and GUI open   -> go to gui instance (or open new GUI if not possible)
- 4. GUI open		      -> Open another GUI, but also background (but play nice with previously
-                                 open GUI)
+
+Foreground polling:
+ * SetWinEventHook can be slow, have to inject dll into address of processes you want to monitor
+   could test against polling foreground window later.
+ * System wide hooks can be slow, have to inject dll into all processes
+
+Messaging:
+ * Close		(GUI -> background)
+ * Write current data   (GUI -> background)
+ * New settings		(GUI -> background) not sure if has to be message
+ 
+File format:
+ * Notes
+     - Write to text file at same time as writing to binary (for debug purposes)
+     - Endianness?
+
+Settings:
+ * User
+     - Blacklist program names
+
+Database file:
+ * GUI and background can share file access by just opening exclusive handles to file
+ * Have to keep settings in here to persist across sessions
+ * But allow FILE_SHARE_READ between GUI<->GUI or GUI<->background but not shared read write
+ * GUI will only write to settings in header (I think), and background will be alerted to this
+ * Need to read file into memory so all data has correct alignment
+
+
 
 
 
@@ -103,12 +156,18 @@ Other Idea - Single .exe, single user program, single process
 // Tray icon allows you to quit or open GUI etc
 // Can stop program from running in GUI menu too
 // All this is configurable (can disallow running as 'backround' program), so 'x' closes program
-// 
+//
 // Problems
 // 1. Not sure if can run from startup without GUI this way, or start with a kind of scheduler
 // 2. May not make it appear program closed properly, if gui is just hidden
 
 
+Similar apps:
+Acitvity Watch
+https://activitywatch.net/
+
+Procrastitracker
+http://strlen.com/procrastitracker/#download
 
 
 
@@ -124,12 +183,12 @@ Services
 // CreateProcessAsUserA from service
 
 /*
-A service program can start one or more services (specified in SERVICE_TABLE_ENTRY which contains 
+A service program can start one or more services (specified in SERVICE_TABLE_ENTRY which contains
 the name and main function for each service).
-When Service Control Manager recieves request to start a service, it starts the service process 
+When Service Control Manager recieves request to start a service, it starts the service process
 (if not already running). This service process calls StartServiceCtrlDispatcher with pointer to the
-SERVICE_TABLE_ENTRY array. The SCM then sends start request to the Service Control Dispatcher for 
-this service process. The Service Control Dispatcher then creates thread to execute ServiceMain of 
+SERVICE_TABLE_ENTRY array. The SCM then sends start request to the Service Control Dispatcher for
+this service process. The Service Control Dispatcher then creates thread to execute ServiceMain of
 service to be started.
 
 ServiceMain function should register a HandlerEx function to handle control requests. Then call
@@ -138,17 +197,17 @@ SetServiceStatus to send status info to SCM. Then the service should complete in
 The SCM waits until service reports SERVICE_RUNNING status (recommended to report this quickly).
 Only after a service reports to SCM that is has successfully started can it call StartService.
 
-You should not call any system functions during service initialisation. Service code should call 
+You should not call any system functions during service initialisation. Service code should call
 only after report SERVICE_RUNNING.
 
 The ServiceMain function should create a global event, and call RegisterWaitForSingleObject on the
 event, and exit. This will terminate thread running ServiceMain, but will not terminate the service.
-When the service is stopping, the Service Control Handler should call SetServiceStatus with 
-SERVICE_STOP_PENDING and signal this event. A thread will execute the wait callback function, which 
-will preform cleanup tasks, including closing the global event, and call SetServiceStatus with 
-SERVICE_STOPPED. 
+When the service is stopping, the Service Control Handler should call SetServiceStatus with
+SERVICE_STOP_PENDING and signal this event. A thread will execute the wait callback function, which
+will preform cleanup tasks, including closing the global event, and call SetServiceStatus with
+SERVICE_STOPPED.
 
-After the service has stopped you should not execute more service code. 
+After the service has stopped you should not execute more service code.
 
 
 A service requires:
@@ -160,7 +219,7 @@ A service requires:
 #if 0
 
 SERVICE_STATUS        global_service_status;
-SERVICE_STATUS_HANDLE global_status_handle; 
+SERVICE_STATUS_HANDLE global_status_handle;
 HANDLE                global_service_stop_event;
 
 static DWORD global_checkpoint = 1;
@@ -180,7 +239,7 @@ int NOTMAIN(int argc, char *args[])
         { SERVICE_NAME, (LPSERVICE_MAIN_FUNCTION)ServiceMain },
         { nullptr, nullptr }
     };
-        
+
     // Does not return until all running services have entered SERVICE_STOPPED state
     BOOL success = StartServiceCtrlDispatcherA(service_table);
     if (!success) return GetLastError();
@@ -204,7 +263,7 @@ VOID WINAPI ServiceMain(DWORD argc, LPTSTR *args)
 
     // To simplify logic dont accept controls while initialising
     global_service_status = {};
-    global_service_status.dwServiceType             = SERVICE_WIN32_OWN_PROCESS; 
+    global_service_status.dwServiceType             = SERVICE_WIN32_OWN_PROCESS;
     global_service_status.dwCurrentState            = SERVICE_START_PENDING;
     global_service_status.dwControlsAccepted        = 0;
     global_service_status.dwWin32ExitCode           = NO_ERROR;
@@ -307,7 +366,7 @@ VOID WINAPI ServiceCtrlHandler(DWORD control_code)
             global_service_status.dwControlsAccepted = SERVICE_ACCEPT_STOP;
             global_service_status.dwWin32ExitCode = NO_ERROR;
             global_service_status.dwCheckPoint = global_checkpoint++;
-            
+
             SetServiceStatus(global_status_handle, &global_service_status);
 
             // Signal the service to stop
@@ -326,7 +385,7 @@ VOID WINAPI ServiceCtrlHandler(DWORD control_code)
 
         default:
             break;
-    } 
+    }
 
 }
 #endif

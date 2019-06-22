@@ -1,2 +1,5 @@
 
 build/
+.vs/
+debug_monitor_db.txt
+monitor_db.pmd

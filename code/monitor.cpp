@@ -2,10 +2,15 @@
 #include <string.h>
 #include <stdio.h>
 #include <chrono>
+#include <ctime>
 
 #include <windows.h>
 
 #include "ravel.h"
+
+#include "database.h"
+
+static constexpr char MutexName[] = "RVLmonitorprogram147";
 
 // TODO: ExtractIconA()
 
@@ -59,19 +64,7 @@ struct Program
     double seconds;
 };
 
-// TODO: This works?
 HWND global_text_window;
-const char *global_strings[] = {
-    "This is a test\n I can't feel my legs\n",
-    "I want to ride my bicycle!",
-    "Bababa bum.......\n Bum bum bum.......\n zip zing zap\n",
-    "1\n2\n3\n4\n5\n6\n",
-    "To the mooooooon\n Where we can eat cheese and crackers Gromit\n",
-    "Long live the king\n\n\n\n\n\n",
-};
-int global_cur_string = 0;
-int global_num_strings = array_count(global_strings);
-
 
 LRESULT CALLBACK
 WindowProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
@@ -82,14 +75,26 @@ WindowProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
         case WM_SYSKEYDOWN:
         case WM_KEYDOWN:
         {
-            OutputDebugString("Got escape\n");
             if (wParam == VK_ESCAPE)
             {
                 SendMessage(window, WM_CLOSE, 0, 0);
             }
             else if (wParam == VK_RIGHT)
             {
+                static const char *global_strings[] = {
+                    "This is a test\n I can't feel my legs\n",
+                    "I want to ride my bicycle!",
+                    "Bababa bum.......\n Bum bum bum.......\n zip zing zap\n",
+                    "1\n2\n3\n4\n5\n6\n",
+                    "To the mooooooon\n Where we can eat cheese and crackers Gromit\n",
+                    "Long live the king\n\n\n\n\n\n",
+                };
+                static int global_cur_string = 0;
+                static int global_num_strings = array_count(global_strings);
+                
+
                 if (global_cur_string >= global_num_strings) global_cur_string = 0;
+
                 SetWindowTextA(global_text_window, global_strings[global_cur_string]);
                 ++global_cur_string;
             }
@@ -132,7 +137,6 @@ WindowProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
         case WM_ACTIVATEAPP:
             break;
 
-
         case WM_PAINT:
         {
             // Sometimes your program will initiate painting, sometimes will get send WM_PATIN
@@ -151,148 +155,366 @@ WindowProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
     return result;
 }
 
-// Should be randomly named to avoid it being already created by other program
-#define MUTEX_NAME "ThisApp"
+
+
+
+bool run_gui(HINSTANCE instance, int cmd_show)
+{
+    WNDCLASSA window_class = {};
+    window_class.style = CS_HREDRAW|CS_VREDRAW; // Redraw if height or width of win changed
+    window_class.lpfnWndProc = WindowProc;
+    window_class.hInstance = instance;
+    // window_class.hIcon;
+    // window_class.hbrBackground;
+    window_class.lpszClassName = "MonitorWindowClass";
+
+    if(!RegisterClassA(&window_class))
+    {
+        return false;
+    }
+
+    // Sends WM_NCCREATE, WM_NCCALCSIZE, and WM_CREATE to window being created
+    // OVERLAPPEDWINDOW is a OR of multiple flags to give title bar, min/maximise, border etc
+    // TODO: Maybe don't want border
+    HWND window = CreateWindowExA(
+        0,
+        window_class.lpszClassName,
+        "MonitorGUI",
+        WS_OVERLAPPEDWINDOW|WS_VISIBLE,
+        CW_USEDEFAULT,
+        CW_USEDEFAULT,
+        CW_USEDEFAULT,  // Width (maybe don't want default)
+        CW_USEDEFAULT,  // Height
+        0,
+        0,
+        instance,
+        0);
+
+    if(!window)
+    {
+        return false;
+    }
+
+    ShowWindow(window, cmd_show);
+    // UpdateWindow(window);
+
+
+    // So if we want fully real time application, where we make changes regularly
+    // probably want to peek messages before dispatching to windows
+    // Else we want to just wait for message before proceeding with GUI stuff
+    // Get message blocks, peek message (with PM_REMOVE) doesn't block
+
+    // Some windows bypass queue and are sent direclt to WindowProc
+    // Returns 0 on WM_QUIT
+
+    MSG msg = {};
+    BOOL result;
+    while ((result = GetMessage(&msg, window, 0, 0)) != 0)
+    {
+        if (result == -1)
+        {
+            // Error
+            tprint("Error: GetMessage failed");
+            return false;
+        }
+
+        TranslateMessage(&msg); 
+        DispatchMessage(&msg); 
+    }
+
+    // fclose(gui_log);
+    return true;
+}
+
 
 int WINAPI
-WinMain(HINSTANCE Instance,
-        HINSTANCE PrevInstance, 
-        LPTSTR    CmdLine, 
-        int       CmdShow)
+WinMain(HINSTANCE instance,
+        HINSTANCE prev_instance, 
+        LPTSTR    cmd_line, 
+        int       cmd_show)
 {
-    printf("test\n");
-
-    HANDLE mutex = CreateMutexA(nullptr, TRUE, MUTEX_NAME);
-    if (mutex == nullptr)
-    {
-        OutputDebugStringA("Error creating mutex\n");
-        return 1;
-    }
+    // Use FileLock to synchronise read write
+    // Or maybe just use exclusive file open so only one process can get at it at once
+    // Could use mutex to signal when done I suppose
     
+    // TRUE means thread owns the mutex, must have name to be visible to other processes
+    // CreateMutex opens mutex if it exists, and creates it if it doesn't
+    // ReleaseMutex gives up ownership ERROR_ALREADY_EXISTS and returns handle but not ownership
+    // If mutex already exists then LastError gives ERROR_ALREADY_EXISTS
+    // Dont need ownership to close handle
+    // NOTE:
+    // * Each process should create mutex (maybe open mutex instead) once, and hold onto handle
+    //   using WaitForSingleObject to wait for it and ReleaseMutex to release the lock.
+    // * A mutex can be in two states: signaled (when no thread owns the mutex) or unsignaled
+    //   
+
+    AllocConsole();
+
+    FILE* fp;
+    freopen_s(&fp, "CONOUT$", "w", stdout);
+    freopen_s(&fp, "CONIN", "r", stdin);
+
+    HANDLE con_out = GetStdHandle(STD_OUTPUT_HANDLE);
+    DWORD out_mode;
+    GetConsoleMode(con_out, &out_mode); 
+    SetConsoleMode(con_out, out_mode|ENABLE_VIRTUAL_TERMINAL_PROCESSING); 
+
+    HANDLE mutex = CreateMutexA(nullptr, TRUE, MutexName);
     DWORD error = GetLastError();
-    if (error == ERROR_ACCESS_DENIED)
+    if (mutex == nullptr ||
+        error == ERROR_ACCESS_DENIED ||
+        error == ERROR_INVALID_HANDLE)
     {
-        OutputDebugStringA("Error creating mutex: access denied\n");
+        tprint("Error creating mutex\n");
         return 1;
     }
-    else if (error == ERROR_ALREADY_EXISTS)
+
+    bool background_exists = (error == ERROR_ALREADY_EXISTS);
+
+    if (background_exists)
     {
-        // Background exists in separate program, 
-        // This could be child process or standalone program (there isn't really a difference)
-        OutputDebugStringA("Starting GUI\n");
-
-
-        WNDCLASSA window_class = {};
-        window_class.style = CS_HREDRAW|CS_VREDRAW; // Redraw if height or width of win changed
-        window_class.lpfnWndProc = WindowProc;
-        window_class.hInstance = Instance;
-
-        // window_class.hIcon;
-        // window_class.hbrBackground;
-        window_class.lpszClassName = "MonitorWindowClass";
-
-        if(!RegisterClassA(&window_class))
-        {
-            return 1;
-        }
-
-        // Sends WM_NCCREATE, WM_NCCALCSIZE, and WM_CREATE to window being created
-        // OVERLAPPEDWINDOW is a OR of multiple flags to give title bar, min/maximise, border etc
-        // TODO: Maybe don't want border
-        HWND window = CreateWindowExA(
-            0,
-            window_class.lpszClassName,
-            "MonitorGUI",
-            WS_OVERLAPPEDWINDOW|WS_VISIBLE,
-            CW_USEDEFAULT,
-            CW_USEDEFAULT,
-            CW_USEDEFAULT,  // Width (maybe don't want default)
-            CW_USEDEFAULT,  // Height
-            0,
-            0,
-            Instance,
-            0);
-
-        if(!window)
-        {
-            return 1;
-        }
-
-        ShowWindow(window, CmdShow);
-        // UpdateWindow(window);
-
-
-        // So if we want fully real time application, where we make changes regularly
-        // probably want to peek messages before dispatching to windows
-        // Else we want to just wait for message before proceeding with GUI stuff
-        // Get message blocks, peek message (with PM_REMOVE) doesn't block
-
-        // Some windows bypass queue and are sent direclt to WindowProc
-        // Returns 0 on WM_QUIT
-
-
-        MSG msg = {};
-        BOOL result;
-        while ((result = GetMessage(&msg, window, 0, 0)) != 0)
-        {
-            if (result == -1)
-            {
-                // Error
-                OutputDebugStringA("Error: GetMessage failed\n");
-                return 1;
-            }
-
-            TranslateMessage(&msg); 
-            DispatchMessage(&msg); 
-        }
-
-
-        printf("GUI\n");
-        MessageBoxA(nullptr, "This is a GUI", "Title", MB_OKCANCEL); 
-
-        OutputDebugStringA("Closing GUI\n");
+        tprint("GUI");
+        // TODO: If only GUI is open, another run of program will only open another GUI
+        bool success = run_gui(instance, cmd_show);
+        if (!success) return 1;
         CloseHandle(mutex);
     }
     else
     {
-        // Background doesn't exist
-        // Start background, and open a GUI process
-        OutputDebugStringA("Starting background and child GUI\n");
+
+        //
+        //
+        //
+        //
+        //
+        remove(DBFileName);
+        remove(DebugDBFileName);
+
+
+        // NOTE: Need to keep one copy of current file state in memory
+
+        // Check if file exists (can exist but be opened by GUI)
+        WIN32_FIND_DATAA find_file;
+        HANDLE file_handle = FindFirstFileA(DBFileName, &find_file); 
+        if (file_handle != INVALID_HANDLE_VALUE)
+        {
+            // File exists
+            FindClose(file_handle);
+
+            // TODO: Truncate file to 0 on error and create fresh
+            if (find_file.nFileSizeHigh > 0)
+            {
+                // Should never get this big
+                tprint("Error: Database size > 4GB");
+                return 1;
+            }
+
+            if (find_file.nFileSizeLow < sizeof(PMD_Header))
+            {
+                tprint("Error: Corrupted database");
+                return 1;
+            }
+
+            // Reads with FILE_SHARE_READ, and opens existing
+            Read_Entire_File_Result database_file = read_entire_file_and_null_terminate(DBFileName);
+            if (!database_file.data)
+            {
+                tprint("Error: Could not read database");
+                return 1;
+            }
+
+            PMD_Header *header = (PMD_Header *)database_file.data;
+            if (header->version > MaxSupportedVersion ||
+                header->records_offset >= database_file.size ||
+                (header->num_records == 0 && header->records_offset != database_file.size))
+            {
+                tprint("Error: Corrupted database");
+                return 1;
+            }
+
+            free(database_file.data);
+        }
+        else
+        {
+            // File doesn't exist
+
+            // Should be nothing else trying to access file
+
+            HANDLE database_file = CreateFileA(DBFileName,
+                                               GENERIC_WRITE,
+                                               0, nullptr, // Exclusive access
+                                               CREATE_NEW,
+                                               0, nullptr); 
+            if (database_file != INVALID_HANDLE_VALUE)
+            {
+                PMD_Header header = {};
+                header.version                     = DefaultVersion;
+                header.day_start_time              = DefaultDayStart;
+                header.poll_start_time             = DefaultPollStart;
+                header.poll_end_time               = DefaultPollEnd;
+                header.poll_frequency_milliseconds = DefaultPollFrequencyMilliseconds;
+                header.run_at_system_startup       = DefaultRunAtSystemStartup;
+                header.num_programs                = 0;
+                header.max_programs                = InitialProgramListMax;
+                header.string_block_used           = 0;
+                header.string_block_capacity       = InitialStringBlockCapacity;
+                header.num_records                 = 0;
+                header.records_offset              = InitialRecordOffset;
+
+
+                // Write header and zeroed out program index and string block
+                u8 *file_data = (u8 *)calloc(1, InitialRecordOffset);
+                if (!file_data)
+                {
+                    tprint("Error: Could not allocate memory");
+                    return 1;
+                }
+
+                *((PMD_Header *)file_data) = header;
+
+                DWORD bytes_written;
+                BOOL success = WriteFile(database_file, file_data,
+                                         InitialRecordOffset, &bytes_written,
+                                         nullptr);
+                if (!success || bytes_written != InitialRecordOffset)
+                {
+                    tprint("Error: Could not write to database");
+                    return 1;
+                }
+
+                // If background is opened on any one day, even if it itsn't poll start time 
+                // it still creates an Day record (possibly with no programs)
+
+
+                // TODO: change num days ++
+
+                PMD_Day today = {};
+                time_t result = time(NULL);
+                tprint("TIME: %", result);
+
+
+                CloseHandle(database_file);
+
+
+
+
+
+
+                // Write debug file
+                // TODO: How to sync writes to debug file between two processes
+                //       (when GUI updates settings)
+                FILE *debug_database_file = fopen(DebugDBFileName, "w");
+                if (!debug_database_file)
+                {
+                    tprint("Error: could not open debug database file");
+                    return 1;
+                }
+
+                auto now = std::chrono::system_clock::now();
+                std::time_t datetime = std::chrono::system_clock::to_time_t(now);
+                char *datetime_str = std::ctime(&datetime); // overwritten by other calls
+                size_t len = strlen(datetime_str);
+
+                fwrite(datetime_str, 1, len, debug_database_file);
+
+                char buf[2048];
+                rvl_snprintf(buf, 2048,
+                         "\n"
+                         "PMD_HEADER \n"
+                         "version: % \n"
+                         "day start time: % \n"
+                         "poll start time: % \n"
+                         "poll end time: % \n"
+                         "run at system startup: % (0 or 1) \n"
+                         "poll frequency milliseconds: % \n"
+                         "num programs: % \n"
+                         "max programs: % \n"
+                         "string block used: % \n"
+                         "string block capacity: % \n"
+                         "records offst: % \n"
+                         "num records: % \n"
+                         "\n"
+                         "PROGRAM LIST \n"
+                             "\n"
+                             "STRING BLOCK \n"
+                             "\n"
+                             "RECORDS \n"
+                             ""
+                             ,
+                         header.version,
+                         header.day_start_time,
+                         header.poll_start_time,
+                         header.poll_end_time,
+                         header.run_at_system_startup,
+                         header.poll_frequency_milliseconds,
+                         header.num_programs,
+                         header.max_programs,
+                         header.string_block_used,
+                         header.string_block_capacity,
+                         header.records_offset,
+                         header.num_records);
+
+                len = strlen(buf);
+                fwrite(buf, 1, len, debug_database_file);
+                fclose(debug_database_file);
+
+                tprint(buf);
+
+                // Create current day
+
+
+
+
+
+
+
+
+
+                free(file_data);
+            }
+        }
+            
+        // FlushFileBuffers()?
+        // SetEndOfFile()
+        // SetFilePointer();    // overwrite not insert
+        // WriteFile();
+
+
+
+
+
+
 
         STARTUPINFO startup_info = {};
-        PROCESS_INFORMATION process_info = {};
-
         startup_info.cb = sizeof(STARTUPINFO);
+        PROCESS_INFORMATION process_info = {};
 
         char filepath[2048];
         DWORD len = GetModuleFileNameA(nullptr, filepath, array_count(filepath));
         if (len == 0 || GetLastError() == ERROR_INSUFFICIENT_BUFFER)
         {
-            OutputDebugStringA("Could not get executable path");
+            tprint("Error: Could not get executable path");
             return 1;
         }
 
         // Need to get exe path, because could be run from anywhere
-        BOOL success = CreateProcessA(
-            filepath,
-            nullptr,
-            nullptr,
-            nullptr,
-            FALSE,
-            0,
-            nullptr,
-            nullptr,
-            &startup_info,
-            &process_info);
+        BOOL success =
+            CreateProcessA(filepath,
+                           nullptr,
+                           nullptr,
+                           nullptr,
+                           FALSE,
+                           0,
+                           nullptr,
+                           nullptr,
+                           &startup_info,
+                           &process_info);
         if (!success)
         {
-            OutputDebugStringA("Could not create child GUI\n");
+            tprint("Error: Could not create child GUI");
             return 1;
         }
 
-        printf("test 2\n");
-
-        WaitForSingleObject(process_info.hProcess, INFINITE);
 
         // have to specify these?
 
@@ -302,78 +524,28 @@ WinMain(HINSTANCE Instance,
 
         // Preferred way of closing process is ExitProcess()
 
+        
 
 
-        CloseHandle(process_info.hProcess);
-        CloseHandle(process_info.hThread);
+        DWORD sleep_milliseconds = 1000;
 
+        Program programs[1000];
+        i32 num_programs = 0;
 
-        OutputDebugStringA("Closing background\n");
-
-        // Can open new background instance when this is closed
-        // Must be valid
-        rvl_assert(mutex);
-        CloseHandle(mutex);
-    }
-
-    return 0;
-}
-
-void
-tray_icon()
-{
-    // https://bobobobo.wordpress.com/2009/03/30/adding-an-icon-system-tray-win32-c/
-    
-    // Makes window and taskbar icon disappear (while still running)
-    // ShowWindow(window, SW_HIDE);
-
-    // Make a Message-Only Windows (not visible, and can send and recieve messages)
-    // Or could also do window without WS_VISIBLE
-
-    // WM_QUERYENDSESSION and WM_ENDSESSION for system shutdown
-
-    // add the icon to the system tray
-    // NOTIFYICONDATAA 
-    // Shell_NotifyIcon(NIM_ADD, &g_notifyIconData);
-    // Shell_NotifyIcon(NIM_DELETE, &g_notifyIconData); // on app close
-
-    // WM_TASKBARCREATED if explorer.exe (and taskbar) crashes
-
-    // LoadIcon 
-
-    // can respond to use defined TRAY_ICON message which is defined in NOTIFYICONDATA
-    // allowing to detect clicks etc
-
-    // Can also just hide window and create tray icon on close (therefore only using one process total)
-
-
-}
-
-
-
-void get_info()
-{
-    // TODO: Handle program closing, into an untracked program (or into desktop or other non program)
-
-    // NOTE: Possible option
-    // SetWinEventHook() with EVENT_SYSTEM_FOREGROUND to get notified on foreground window change 
-    Program programs[1000];
-    i32 num_programs = 0;
-
-    HANDLE con_in = GetStdHandle(STD_INPUT_HANDLE); 
-    auto start = std::chrono::high_resolution_clock::now();
-
-    bool running = true;
-    while (running)
-    {
-        if (esc_key_pressed(con_in))
+        auto start = std::chrono::high_resolution_clock::now();
+        int runs = 1000;
+        
+        bool running = true;
+        while (running)
         {
-            running = false;
-        }
+            HWND foreground_win = GetForegroundWindow();
+            if (!foreground_win)
+            {
+                // tprint("Losing activation\n");
+                Sleep(sleep_milliseconds);
+                continue;
+            }
 
-        HWND foreground_win = GetForegroundWindow();
-        if (foreground_win)
-        {
             char window_text[2048];
             int window_text_len = GetWindowTextA(foreground_win, window_text,
                                                  array_count(window_text));
@@ -425,7 +597,6 @@ void get_info()
             // Remove '.exe' from end
             filename[len - 4] = '\0';
 
-
             // Can make faster be recording each programs process_id and check those first
             // then check filenames (however proc id can be reused quickly?)
             bool filename_recorded = false;
@@ -454,33 +625,77 @@ void get_info()
             }
 
 
-            // printf("QPC: %f\n", QPC);
-            // tprint("Chrono: %", Chrono);
-
-
             if (window_text_len == 0) strcpy(window_text, "no window text");
 
-            printf("Process ID: %u\n", process_id);
-            printf("Filename: %s\n", filename);
-            printf("Elapsed time: %lf\n", programs[prog_i].seconds);
-            printf("Window text: %s\n", window_text);
-            printf("\n");
-
+            // tprint("Process ID: %", process_id);
+            // tprint("Filename: %", filename);
+            // tprint("Elapsed time: %", programs[prog_i].seconds);
+            // tprint("Window text: %", window_text);
+            // tprint("\n");
+            
+            Sleep(sleep_milliseconds);
+            ++runs;
+            if (runs >= 3) break;
         }
-        else
+
+        tprint("REPORT");
+        for (i32 i = 0; i < num_programs; ++i)
         {
-            printf("Losing activation\n");
+            tprint("Filename: %", programs[i].name);
+            tprint("Elapsed time: %", programs[i].seconds);
+            tprint("\n");
         }
-    }   // END LOOP
 
 
-    printf("REPORT\n");
-    for (i32 i = 0; i < num_programs; ++i)
-    {
-        printf("Filename: %s\n", programs[i].name);
-        printf("Elapsed time: %lf\n", programs[i].seconds);
-        printf("\n");
+        // Cleanup
+        CloseHandle(process_info.hProcess);
+        CloseHandle(process_info.hThread);
+
+        Sleep(5000);
+
+        // Can open new background instance when this is closed
+        // Must be valid
+        CloseHandle(mutex);
     }
 
-    CloseHandle(con_in);
+        FreeConsole();
+        return 0;
+    }
+
+void
+tray_icon()
+{
+    // https://bobobobo.wordpress.com/2009/03/30/adding-an-icon-system-tray-win32-c/
+    
+    // Makes window and taskbar icon disappear (while still running)
+    // ShowWindow(window, SW_HIDE);
+
+    // Make a Message-Only Windows (not visible, and can send and recieve messages)
+    // Or could also do window without WS_VISIBLE
+
+    // WM_QUERYENDSESSION and WM_ENDSESSION for system shutdown
+
+    // add the icon to the system tray
+    // NOTIFYICONDATAA 
+    // Shell_NotifyIcon(NIM_ADD, &g_notifyIconData);
+    // Shell_NotifyIcon(NIM_DELETE, &g_notifyIconData); // on app close
+
+    // WM_TASKBARCREATED if explorer.exe (and taskbar) crashes
+
+    // LoadIcon 
+
+    // can respond to use defined TRAY_ICON message which is defined in NOTIFYICONDATA
+    // allowing to detect clicks etc
+
+    // Can also just hide window and create tray icon on close (therefore only using one process total)
+
+
+}
+
+
+
+void get_info()
+{
+    // TODO: Handle program closing, into an untracked program (or into desktop or other non program)
+
 }

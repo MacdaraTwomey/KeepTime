@@ -144,8 +144,8 @@ struct gbprivDefer
 };
 template <typename F> gbprivDefer<F> gb__defer_func(F &&f) { return gbprivDefer<F>(gb_forward<F>(f)); }
 
-#define CONCATENATE_1(x, y) x##y
-#define CONCATENATE_2(x, y) CONCATENATE_1(x, y)
+#define CONCATENATE_1(x, y) x##y // Can concat literal characters xy if x and y are macro definitions
+#define CONCATENATE_2(x, y) CONCATENATE_1(x, y) // So macro expand x and y first
 
 #ifndef __COUNTER__
     #define ANON_VARIABLE(x)    CONCATENATE_2(x, __COUNTER__)
@@ -268,17 +268,18 @@ read_entire_file_and_null_terminate(const char *filename)
   (warning: disgusting c++ template code)
 
 Usage:
-- Integers, floats, strings, bools, pointers allowed
+- NOTE: Debug code only (because of size restrictions, and possible bugs)
+- Integers, floats, strings, bools (in single argument tprint), pointers allowed
 
 tprint(variable);
 tprint("% variable slot", x);
 tprint_col(Red, "Hello %", name);
 
 - Doesn't handle other format specifiers such as width, precision etc
-- Could be improved with if constexpr, but requires /std:c++17 compiler switch
 
 Future nicehaves TODO:
 - Allow other format specifiers (maybe above todo would allow this also)
+- tprint() just prints newline
 
 // Example code to test
 
@@ -359,6 +360,7 @@ DEFINE_GET_SPECIFIER(char *             , "%s")
 
 DEFINE_GET_SPECIFIER(bool               , "%i")
 
+// Handles pointers other than [const] char *
 template<typename T>
 const char *_get_specifier(T *x) { return "%p"; }
 
@@ -379,18 +381,19 @@ struct rvl_true_type  { static constexpr bool value = true; };
 template<typename T, typename U> struct same_type : rvl_false_type {};
 template<typename T> struct same_type<T,T> : rvl_true_type {}; //specialization
 
-template< class T >
-struct remove_cv {
-    typedef typename std::remove_volatile<typename std::remove_const<T>::type>::type type;
-};
 template< class T > struct remove_const          { typedef T type; };
 template< class T > struct remove_const<const T> { typedef T type; };
 template< class T > struct remove_volatile             { typedef T type; };
 template< class T > struct remove_volatile<volatile T> { typedef T type; };
 
+template< class T >
+struct remove_cv {
+    typedef typename remove_volatile<typename remove_const<T>::type>::type type;
+};
+
 template< class T > struct is_pointer_helper     : rvl_false_type {};
 template< class T > struct is_pointer_helper<T*> : rvl_true_type {};
-template< class T > struct is_pointer : is_pointer_helper<typename std::remove_cv<T>::type> {};
+template< class T > struct is_pointer : is_pointer_helper<typename remove_cv<T>::type> {};
 
 #define RVL_VALID_TYPE(T) (same_type<T, const char *>::value   || same_type<T, char *>::value || \
             same_type<T, char>::value           || same_type<T, signed char>::value || \
@@ -433,12 +436,14 @@ void tprint(const char *str, Targs... args)
 #if 1
     // This versions is hopefully faster
 
+    // NOTE: Doesn't handle booleans
+    // Max string size must be <= 4000
+    
     // Have to add 1 for some reason I dont understand
     char *specifiers[1+sizeof...(args)] = { get_spec(args)... };
 
-    // Doesn't handle booleans
     // May not gracefully handle arument number and '%' number mismatch
-    if (strlen(str) > 4000) return;    // Need extra room for specifiers
+    if (strlen(str) > 3900) return;    // Need extra room for specifiers
 
     char buf[4096];
     char *at = buf;
@@ -543,5 +548,54 @@ void tprint_col(RVL_Colour colour, const char *str)
     tprint(str);
     printf("\033[37m");
 }
+
+
+template<typename... Targs>
+void rvl_snprintf(char *buf, size_t n, const char *str, Targs... args)
+{
+    char *specifiers[1+sizeof...(args)] = { get_spec(args)... };
+
+    // Doesn't handle booleans
+    // May not gracefully handle arument number and '%' number mismatch
+
+    if (n >= 3900) return;
+
+    char format_str[4094];
+    char *at = format_str;
+    i32 i = 0;
+    for (; str[0]; ++str)
+    {
+        if (str[0] == '%')
+        {
+            if (i < sizeof...(args))
+            {
+                while (*specifiers[i])
+                {
+                    *at++ = *specifiers[i]++;
+                }
+
+                ++i;
+            }
+            else
+            {
+                // Include extra so it doesn't get read as a specifiers for non-existant variable
+                *at++ = '%';
+                *at++ = '%';
+            }
+        }
+        else
+        {
+            *at++ = *str;
+        }
+    }
+
+    *at = '\0';
+    snprintf(buf, n, format_str, args...);
+}
+
+
+
+
+
 
 // ------------------------------------------------------------------------------------------
