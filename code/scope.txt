@@ -71,6 +71,7 @@ TODO:
 
 Polishing TODOs:
  * When serialising data pack data into file, then unpack into memory (to minimise file size)
+ * Test cases with > 1000 programs, (or lower initial program number from 1000 to test)
 
 
 
@@ -122,6 +123,12 @@ Foreground polling:
  * SetWinEventHook can be slow, have to inject dll into address of processes you want to monitor
    could test against polling foreground window later.
  * System wide hooks can be slow, have to inject dll into all processes
+
+Time of day:
+ * I think local time is fine, as it only runs on one machine and doesn't
+   communicate with other machines.
+ * Don't handle changing local time yet (daylight davings or move to new timezone)
+ * tm_dst can tell if daylight savings
 
 Messaging:
  * Close		(GUI -> background)

@@ -157,15 +157,15 @@ template <typename F> gbprivDefer<F> gb__defer_func(F &&f) { return gbprivDefer<
 
 // -------------------------------------------------------------------------------------------------
 
-struct Read_Entire_File_Result
+struct File_Data
 {
     // Should this contain size?
     // Should size include null terminator?
-    char *data;
+    u8 *data;
     u64 size;
 };
 
-Read_Entire_File_Result
+File_Data
 read_entire_file_and_null_terminate(const char *filename)
 {
     // Returns null terminated char array of data, with size of file (not including null terminator)
@@ -183,7 +183,7 @@ read_entire_file_and_null_terminate(const char *filename)
     // Use ReadFile (windows) and read (posix) to read in 32bit
     // and make multiple read calls in 64 bit mode, to read >2Gb files and such
 
-    Read_Entire_File_Result result = {};
+    File_Data result = {};
 
 #if defined(_WIN32)
     HANDLE file_handle = CreateFileA(filename, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
@@ -196,7 +196,7 @@ read_entire_file_and_null_terminate(const char *filename)
             if (size.QuadPart <= UINT32_MAX)
             {
                 u32 size32 = (u32)size.QuadPart;
-                result.data = (char *)malloc(size32 + 1);
+                result.data = (u8 *)malloc(size32 + 1);
                 if (result.data)
                 {
                     DWORD bytes_read;
@@ -255,6 +255,55 @@ read_entire_file_and_null_terminate(const char *filename)
     }
 
 #endif
+
+    free(result.data);
+    result.data = nullptr;
+    result.size = 0;
+
+    return result;
+}
+
+File_Data
+read_entire_file(const char *filename)
+{
+    // TODO: Can't destinguish 0 size file from read error
+    // Returns char array of data, with size of file
+    // If file is empty, result contains null pointer and size 0
+
+#if !defined(_WIN32)
+#error read_entire_file not implementedon linux
+#endif
+
+    File_Data result = {};
+
+    HANDLE file_handle = CreateFileA(filename, GENERIC_READ, FILE_SHARE_READ,
+                                     0, OPEN_EXISTING, 0, 0);
+    if (file_handle != INVALID_HANDLE_VALUE)
+    {
+        LARGE_INTEGER size;
+        if (GetFileSizeEx(file_handle, &size))
+        {
+            // Can't read more than a 4GB file
+            if (size.QuadPart <= UINT32_MAX && size.QuadPart > 0)
+            {
+                u32 size32 = (u32)size.QuadPart;
+                result.data = (u8 *)malloc(size32);
+                if (result.data)
+                {
+                    DWORD bytes_read;
+                    if (ReadFile(file_handle, result.data, size32, &bytes_read, 0) &&
+                        size32 == bytes_read)
+                    {
+                        CloseHandle(file_handle);
+                        result.size = size32;
+                        return result;
+                    }
+                }
+            }
+        }
+
+        CloseHandle(file_handle);
+    }
 
     free(result.data);
     result.data = nullptr;
