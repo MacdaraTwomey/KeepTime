@@ -142,7 +142,7 @@ struct gbprivDefer
     gbprivDefer(F &&f) : f(gb_forward<F>(f)) {}
     ~gbprivDefer() { f(); }
 };
-template <typename F> gbprivDefer<F> gb__defer_func(F &&f) { return gbprivDefer<F>(gb_forward<F>(f)); }
+template <typename F> gbprivDefer<F> gb_defer_func(F &&f) { return gbprivDefer<F>(gb_forward<F>(f)); }
 
 #define CONCATENATE_1(x, y) x##y // Can concat literal characters xy if x and y are macro definitions
 #define CONCATENATE_2(x, y) CONCATENATE_1(x, y) // So macro expand x and y first
@@ -153,8 +153,14 @@ template <typename F> gbprivDefer<F> gb__defer_func(F &&f) { return gbprivDefer<
     #define ANON_VARIABLE(x)    CONCATENATE_2(x, __LINE__)
 #endif
 
-#define defer(code) auto ANON_VARIABLE(_defer_) = gb__defer_func([&]()->void{code;})
+// NOTE: 
+// defer calls are executed in reverse order (later in scope called first)
+// If deferred function takes arguments, the arguments values can change before being called at
+// scope exit.
 
+#define defer(code) auto ANON_VARIABLE(_defer_) = gb_defer_func([&]()->void{code;})
+// expanded to:
+// auto _defer_347 = gb__defer_func([&]() -> void { tprint("SCOPE EXIT"); });
 // -------------------------------------------------------------------------------------------------
 
 struct File_Data
@@ -329,6 +335,8 @@ tprint_col(Red, "Hello %", name);
 Future nicehaves TODO:
 - Allow other format specifiers (maybe above todo would allow this also)
 - tprint() just prints newline
+- Print (null) explicitly if null pointer passed (GCC and MSVC do this I think but it's 
+  implementation defined).
 
 // Example code to test
 

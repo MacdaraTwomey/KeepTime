@@ -69,6 +69,7 @@ TODO:
 
 
 
+
 Polishing TODOs:
  * When serialising data pack data into file, then unpack into memory (to minimise file size)
  * Test cases with > 1000 programs, (or lower initial program number from 1000 to test)
@@ -123,7 +124,7 @@ Foreground polling:
  * SetWinEventHook can be slow, have to inject dll into address of processes you want to monitor
    could test against polling foreground window later.
  * System wide hooks can be slow, have to inject dll into all processes
-
+	
 Time of day:
  * I think local time is fine, as it only runs on one machine and doesn't
    communicate with other machines.
@@ -133,7 +134,7 @@ Time of day:
 Messaging:
  * Close		(GUI -> background)
  * Write current data   (GUI -> background)
- * New settings		(GUI -> background) not sure if has to be message
+ * Read new settings	(GUI -> background)
  
 File format:
  * Notes
@@ -150,6 +151,9 @@ Database file:
  * But allow FILE_SHARE_READ between GUI<->GUI or GUI<->background but not shared read write
  * GUI will only write to settings in header (I think), and background will be alerted to this
  * Need to read file into memory so all data has correct alignment
+
+UI:
+ * Could make horizontal graphs, with layout similar like win10 task manager processes screen
 
 
 
@@ -175,224 +179,3 @@ https://activitywatch.net/
 
 Procrastitracker
 http://strlen.com/procrastitracker/#download
-
-
-
-
-
-
-
-
-Services
-// Can't catch window events in service, as service is in different window station (desktop) than user
-// Maybe create a process with no windows in user space and use IPC to communicate with service
-// (but then why even have a service?)
-// CreateProcessAsUserA from service
-
-/*
-A service program can start one or more services (specified in SERVICE_TABLE_ENTRY which contains
-the name and main function for each service).
-When Service Control Manager recieves request to start a service, it starts the service process
-(if not already running). This service process calls StartServiceCtrlDispatcher with pointer to the
-SERVICE_TABLE_ENTRY array. The SCM then sends start request to the Service Control Dispatcher for
-this service process. The Service Control Dispatcher then creates thread to execute ServiceMain of
-service to be started.
-
-ServiceMain function should register a HandlerEx function to handle control requests. Then call
-SetServiceStatus to send status info to SCM. Then the service should complete initialisation.
-
-The SCM waits until service reports SERVICE_RUNNING status (recommended to report this quickly).
-Only after a service reports to SCM that is has successfully started can it call StartService.
-
-You should not call any system functions during service initialisation. Service code should call
-only after report SERVICE_RUNNING.
-
-The ServiceMain function should create a global event, and call RegisterWaitForSingleObject on the
-event, and exit. This will terminate thread running ServiceMain, but will not terminate the service.
-When the service is stopping, the Service Control Handler should call SetServiceStatus with
-SERVICE_STOP_PENDING and signal this event. A thread will execute the wait callback function, which
-will preform cleanup tasks, including closing the global event, and call SetServiceStatus with
-SERVICE_STOPPED.
-
-After the service has stopped you should not execute more service code.
-
-
-A service requires:
-    A main entry point
-    A service entry point
-    A service control handler
-*/
-
-#if 0
-
-SERVICE_STATUS        global_service_status;
-SERVICE_STATUS_HANDLE global_status_handle;
-HANDLE                global_service_stop_event;
-
-static DWORD global_checkpoint = 1;
-
-VOID WINAPI ServiceMain(DWORD argc, LPTSTR *args);
-VOID WINAPI ServiceCtrlHandler(DWORD control_code);
-DWORD WINAPI ServiceWorkerThread(LPVOID lpParam);
-
-#define SERVICE_NAME  "MyServiceName"
-
-
-// May have to be _tMain or something
-int NOTMAIN(int argc, char *args[])
-{
-    // Specifies the ServiceMain function that can run in the calling process
-    SERVICE_TABLE_ENTRY service_table[] = {
-        { SERVICE_NAME, (LPSERVICE_MAIN_FUNCTION)ServiceMain },
-        { nullptr, nullptr }
-    };
-
-    // Does not return until all running services have entered SERVICE_STOPPED state
-    BOOL success = StartServiceCtrlDispatcherA(service_table);
-    if (!success) return GetLastError();
-
-    return 0;
-}
-
-VOID WINAPI ServiceMain(DWORD argc, LPTSTR *args)
-{
-    // Entry point for service
-    DWORD status = E_FAIL;
-
-    global_status_handle = RegisterServiceCtrlHandler(SERVICE_NAME, ServiceCtrlHandler);
-    if (!global_status_handle)
-    {
-        return;
-    }
-
-    // Perform initialisation here
-    // (if expected to be short <1s no problems, if longer use other techniques specified in win docs)
-
-    // To simplify logic dont accept controls while initialising
-    global_service_status = {};
-    global_service_status.dwServiceType             = SERVICE_WIN32_OWN_PROCESS;
-    global_service_status.dwCurrentState            = SERVICE_START_PENDING;
-    global_service_status.dwControlsAccepted        = 0;
-    global_service_status.dwWin32ExitCode           = NO_ERROR;
-    global_service_status.dwServiceSpecificExitCode = 0;
-    global_service_status.dwCheckPoint              = global_checkpoint++;
-    global_service_status.dwWaitHint                = 3000;
-
-    // Notify SCM of SERVICE_START_PENDING
-    SetServiceStatus(global_status_handle, &global_service_status);
-
-    // Create event to wait on later
-    global_service_stop_event = CreateEvent(
-        NULL,    // default security attributes
-        TRUE,    // manual reset event
-        FALSE,   // not signaled
-        NULL);   // no name
-
-    if (global_service_stop_event == nullptr)
-    {
-        global_service_status.dwCurrentState = SERVICE_STOPPED;
-        global_service_status.dwWaitHint = 0;
-        global_service_status.dwControlsAccepted = SERVICE_ACCEPT_STOP;
-        global_service_status.dwWin32ExitCode = GetLastError();
-        global_service_status.dwCheckPoint = 0;
-
-        SetServiceStatus(global_status_handle, &global_service_status);
-        return;
-    }
-
-    // Can specifiy other control requests to accept here
-    global_service_status.dwCurrentState = SERVICE_RUNNING;
-    global_service_status.dwWaitHint = 0;
-    global_service_status.dwControlsAccepted = SERVICE_ACCEPT_STOP;
-    global_service_status.dwWin32ExitCode = NO_ERROR;
-    global_service_status.dwCheckPoint = 0;
-
-    // Tell SCM we are running
-    SetServiceStatus(global_status_handle, &global_service_status);
-
-    //
-    // Can run normal code from here on
-    //
-
-    FILE *file = fopen("c:\\dev\\projects\\monitor\\build\\log_service.txt", "w");
-    fprintf(file, "Successfully started service\n");
-
-#if 1
-    // Wait for stop event to be signalled
-    while (WaitForSingleObject(global_service_stop_event, 0) != WAIT_OBJECT_0)
-    {
-        // Do stuff
-
-        Sleep(300);
-    }
-
-    CloseHandle(global_service_stop_event);
-    global_service_status.dwCurrentState = SERVICE_STOPPED;
-    global_service_status.dwWaitHint = 0;
-    global_service_status.dwControlsAccepted = SERVICE_ACCEPT_STOP;
-    global_service_status.dwWin32ExitCode = NO_ERROR;
-    global_service_status.dwCheckPoint = 0;
-
-    SetServiceStatus(global_status_handle, &global_service_status);
-
-
-    fprintf(file, "Stopping service\n");
-
-    return;
-
-#else
-    for (;;)
-    {
-        // Check whether to stop the service
-        WaitForSingleObject(global_service_stop_event, INFINITE);
-
-        global_service_status.dwCurrentState = SERVICE_STOPPED;
-        global_service_status.dwWaitHint = 0;
-        global_service_status.dwControlsAccepted = SERVICE_ACCEPT_STOP;
-        global_service_status.dwWin32ExitCode = NO_ERROR;
-        global_service_status.dwCheckPoint = 0;
-
-        SetServiceStatus(global_status_handle, &global_service_status);
-
-        return;
-    }
-#endif
-
-}
-
-VOID WINAPI ServiceCtrlHandler(DWORD control_code)
-{
-    // Handles control requests from the SCM
-    // TODO: Can implement other requests such as SERVICE_CONTROL_SHUTDOWN
-    switch (control_code)
-    {
-        case SERVICE_CONTROL_STOP:
-        {
-            global_service_status.dwCurrentState = SERVICE_STOP_PENDING;
-            global_service_status.dwWaitHint = 0;
-            global_service_status.dwControlsAccepted = SERVICE_ACCEPT_STOP;
-            global_service_status.dwWin32ExitCode = NO_ERROR;
-            global_service_status.dwCheckPoint = global_checkpoint++;
-
-            SetServiceStatus(global_status_handle, &global_service_status);
-
-            // Signal the service to stop
-            SetEvent(global_service_stop_event);
-
-            // Necessary?
-            global_service_status.dwCheckPoint = global_checkpoint++;
-            SetServiceStatus(global_status_handle, &global_service_status);
-
-            return;
-
-        } break;
-
-        case SERVICE_CONTROL_INTERROGATE:
-            break;
-
-        default:
-            break;
-    }
-
-}
-#endif
