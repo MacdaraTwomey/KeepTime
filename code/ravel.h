@@ -5,6 +5,8 @@
 
 // Windows will always load kernel32.dll
 
+// Undef stuff??
+
 #include <stdint.h>
 #include <limits.h>
 #include <stdio.h>
@@ -14,6 +16,11 @@ typedef int8_t   i8;
 typedef int16_t  i16;
 typedef int32_t  i32;
 typedef int64_t  i64;
+
+typedef  i8  s8;
+typedef  i16 s16;
+typedef  i32 s32;
+typedef  i64 s64;
 
 typedef uint8_t  u8;
 typedef uint16_t u16;
@@ -33,30 +40,30 @@ static_assert(sizeof(u32) == 4, "");
 static_assert(sizeof(u64) == 8, "");
 
 #if defined(_WIN64) || defined(__x86_64__) || defined(__64BIT__) || defined(_M_X64)
-    #ifndef RVL_ARCH_64
-    #define RVL_ARCH_64 1
-    #endif
+#ifndef RVL_ARCH_64
+#define RVL_ARCH_64 1
+#endif
 #else
-    #error ravel.h only supports 64-bit systems currently
-    // #ifndef RVL_ARCH_32
-    // #ndifdefine RVL_ARCH_32 1
-    // #endif
+#error ravel.h only supports 64-bit systems currently
+// #ifndef RVL_ARCH_32
+// #ndifdefine RVL_ARCH_32 1
+// #endif
 #endif
 
 #if defined(_WIN32)
-    // Or use lean and mean, because windows defines lots of macros unconditionally
-    // #define NOMINMAX
-    #include <windows.h>
+// Or use lean and mean, because windows defines lots of macros unconditionally
+// #define NOMINMAX
+#include <windows.h>
 #elif defined (__linux__)
-    #include <stdio.h>
-    #include <unistd.h>
+#include <stdio.h>
+#include <unistd.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 
 #else
-    #error ravel.h only supports Windows and Linux
+#error ravel.h only supports Windows and Linux
 #endif
 
 // IMPORTANT:
@@ -69,12 +76,12 @@ static_assert(sizeof(u64) == 8, "");
 // Useful article: http://cnicholson.net/2009/02/stupid-c-tricks-adventures-in-assert/
 
 #if defined(_MSC_VER)
-    #include <intrin.h>
-    #define RVL_DEBUG_TRAP() __debugbreak()
+#include <intrin.h>
+#define RVL_DEBUG_TRAP() __debugbreak()
 #elif defined(__GNUC__)
-    #define RVL_DEBUG_TRAP() __builtin_trap()
+#define RVL_DEBUG_TRAP() __builtin_trap()
 #else
-    #define RVL_DEBUG_TRAP() (*(int *)0 = 0;)
+#define RVL_DEBUG_TRAP() (*(int *)0 = 0;)
 #endif
 
 const char *
@@ -88,7 +95,7 @@ strip_path(const char *filepath)
             char_after_last_slash = c + 1;
         }
     }
-
+    
     return char_after_last_slash;
 }
 
@@ -148,9 +155,9 @@ template <typename F> gbprivDefer<F> gb_defer_func(F &&f) { return gbprivDefer<F
 #define CONCATENATE_2(x, y) CONCATENATE_1(x, y) // So macro expand x and y first
 
 #ifndef __COUNTER__
-    #define ANON_VARIABLE(x)    CONCATENATE_2(x, __COUNTER__)
+#define ANON_VARIABLE(x)    CONCATENATE_2(x, __COUNTER__)
 #else
-    #define ANON_VARIABLE(x)    CONCATENATE_2(x, __LINE__)
+#define ANON_VARIABLE(x)    CONCATENATE_2(x, __LINE__)
 #endif
 
 // NOTE: 
@@ -176,21 +183,21 @@ read_entire_file_and_null_terminate(const char *filename)
 {
     // Returns null terminated char array of data, with size of file (not including null terminator)
     // If file is empty, result contains an array with a null character and size 0
-
+    
     // NOTE:
     // In text mode fread translates Windows \r\n to unix/C stlye \n,
     // so doesn't fill allocated memory.
     // On POSIX systems there is no difference between binary and text mode
-
+    
     // TODO:
     // Filename encoding for windows? Path length?
-
+    
     // TODO:
     // Use ReadFile (windows) and read (posix) to read in 32bit
     // and make multiple read calls in 64 bit mode, to read >2Gb files and such
-
+    
     File_Data result = {};
-
+    
 #if defined(_WIN32)
     HANDLE file_handle = CreateFileA(filename, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
     if (file_handle != INVALID_HANDLE_VALUE)
@@ -217,12 +224,12 @@ read_entire_file_and_null_terminate(const char *filename)
                 }
             }
         }
-
+        
         CloseHandle(file_handle);
     }
-
+    
 #else
-
+    
     // TODO: REWORK
     // TODO: Most likely can't read large files (>2GB) on 32-bit systems,
     // and maybe not on 64-bit systems (if the 64bit versions of functions don't replace 32-bit
@@ -256,16 +263,16 @@ read_entire_file_and_null_terminate(const char *filename)
                 }
             }
         }
-
+        
         fclose(file); // Will also close fd
     }
-
+    
 #endif
-
+    
     free(result.data);
     result.data = nullptr;
     result.size = 0;
-
+    
     return result;
 }
 
@@ -275,13 +282,13 @@ read_entire_file(const char *filename)
     // TODO: Can't destinguish 0 size file from read error
     // Returns char array of data, with size of file
     // If file is empty, result contains null pointer and size 0
-
+    
 #if !defined(_WIN32)
 #error read_entire_file not implementedon linux
 #endif
-
+    
     File_Data result = {};
-
+    
     HANDLE file_handle = CreateFileA(filename, GENERIC_READ, FILE_SHARE_READ,
                                      0, OPEN_EXISTING, 0, 0);
     if (file_handle != INVALID_HANDLE_VALUE)
@@ -307,14 +314,14 @@ read_entire_file(const char *filename)
                 }
             }
         }
-
+        
         CloseHandle(file_handle);
     }
-
+    
     free(result.data);
     result.data = nullptr;
     result.size = 0;
-
+    
     return result;
 }
 
@@ -453,14 +460,14 @@ template< class T > struct is_pointer_helper<T*> : rvl_true_type {};
 template< class T > struct is_pointer : is_pointer_helper<typename remove_cv<T>::type> {};
 
 #define RVL_VALID_TYPE(T) (same_type<T, const char *>::value   || same_type<T, char *>::value || \
-            same_type<T, char>::value           || same_type<T, signed char>::value || \
-            same_type<T, unsigned char >::value || same_type<T, long>::value || \
-            same_type<T, unsigned long>::value  || same_type<T, float>::value || \
-            same_type<T, double>::value         || same_type<T, long double>::value || \
-            same_type<T, short>::value          || same_type<T, unsigned short>::value || \
-            same_type<T, int>::value            || same_type<T, unsigned int>::value || \
-            same_type<T, long long>::value      || same_type<T, unsigned long long>::value || \
-            is_pointer<T>::value)
+same_type<T, char>::value           || same_type<T, signed char>::value || \
+same_type<T, unsigned char >::value || same_type<T, long>::value || \
+same_type<T, unsigned long>::value  || same_type<T, float>::value || \
+same_type<T, double>::value         || same_type<T, long double>::value || \
+same_type<T, short>::value          || same_type<T, unsigned short>::value || \
+same_type<T, int>::value            || same_type<T, unsigned int>::value || \
+same_type<T, long long>::value      || same_type<T, unsigned long long>::value || \
+is_pointer<T>::value)
 
 template<typename T>
 void tprint(T var)
@@ -468,7 +475,7 @@ void tprint(T var)
     static_assert(RVL_VALID_TYPE(T),
                   "static assert: invalid type passed to tprint()."
                   "Integer, floating point or a constant string is required");
-
+    
     printf(_get_specifier(var), var);
     printf("\n");
 }
@@ -492,16 +499,16 @@ void tprint(const char *str, Targs... args)
 {
 #if 1
     // This versions is hopefully faster
-
+    
     // NOTE: Doesn't handle booleans
     // Max string size must be <= 4000
     
     // Have to add 1 for some reason I dont understand
     char *specifiers[1+sizeof...(args)] = { get_spec(args)... };
-
+    
     // May not gracefully handle arument number and '%' number mismatch
     if (strlen(str) > 3900) return;    // Need extra room for specifiers
-
+    
     char buf[4096];
     char *at = buf;
     i32 i = 0;
@@ -515,7 +522,7 @@ void tprint(const char *str, Targs... args)
                 {
                     *at++ = *specifiers[i]++;
                 }
-
+                
                 ++i;
             }
             else
@@ -530,18 +537,18 @@ void tprint(const char *str, Targs... args)
             *at++ = *str;
         }
     }
-
+    
     *at++ = '\n';
     *at = '\0';
     printf(buf, args...);
-
-
+    
+    
 #elif
-
+    
     // need this function signature to run this
     // template<typename T, typename... Targs>
     // void tprint(const char *str, T var, Targs... args)
-
+    
     for (; str[0]; ++str)
     {
         if (str[0] == '%')
@@ -552,7 +559,7 @@ void tprint(const char *str, Targs... args)
                 printf(_get_specifier(var), (var) ? "true" : "false");
             else
                 printf(_get_specifier(var), var);
-
+            
             tprint(str + 1, args...);
             return;
         }
@@ -561,7 +568,7 @@ void tprint(const char *str, Targs... args)
             printf("%c", *str);
         }
     }
-
+    
     // This catches calls to tprint with too many args for '%' slots, that would normally
     // like to call single arg tprint and be newline terminated
     printf("\n");
@@ -611,12 +618,12 @@ template<typename... Targs>
 void rvl_snprintf(char *buf, size_t n, const char *str, Targs... args)
 {
     char *specifiers[1+sizeof...(args)] = { get_spec(args)... };
-
+    
     // Doesn't handle booleans
     // May not gracefully handle arument number and '%' number mismatch
-
+    
     if (n >= 3900) return;
-
+    
     char format_str[4094];
     char *at = format_str;
     i32 i = 0;
@@ -630,7 +637,7 @@ void rvl_snprintf(char *buf, size_t n, const char *str, Targs... args)
                 {
                     *at++ = *specifiers[i]++;
                 }
-
+                
                 ++i;
             }
             else
@@ -645,7 +652,7 @@ void rvl_snprintf(char *buf, size_t n, const char *str, Targs... args)
             *at++ = *str;
         }
     }
-
+    
     *at = '\0';
     snprintf(buf, n, format_str, args...);
 }

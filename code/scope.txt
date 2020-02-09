@@ -103,6 +103,32 @@ Time management:
  * Can set a date collection daily schedule by checking time then starting collection (assuming program is running)
      - Doesn't need to use windows scheduler
 
+
+Single .exe, single user program, single process
+
+* When app started from icon/shortcut opens gui
+* When 'x' pressed just closes gui but leaves program running (can see in tray)
+* If icon pressed again reopens GUI, but knows program was already open (TODO: Not sure how)
+* Tray icon allows you to quit or open GUI etc
+* Can terminate program in GUI menu too
+* All this is configurable (can disallow running as 'backround' program), so 'x' closes program
+* If instance running and normal icon is pressed it will not open another process and will instead
+  just maximise a GUI
+
+Implementation
+* Has a database file that read/writes at startup/shutdown and at autosave interval
+* Keeps all other state temporarily in memory
+
+
+ Problems
+ 1. Not sure if can run from startup without GUI this way, or start with a kind of scheduler
+	- Maybe just put in startup folder with flag in shortcut
+ 2. May not make it appear program closed properly, if gui is just hidden
+
+
+//
+// Old idea
+//
 Best idea - one .exe, up to two instances open,
 
 Problems
@@ -158,19 +184,6 @@ UI:
 
 
 
-
-Other Idea - Single .exe, single user program, single process
-//
-// When app started from icon/shortcut opens gui
-// When 'x' pressed just closes gui but leaves program running (can see in tray)
-// If icon pressed again reopens GUI, but knows program was already open (TODO: Not sure how)
-// Tray icon allows you to quit or open GUI etc
-// Can stop program from running in GUI menu too
-// All this is configurable (can disallow running as 'backround' program), so 'x' closes program
-//
-// Problems
-// 1. Not sure if can run from startup without GUI this way, or start with a kind of scheduler
-// 2. May not make it appear program closed properly, if gui is just hidden
 
 
 Similar apps:

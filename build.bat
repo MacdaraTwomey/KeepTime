@@ -8,8 +8,11 @@ set QT_LIB="c:\qt\5.12.2\msvc2017_64\lib"
 
 :: TODO: Emacs run button
 
-pushd ..\build
+cd
+pushd build
+cd
 
-cl ..\code\monitor.cpp -nologo -Zi /link user32.lib icon.res
+:: Turn off EHsc in future
+cl c:\dev\projects\monitor\code\monitor.cpp /EHsc -nologo -Zi /link user32.lib icon.res
 
 popd
