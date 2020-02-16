@@ -5,11 +5,21 @@
 #include <stdarg.h>
 #include <stdio.h>
 
+
+void *xalloc(size_t size)
+{
+    rvl_assert(size > 0);
+    rvl_assert(size < Gigabytes(1)); // Just a guess of an upper bound on size
+    void *p = calloc(1, size);
+    rvl_assert(p);
+    return p;
+}
+
 char *
 copy_string(char *string)
 {
     rvl_assert(string);
-    char *s = (char *)malloc(strlen(string)+1);
+    char *s = (char *)xalloc(strlen(string)+1);
     if (s)
     {
         memcpy(s, string, strlen(string)+1);
@@ -38,8 +48,8 @@ unsigned long djb2(unsigned char *str)
 bool init_hash_table(Hash_Table *table, s64 table_size)
 {
     rvl_assert(table_size > 0);
-    table->buckets = (Hash_Node *)calloc(1, table_size * sizeof(Hash_Node));
-    table->occupancy = (u8 *)calloc(1, table_size * sizeof(u8));
+    table->buckets = (Hash_Node *)xalloc(table_size * sizeof(Hash_Node));
+    table->occupancy = (u8 *)xalloc(table_size * sizeof(u8));
     table->size = table_size;
     table->count = 0;
     
@@ -144,8 +154,8 @@ void Hash_Table::remove(char *key)
 void Hash_Table::grow_table()
 {
     s64 new_size = size*2;
-    Hash_Node *new_buckets = (Hash_Node *)calloc(1, new_size * sizeof(Hash_Node));
-    u8 *new_occupancy = (u8 *)calloc(1, new_size * sizeof(u8));
+    Hash_Node *new_buckets = (Hash_Node *)xalloc(new_size * sizeof(Hash_Node));
+    u8 *new_occupancy = (u8 *)xalloc(new_size * sizeof(u8));
     rvl_assert(new_buckets);
     rvl_assert(new_occupancy);
     
@@ -192,7 +202,7 @@ String_Builder create_string_builder()
 {
     String_Builder sb = {};
     sb.capacity = 30;
-    sb.str = (char *)calloc(1, sb.capacity);
+    sb.str = (char *)xalloc(sb.capacity);
     rvl_assert(sb.str);
     sb.len = 0;
     return sb;
@@ -211,10 +221,9 @@ void free_string_builder(String_Builder *sb)
 
 void String_Builder::grow(size_t min_amount)
 {
-    size_t new_capacity  = max(capacity + min_amount, capacity*2);
+    size_t new_capacity  = std::max(capacity + min_amount, capacity*2);
     capacity = new_capacity;
     str = (char *)realloc(str, capacity);
-	OutputDebugStringA(strerror(errno));
     rvl_assert(str);
 }
 
@@ -256,4 +265,66 @@ void String_Builder::clear()
     rvl_assert(capacity > 0);
     len = 0;
     str[0] = '\0';
+}
+
+// Windows stuff that we don't want clogging up main file
+void
+print_tray_icon_message(LPARAM lParam)
+{
+    static int counter = 0;
+    switch (LOWORD(lParam))
+    {
+        case WM_RBUTTONDOWN: 
+        {
+            tprint("%. WM_RBUTTONDOWN", counter++); 
+        }break;
+        case WM_RBUTTONUP:                  
+        {
+            tprint("%. WM_RBUTTONUP", counter++); 
+        } break;
+        case WM_LBUTTONDOWN:
+        {
+            tprint("%. WM_LBUTTONDOWN", counter++);
+        }break;
+        case WM_LBUTTONUP:
+        {
+            tprint("%. WM_LBUTTONUP", counter++);
+        }break;
+        case WM_LBUTTONDBLCLK:
+        {
+            tprint("%. WM_LBUTTONDBLCLK", counter++);
+        }break;
+        case NIN_BALLOONSHOW:
+        {
+            tprint("%. NIN_BALLOONSHOW", counter++);
+        }break;
+        case NIN_POPUPOPEN:
+        {
+            tprint("%. NIN_POPUPOPEN", counter++);
+        }break;
+        case NIN_KEYSELECT:
+        {
+            tprint("%. NIN_KEYSELECT", counter++);
+        }break;
+        case NIN_BALLOONTIMEOUT:
+        {
+            tprint("%. NIN_BALLOONTIMEOUT", counter++);
+        }break;
+        case NIN_BALLOONUSERCLICK:
+        {
+            tprint("%. NIN_BALLOONUSERCLICK", counter++);
+        }break;
+        case NIN_SELECT:
+        {
+            tprint("%. NIN_SELECT\n", counter++);
+        } break;
+        case WM_CONTEXTMENU:
+        {
+            tprint("%. WM_CONTEXTMENU\n", counter++);
+        } break;
+        default:
+        {
+            tprint("%. OTHER", counter++);
+        }break;
+    }
 }

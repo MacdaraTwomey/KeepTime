@@ -1,12 +1,15 @@
+#include <time.h>
+#include "monitor.h"
 
+// Dates
+// Library has two main types used in this program:
 
-// Make into year|month|day to allow sorting?
-
-// Day (1-31) Month (0-11) Years after 2000 (0-127)
-static constexpr u16 DayMask   = 0b1111100000000000;
-static constexpr u16 MonthMask = 0b0000011110000000;
-static constexpr u16 YearMask  = 0b0000000001111111;
-
+// sys_days - which is the main canonical calendrical type of the library, and is a count of days since the 
+// 1970 epoch. This is good for arithmetic using days because it is just integer operations. Under the hood it is
+// just:
+//     using sys_time    = std::chrono::time_point<std::chrono::system_clock, Duration>
+//     using sys_days    = sys_time<days>;
+// where the Duration days is just represented by an integer and has a period with a ration of 24 hours 
 
 int days_in_month(int month, int year)
 {
@@ -22,7 +25,7 @@ int days_in_month(int month, int year)
         return 30;
         
         case 1:
-        if (year % 4 == 0)
+        if (((year % 4 == 0) && (year % 100 != 0)) || (year % 400))
             return 29;
         else
             return 28;
@@ -31,65 +34,53 @@ int days_in_month(int month, int year)
     return 0;
 }
 
-struct Date
+void set_to_prev_day(Date *date)
 {
-    int day; // 1-31
-    int month; // 0-11
-    int year;  // 0 AD to INT_MAX AD
-    
-    void set_to_prev_day()
+    if (date->dd == 1 && date->mm == 0)
     {
-        if (day == 1 && month == 0)
-        {
-            rvl_assert(year > 0);
-            year -= 1;
-        }
-        
-        month -= 1;
-        if (month == -1) month = 11;
-        
-        day -= 1;
-        if (day == 0)
-        {
-            day = days_in_month(month, year);
-        }
+        rvl_assert(date->yy > 0);
+        date->yy -= 1;
     }
     
+    date->mm -= 1;
+    if (date->mm == -1) date->mm = 11;
     
-    void set_to_next_day()
+    date->dd -= 1;
+    if (date->dd == 0)
     {
-        if (day == days_in_month(day, year))
+        date->dd = days_in_month(date->mm, date->yy);
+    }
+}
+
+
+void set_to_next_day(Date *date)
+{
+    if (date->dd == days_in_month(date->mm, date->yy))
+    {
+        if (date->mm == 11)
         {
-            if (month == 11)
-            {
-                year += 1;
-                month = 0;
-                day = 1;
-            }
-            else
-            {
-                month += 1;
-                day = 1;
-            }
+            date->yy += 1;
+            date->mm = 0;
+            date->dd = 1;
         }
         else
         {
-            day += 1;
+            date->mm += 1;
+            date->dd = 1;
         }
     }
-    
-    bool is_same(Date date)
+    else
     {
-        return (day == date.day && month == date.month && year == date.year);
+        date->dd += 1;
     }
-    
-    bool is_later_than(Date date)
-    {
-        return ((year > date.year) ||
-                (year == date.year && month > date.month) ||
-                (year == date.year && month == date.month && day > date.day));
-    }
-};
+}
+
+bool is_later_than(Date date1, Date date2)
+{
+    return ((date1.yy > date2.yy) ||
+            (date1.yy == date2.yy && date1.mm > date2.mm) ||
+            (date1.yy == date2.yy && date1.mm == date2.mm && date1.dd > date2.dd));
+}
 
 
 // Not sure if it matters if it isn't
@@ -99,11 +90,11 @@ static_assert(std::is_pod<Date>::value, "Isn't POD");
 bool
 valid_date(Date date)
 {
-    if (date.day > 0 ||
-        date.month >= 0 || date.month <= 11 ||
-        date.year >= 2019 || date.year <= 2200)
+    if (date.dd > 0 ||
+        date.mm >= 0 || date.mm <= 11 ||
+        date.yy < 2200) // Very high upper limmit
     {
-        if (date.day <= days_in_month(date.month, date.year))
+        if (date.dd <= days_in_month(date.mm, date.yy))
         {
             return true;
         }
@@ -112,35 +103,7 @@ valid_date(Date date)
     return false;
 }
 
-Date
-unpack_16_bit_date(u16 date)
-{
-    Date d;
-    d.day   = (date & DayMask) >> 11;
-    d.month = (date & MonthMask) >> 7;
-    d.year  = (date & YearMask) + 2000;
-    
-    return d;
-}
-
-u16
-pack_16_bit_date(Date date)
-{
-    u16 day_bits   = (u16)date.day << 11;
-    u16 month_bits = (u16)date.month << 7;
-    u16 year_bits  = (u16)date.year - 2000;
-    
-    return day_bits|month_bits|year_bits;
-}
-
-bool
-valid_16_bit_date(u16 date)
-{
-    Date d = unpack_16_bit_date(date);
-    return valid_date(d);
-}
-
-u16 get_current_date()
+Date get_current_date()
 {
     time_t time_since_epoch = time(NULL);
     tm *local_time = localtime(&time_since_epoch);
@@ -149,25 +112,20 @@ u16 get_current_date()
     // Tues night -------------------->|Mon morning (DayStart == 2*60)
     // Tues night ---->|Mon morning ------------>   (DayStart == 0*60)
     // | 22:00 | 23:00 | 00:00 | 01:00 | 02:00 |
-    Date date {local_time->tm_mday, local_time->tm_mon, local_time->tm_year};
+    Date date {(u8)local_time->tm_mday, (u8)local_time->tm_mon, (u16)local_time->tm_year};
     
-    return pack_16_bit_date(date); 
+    return date;
 }
 
 // fake very quick days
-u16 get_current_date(double time)
+Date get_current_date(s64 time)
 {
-    static int c = 1;
-    u16 date = get_current_date();
-    if (time > 3.0 * c)
+    Date date = get_current_date();
+    
+    int iterations = time / 2.0;
+    for (int i = 0; i < iterations; ++i)
     {
-        Date d = unpack_16_bit_date(date);
-        for (int i = 0; i < c; ++i)
-        {
-            d.set_to_next_day();
-        }
-        date = pack_16_bit_date(d);
-        c += 1;
+        set_to_next_day(&date);
     }
     
     return date; 
@@ -183,13 +141,48 @@ get_current_canonical_date(u16 day_start_time)
     // Tues night -------------------->|Mon morning (DayStart == 2*60)
     // Tues night ---->|Mon morning ------------>   (DayStart == 0*60)
     // | 22:00 | 23:00 | 00:00 | 01:00 | 02:00 |
-    Date date {local_time->tm_mday, local_time->tm_mon, local_time->tm_year};
+    Date date {(u8)local_time->tm_mday, (u8)local_time->tm_mon, (u16)local_time->tm_year};
     
     i32 current_minute = local_time->tm_hour*60 + local_time->tm_min;
     if (current_minute < day_start_time)
     {
-        date.set_to_prev_day();
+        set_to_prev_day(&date);
     }
     
     return date;
+}
+
+u32 leap_years_count(u16 year)
+{
+    return year/4 - year/100 + year/400;
+}
+
+u32 day_count(Date date)
+{
+    // Since 01/01/0000 AD (well more like since 00/00/0000 I think)
+    u32 days_count = date.yy*365 + date.dd;
+    u8 days_in_month[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31}; // Not counting possible leap days
+    u32 days_in_month_accumulative[12] = {31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365};
+    for (u32 i = 0; i < date.mm; ++i)
+    {
+        days_count += days_in_month[i];
+    }
+    
+    rvl_assert(days_count == date.yy*365 + date.dd + days_in_month_accumulative[std::max(0, date.mm-1)]);
+    
+    // If it is jan or feb don't add this year's possible leap day, it is already added in by the day field.
+    u32 leap_years = (date.mm <= 1) ? leap_years_count(date.yy - 1) : leap_years_count(date.yy);
+    days_count += leap_years;
+    
+    return days_count;
+}
+
+s32 day_difference(Date date1, Date date2)
+{
+    // TODO: Better system, there are probably lots of complexities here
+    rvl_assert(valid_date(date1) && valid_date(date2));
+    
+    s32 diff = (s32)day_count(date1) - (s32)day_count(date2);
+    
+    return diff;
 }

@@ -507,7 +507,12 @@ void tprint(const char *str, Targs... args)
     char *specifiers[1+sizeof...(args)] = { get_spec(args)... };
     
     // May not gracefully handle arument number and '%' number mismatch
-    if (strlen(str) > 3900) return;    // Need extra room for specifiers
+    if (strlen(str) > 3900)
+    {
+        // Need extra room for specifiers
+        rvl_assert(0);
+        return;
+    }
     
     char buf[4096];
     char *at = buf;
@@ -622,7 +627,11 @@ void rvl_snprintf(char *buf, size_t n, const char *str, Targs... args)
     // Doesn't handle booleans
     // May not gracefully handle arument number and '%' number mismatch
     
-    if (n >= 3900) return;
+    if (n >= 3900) 
+    {
+        rvl_assert(0);
+        return;
+    }
     
     char format_str[4094];
     char *at = format_str;

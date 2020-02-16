@@ -18,9 +18,11 @@
 // static constexpr u16 DefaultRunAtSystemStartup = false;
 // static constexpr u32 DefaultPollFrequencyMilliseconds = 1000;
 
+#define Kilobytes(Value) ((Value) * 1024LL)
+#define Megabytes(Value) (Kilobytes(Value) * 1024LL)
+#define Gigabytes(Value) (Megabytes(Value) * 1024LL)
 
-
-typedef u16 bool16;
+typedef double time_type;
 
 struct Hash_Node
 {
@@ -74,15 +76,15 @@ struct Header
     // bool16 run_at_system_startup;   // Default 0
     // u32 poll_frequency_milliseconds;    // Default 1000
     
-    u32 size_program_names_block;
-    u32 num_total_programs;
-    u32 num_days;
-    u32 num_program_records;    // Should be fine as 32-bit as 4 billion * X seconds each is > 30 years
+    u32 program_names_block_size;
+    u32 total_program_count;
+    u32 day_count;
+    u32 program_record_count;    // Should be fine as 32-bit as 4 billion * X seconds each is > 30 years
     
     // Header
     // null terminated names, in a block    # programs (null terminated strings)
     // corresponding ids                    # programs (u32)
-    // Dates of each day                    # days     (u16)
+    // Dates of each day                    # days     (u32)
     // Index of end of each day             # days     (u32)
     // Array of all prorgam records clumped by day      # total records (Program_Records)
     
@@ -106,20 +108,48 @@ struct Memory_Block
 
 struct Monitor_State
 {
-    // All below becomes old data once loop starts
-    // Header and hash table are continualy updated though
-    
-    
     Header saved_header;
-    //u32 *saved_day_offsets;           // will contain index of start of each day - e.g. [0, 5, 7]
-    //u16 *saved_dates;                 // Contains dates for each day
-    //Program_Record *saved_records;       // Contains array of all days records
+};
+
+
+
+union Date 
+{
+    struct {
+        u8 dd; // 1-31
+        u8 mm; // 0-11
+        u16 yy; // 0 - UINT16_MAX
+    };
+    u32 date32;
+    
+    bool operator==(const Date &other)
+    {
+        return date32 == other.date32;
+    }
+    bool operator!=(const Date &other)
+    {
+        return !(date32 == other.date32);
+    }
 };
 
 
 struct Day
 {
     Program_Record *records;
-    u32 num_records;
-    u16 date;
+    u32 record_count;
+    Date date;
+};
+
+
+enum Button : u8 
+{
+    Button_Invalid,
+    Button_Day,
+    Button_Week,
+    Button_Month,
+};
+struct Button_State
+{
+    Button button;
+    bool clicked;
 };
