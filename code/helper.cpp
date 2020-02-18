@@ -6,28 +6,6 @@
 #include <stdio.h>
 
 
-void *xalloc(size_t size)
-{
-    rvl_assert(size > 0);
-    rvl_assert(size < Gigabytes(1)); // Just a guess of an upper bound on size
-    void *p = calloc(1, size);
-    rvl_assert(p);
-    return p;
-}
-
-char *
-copy_string(char *string)
-{
-    rvl_assert(string);
-    char *s = (char *)xalloc(strlen(string)+1);
-    if (s)
-    {
-        memcpy(s, string, strlen(string)+1);
-    }
-    
-    return s;
-}
-
 // TODO: BETTER HASH FUNCTION
 // TODO: This only returns 32-bit value in windows
 unsigned long djb2(unsigned char *str)

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "date.h"
+using namespace date;
 // unpacked
 // 16 bytes unpacked
 // avg 10 progams a day
@@ -21,6 +23,15 @@
 #define Kilobytes(Value) ((Value) * 1024LL)
 #define Megabytes(Value) (Kilobytes(Value) * 1024LL)
 #define Gigabytes(Value) (Megabytes(Value) * 1024LL)
+
+
+// Steady clock typically uses system startup time as epoch, and system clock uses systems epoch like 1970-1-1 00:00 
+// Clocks have a starting point (epoch) and tick rate (e.g. 1 tick per second)
+// A Time Point is a duration of time that has passed since a clocks epoch
+// A Duration consists of a span of time, defined as a number of ticks of some time unit (e.g. 12 ticks in millisecond unit)
+// On windows Steady clock is based on QueryPerformanceCounter
+using Steady_Clock = std::chrono::steady_clock;
+using System_Clock = std::chrono::system_clock;
 
 typedef double time_type;
 
@@ -79,7 +90,7 @@ struct Header
     u32 program_names_block_size;
     u32 total_program_count;
     u32 day_count;
-    u32 program_record_count;    // Should be fine as 32-bit as 4 billion * X seconds each is > 30 years
+    u32 total_record_count;    // Should be fine as 32-bit as 4 billion * X seconds each is > 30 years
     
     // Header
     // null terminated names, in a block    # programs (null terminated strings)
@@ -93,7 +104,7 @@ struct Header
     // [][][][][][][][][][] <- records
 };
 
-
+//
 struct Program_Record
 {
     u32 ID;
@@ -106,11 +117,12 @@ struct Memory_Block
     u32 size;
 };
 
+#if 0
 struct Monitor_State
 {
     Header saved_header;
 };
-
+#endif
 
 
 union Date 
@@ -137,9 +149,15 @@ struct Day
 {
     Program_Record *records;
     u32 record_count;
-    Date date;
+    sys_days date;
 };
 
+struct NOT_SURE
+{
+    Day *days;
+    Program_Record *records; // all records, each days records points in here
+    u32 day_count;
+};
 
 enum Button : u8 
 {
