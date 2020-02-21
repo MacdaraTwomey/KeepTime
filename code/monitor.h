@@ -171,3 +171,17 @@ struct Button_State
     Button button;
     bool clicked;
 };
+
+struct Simple_Bitmap
+{
+    // Top Down bitmap with a positive height
+    // Don't use outside of this program. Usually top down bitmaps have a negative height I think.
+    static constexpr int BYTES_PER_PIXEL = 4;
+    i32 width;
+    i32 height;
+    u32 *pixels;
+    // No pitch for now, pitch == width
+};
+
+
+

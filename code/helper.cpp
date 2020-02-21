@@ -60,18 +60,18 @@ s64 Hash_Table::add_item(char *key, u32 value)
         grow_table();
     }
     
-    s64 i = (s64) djb2((unsigned char *)key) % size;
+    s64 start = (s64) djb2((unsigned char *)key) % size;
     
-    for (; i < size && occupancy[i % size] == OCCUPIED; ++i)
+    s64 i = 0;
+    for (; i < size && occupancy[(i+start) % size] == OCCUPIED; ++i)
     {
-        s64 index = i % size;
-        if (strcmp(key, buckets[index].key) == 0)
+        if (strcmp(key, buckets[(i+start) % size].key) == 0)
         {
             return -1;
         }
     }
     
-    s64 index = i % size;
+    s64 index = (i+start) % size;
     buckets[index].key = copy_string(key);
     buckets[index].value = value;
     occupancy[index] = OCCUPIED;
@@ -87,16 +87,17 @@ bool Hash_Table::search(char *key, u32 *found_value)
     rvl_assert(found_value);
     
     if (count == 0) return false;
-    s64 i = (s64) djb2((unsigned char *)key) % size;
     
-    for (; i < size && occupancy[i % size] != EMPTY; ++i)
+    s64 start = (s64) djb2((unsigned char *)key) % size;
+    s64 i = 0;
+    for (; i < size && occupancy[(i+start) % size] != EMPTY; ++i)
     {
-        s64 index = i % size;
-        if (occupancy[i] == OCCUPIED)
+        s64 index = (i+start) % size;
+        if (occupancy[index] == OCCUPIED)
         {
-            if (strcmp(key, buckets[i].key) == 0)
+            if (strcmp(key, buckets[index].key) == 0)
             {
-                *found_value = buckets[i].value;
+                *found_value = buckets[index].value;
                 return true;
             }
         }
@@ -111,11 +112,12 @@ void Hash_Table::remove(char *key)
     rvl_assert(key[0]);
     
     if (count == 0) return;
-    s64 i = (s64) djb2((unsigned char *)key) % size;
+    s64 start = (s64) djb2((unsigned char *)key) % size;
     
-    for (; i < size && occupancy[i % size] != EMPTY; ++i)
+    s64 i = 0;
+    for (; i < size && occupancy[(i+start) % size] != EMPTY; ++i)
     {
-        s64 index = i % size;
+        s64 index = (i+start) % size;
         if (occupancy[index] == OCCUPIED)
         {
             if (strcmp(key, buckets[index].key) == 0)

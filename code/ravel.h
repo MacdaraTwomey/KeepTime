@@ -29,6 +29,9 @@ typedef uint64_t u64;
 
 typedef int32_t  bool32;
 
+typedef float  r32;
+typedef double r64;
+
 static_assert(sizeof(u8)  == sizeof(i8), "");
 static_assert(sizeof(u16) == sizeof(i16), "");
 static_assert(sizeof(u32) == sizeof(i32), "");
