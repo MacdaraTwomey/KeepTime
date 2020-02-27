@@ -13,17 +13,31 @@ void *xalloc(size_t size)
     return p;
 }
 
+
+// len is string length including null terminator
+char *clone_string(char *str, size_t len)
+{
+    rvl_assert(len > 0);
+    if (len == 0) return nullptr;
+    
+    char *clone = (char *)xalloc(len);
+    if (clone)
+    {
+        strcpy(clone, str);
+    }
+    return clone;
+}
+
 char *
-copy_string(char *string)
+clone_string(char *string)
 {
     rvl_assert(string);
-    char *s = (char *)xalloc(strlen(string)+1);
-    if (s)
-    {
-        memcpy(s, string, strlen(string)+1);
-    }
+    size_t len = strlen(string);
+    rvl_assert(len > 0);
     
-    return s;
+    if (len == 0) return nullptr;
+    
+    return clone_string(string, len+1);
 }
 
 void
@@ -39,13 +53,82 @@ concat_strings(char *dest, size_t dest_len,
     dest[len1 + len2] = '\0';
 }
 
-// len is string length including null terminator
-char *clone_string(char *str, size_t len)
+
+#define rvl_lerp(x, y, t) (((1.0f-(t))*(x)) + ((t)*(y)))
+
+struct V2i
 {
-    char *clone = (char *)xalloc(len);
-    if (clone)
-    {
-        strcpy(clone, str);
-    }
-    return clone;
+    int x, y;
+};
+struct Rect2i
+{
+    V2i min, max;
+};
+
+inline V2i
+operator-(V2i a)
+{
+    V2i result;
+    
+    result.x = -a.x;
+    result.y = -a.y;
+    
+    return(result);
+}
+
+inline V2i
+operator+(V2i a, V2i b)
+{
+    V2i result;
+    
+    result.x = a.x + b.x;
+    result.y = a.y + b.y;
+    
+    return(result);
+}
+
+inline V2i &
+operator+=(V2i &a, V2i b)
+{
+    a = a + b;
+    
+    return(a);
+}
+
+inline V2i
+operator-(V2i a, V2i b)
+{
+    V2i result;
+    
+    result.x = a.x - b.x;
+    result.y = a.y - b.y;
+    
+    return(result);
+}
+
+inline V2i
+operator*(r32 A, V2i B)
+{
+    V2i Result;
+    
+    Result.x = A*B.x;
+    Result.y = A*B.y;
+    
+    return(Result);
+}
+
+inline V2i
+operator*(V2i B, r32 A)
+{
+    V2i Result = A*B;
+    
+    return(Result);
+}
+
+inline V2i &
+operator*=(V2i &B, r32 A)
+{
+    B = A * B;
+    
+    return(B);
 }

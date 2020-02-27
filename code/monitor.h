@@ -1,6 +1,8 @@
 #pragma once
 
 #include "date.h"
+#include "helper.h"
+
 using namespace date;
 // unpacked
 // 16 bytes unpacked
@@ -20,10 +22,6 @@ using namespace date;
 // static constexpr u16 DefaultRunAtSystemStartup = false;
 // static constexpr u32 DefaultPollFrequencyMilliseconds = 1000;
 
-#define Kilobytes(Value) ((Value) * 1024LL)
-#define Megabytes(Value) (Kilobytes(Value) * 1024LL)
-#define Gigabytes(Value) (Megabytes(Value) * 1024LL)
-
 
 // Steady clock typically uses system startup time as epoch, and system clock uses systems epoch like 1970-1-1 00:00 
 // Clocks have a starting point (epoch) and tick rate (e.g. 1 tick per second)
@@ -34,45 +32,6 @@ using Steady_Clock = std::chrono::steady_clock;
 using System_Clock = std::chrono::system_clock;
 
 typedef double time_type;
-
-struct Hash_Node
-{
-    char *key;
-    u32 value;
-};
-
-struct Hash_Table
-{
-    static constexpr u64 DEFAULT_TABLE_SIZE = 128;
-    static constexpr u8 EMPTY = 0;
-    static constexpr u8 DELETED = 1;
-    static constexpr u8 OCCUPIED = 2;
-    
-    s64 count;
-    s64 size;
-    Hash_Node *buckets;
-    u8 *occupancy;
-    
-    s64 add_item(char *key, u32 value);
-    bool search(char *key, u32 *found_value);
-    void remove(char *key);
-    char *search_by_value(u32 value);
-    private:
-    void grow_table();
-};
-
-struct String_Builder
-{
-    char *str;
-    size_t capacity;
-    size_t len; // Length not including null terminator
-    
-    void grow(size_t min_amount);
-    void append(char *new_str);
-    void appendf(char *new_str, ...);
-    void add_bytes(char *new_str, size_t len); // Will add all bytes of string of size len (including extra null terminators you insert)
-    void clear();
-};
 
 // Holds settings and info about file contents
 struct Header
@@ -96,7 +55,7 @@ struct Header
     // null terminated names, in a block    # programs (null terminated strings)
     // corresponding ids                    # programs (u32)
     // Dates of each day                    # days     (u32)
-    // Index of end of each day             # days     (u32)
+    // Counts       of each day             # days     (u32)
     // Array of all prorgam records clumped by day      # total records (Program_Records)
     
     // Indexes work like this
@@ -104,7 +63,7 @@ struct Header
     // [][][][][][][][][][] <- records
 };
 
-//
+
 struct Program_Record
 {
     u32 ID;
@@ -116,34 +75,6 @@ struct Memory_Block
     u8 *data;
     u32 size;
 };
-
-#if 0
-struct Monitor_State
-{
-    Header saved_header;
-};
-#endif
-
-
-union Date 
-{
-    struct {
-        u8 dd; // 1-31
-        u8 mm; // 0-11
-        u16 yy; // 0 - UINT16_MAX
-    };
-    u32 date32;
-    
-    bool operator==(const Date &other)
-    {
-        return date32 == other.date32;
-    }
-    bool operator!=(const Date &other)
-    {
-        return !(date32 == other.date32);
-    }
-};
-
 
 struct Day
 {
@@ -166,11 +97,25 @@ enum Button : u8
     Button_Week,
     Button_Month,
 };
-struct Button_State
+
+enum Event_Type 
 {
-    Button button;
-    bool clicked;
+    Event_Button_Click,
+    Event_GUI_Open,
+    Event_GUI_Close,
 };
+
+struct Event
+{
+    union {
+        Button button;
+    };
+    Event_Type type;
+};
+
+
+// ---------------------------
+// Rendering
 
 struct Simple_Bitmap
 {
@@ -183,5 +128,22 @@ struct Simple_Bitmap
     // No pitch for now, pitch == width
 };
 
+struct Screen_Buffer
+{
+    static constexpr int BYTES_PER_PIXEL = 4;
+    void *data;
+    BITMAPINFO bitmap_info;
+    int width;
+    int height;
+    int pitch;
+};
 
+// We have to store paths in file as old program records might need their icon.
+// These are updated, at most once per program run, as the same program is identified as foreground window.
+struct Program_Path
+{
+    char *full_path;
+    bool updated_recently;
+    bool occupied;
+};
 

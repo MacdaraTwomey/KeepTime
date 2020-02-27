@@ -1,10 +1,13 @@
 #include "ravel.h"
 
+#include "helper.h"
 #include "monitor.h"
 #include "resource.h"
 
 #include <chrono>
 #include <vector>
+#include <algorithm>
+
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -13,51 +16,60 @@
 #include <UIAutomation.h>
 
 #include <shellapi.h>
+#include <shlobj_core.h> // SHDefExtractIconA 
+
 #include <windows.h>
 
-#include <algorithm>
-
 #include "date.h" 
+
+#define STB_TRUETYPE_IMPLEMENTATION
+#include "stb_truetype.h"
 
 using namespace date;
 
 static_assert(sizeof(date::sys_days) == sizeof(u32), "");
 static_assert(sizeof(date::year_month_day) == sizeof(u32), "");
 
+
+int bar_width = 40;
+int bar_spacing = 30;
+int line_thickness = 2;
+int backtail = 10;
+int x_axis_length = 500;
+int y_axis_height = 300;
+
+
 #include "utilities.cpp"
 #include "helper.cpp"
-#include "date.cpp"
 #include "file.cpp"
-
+#include "icon.cpp"
+#include "render.cpp"
 
 #define CONSOLE_ON 1
 
-struct Screen_Buffer
-{
-    static constexpr int BYTES_PER_PIXEL = 4;
-    void *data;
-    BITMAPINFO bitmap_info;
-    int width;
-    int height;
-    int pitch;
-};
-
-static Screen_Buffer Global_Screen_Buffer;
-
-
+static Screen_Buffer global_screen_buffer;
 static char *global_savefile_path;
 static char *global_debug_savefile_path;
-static bool Global_Running = false;
-static bool Global_GUI_Visible = true; // Still counts as visible if minimised to the task bar
-static HWND Global_Text_Window;
-static NOTIFYICONDATA Global_Nid = {};
+static bool global_running = false;
+static Queue<Event> global_event_queue;
 
-static constexpr char MutexName[] = "RVLmonitor143147";
+// NOTE: This is only used for toggling with the tray icon.
+// Use pump messages result to check if visible to avoid the issues with value unexpectly changing.
+// Still counts as visible if minimised to the task bar.
+
+static NOTIFYICONDATA global_nid = {};
+
 static constexpr int WindowWidth = 960;
 static constexpr int WindowHeight = 540;
 
+// TODO: Think of better way than just having error prone max amounts.
 static constexpr u32 MaxDailyRecords = 1000;
 static constexpr u32 MaxDays = 10000;
+static constexpr u32 DefaultDayAllocationCount = 30;
+
+#define ID_DAY_BUTTON 200
+#define ID_WEEK_BUTTON 201
+#define ID_MONTH_BUTTON 202
 
 // -----------------------------------------------------------------
 // TODO:
@@ -68,6 +80,7 @@ static constexpr u32 MaxDays = 10000;
 // * Dynamic window, button layout with resizing
 // * OpenGL graphing?
 // * Stop repeating work getting the firefox URL
+// * Get favicon from webpages, maybe use libcurl and a GET request for favicon.ico
 // -----------------------------------------------------------------
 
 bool
@@ -255,6 +268,7 @@ add_program_duration(Hash_Table *all_programs, Day *day, double dt, char *progra
     
     if (!program_in_day)
     {
+        rvl_assert(day->record_count < MaxDailyRecords);
         day->records[day->record_count] = {ID, dt};
         day->record_count += 1;
     }
@@ -271,10 +285,10 @@ resize_screen_buffer(Screen_Buffer *buffer, int new_width, int new_height)
     buffer->width = new_width;
     buffer->height = new_height;
     
-    buffer->bitmap_info = {}; // this?
+    buffer->bitmap_info = {}; 
     buffer->bitmap_info.bmiHeader.biSize = sizeof(buffer->bitmap_info.bmiHeader);
     buffer->bitmap_info.bmiHeader.biWidth = buffer->width;
-    buffer->bitmap_info.bmiHeader.biHeight = -buffer->height;
+    buffer->bitmap_info.bmiHeader.biHeight = -buffer->height; // Negative height to tell Windows this is a top-down bitmap
     buffer->bitmap_info.bmiHeader.biPlanes = 1;
     buffer->bitmap_info.bmiHeader.biBitCount = 32;
     buffer->bitmap_info.bmiHeader.biCompression = BI_RGB;
@@ -311,11 +325,11 @@ paint_window(Screen_Buffer *buffer, HDC device_context, int window_width, int wi
 }
 
 
-u32
-get_forground_window_program(HWND foreground_win, char *program_name)
+size_t
+get_forground_window_path(HWND foreground_win, char *buffer, size_t buf_size)
 {
+    // Must have room for program name
     size_t len = 0;
-    
     if (foreground_win)
     {
         DWORD process_id;
@@ -323,33 +337,26 @@ get_forground_window_program(HWND foreground_win, char *program_name)
         HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, process_id);
         if (process)
         {
-            // filename_len is overwritten with number of characters written to buf
-            char buf[MaxPathLen+1] = {};
-            DWORD filename_len = array_count(buf);
-            if (QueryFullProcessImageNameA(process, 0, buf, &filename_len))
+            // TODO: Try resizing full_path buffer if too small, and retrying.
+            // filename_len is overwritten with number of characters written to full_path
+            rvl_assert(buf_size <= UINT32_MAX);
+            DWORD filename_len = (DWORD)buf_size;
+            if (QueryFullProcessImageNameA(process, 0, buffer, &filename_len))
             {
-                rvl_assert(filename_len > 0);
-                
-                // Returns a pointer to filename in buf
-                char *filename = get_filename_from_path(buf);
-                len = strlen(filename);
-                rvl_assert(len > 4 && strcmp(&filename[len-4], ".exe") == 0);
-                
-                // Remove '.exe' from end
-                len -= 4;
-                filename[len] = '\0';
-                
-                strcpy(program_name, filename);
+                CloseHandle(process); 
+                return (size_t)filename_len;
             }
+            else
+            {
+                tprint("Couldn't get executable path");
+            }
+            
+            CloseHandle(process); 
         }
-        
-        CloseHandle(process); 
     }
-    else
-    {
-        strcpy(program_name, "No Window");
-        len = strlen("No Window");
-    }
+    
+    strcpy(buffer, "No Window.exe");
+    len = strlen("No Window.exe");
     
     return len;
 }
@@ -360,18 +367,31 @@ WinProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
     LRESULT result = 0;
     switch (msg)
     {
+        
+        // WM_QUERYENDSESSION and WM_ENDSESSION for system shutdown
+        // WM_TASKBARCREATED if explorer.exe (and taskbar) crashes, to recreate icon
+        
         // Close, Destroy and Quit ------------------------------------------------------
         // When main window or taskbar preview [x] is pressed we recieve CLOSE, DESTROY and QUIT in that order
         // Same for double clicking main window icon on top left, and clicking close on titlebar option under icon.
         // When we close from task manager all messages are recieved.
         // When we handle ESCAPE key, none of these are recieved
+        
+        // From MSDN: Closing the window  // https://docs.microsoft.com/en-us/windows/win32/learnwin32/closing-the-window
+        // Clicking close or using alt-f4 causes window to recieve WM_CLOSE message
+        // Allowing you to prompt the user before closing the window
+        
+        // If you want to destroy the window you can call DestroyWindow when WM_CLOSE recieved
+        // or can return 0 from case statement and the OS will ignore message
+        
+        
         case WM_CLOSE:
         {
             // If this message is ignored DefWindowProc calls DestroyWindow
-            
             // Can Hide window here and not call DestroyWindow
+            // This is recieved direcly by WinProc
             
-            //tprint("WM_CLOSE\n");
+            global_running = false;
             DestroyWindow(window); // Have to call this or main window X won't close program
         } break;
         
@@ -382,23 +402,21 @@ WinProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
             // Typicall call PostQuitMessage(0) to send WM_QUIT to message loop
             // So typically goes CLOSE -> DESTROY -> QUIT
             
-            //tprint("WM_DESTROY\n");
             
             // When the window is destroyed by pressing the X, not by quiting with escape
-            Shell_NotifyIconA(NIM_DELETE, &Global_Nid);
+            Shell_NotifyIconA(NIM_DELETE, &global_nid);
             
             PostQuitMessage(0);
-            
         } break;
+        
+        // When window is about to be destroyed it will recieve WM_DESTROY message
+        // Typically you call PostQuitMessage(0) from case statement to post WM_QUIT message to
+        // end the message loop
         
         case WM_QUIT:
         {
-            // Handled by message loop
-            
-            rvl_assert(0);
+            global_running = false;
         } break;
-        // ----------------------------------------------------------------------------
-        
         
         // WM_NCCREATE WM_CREATE send before window becomes visible
         
@@ -408,9 +426,11 @@ WinProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
         
         case WM_CREATE:
         {
-#define ID_DAY_BUTTON 200
-#define ID_WEEK_BUTTON 201
-#define ID_MONTH_BUTTON 202
+            // TODO: This may not be true in final version
+            Event e;
+            e.type = Event_GUI_Open;
+            global_event_queue.enqueue(e);
+            
             SetWindowText(window, "This is the Title Bar");
             
             // TODO: Should I prefix strings with an L?   L"string here"
@@ -418,18 +438,6 @@ WinProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
             // Alse creating a static control to allow printing text
             // This needs its own message loop
             HINSTANCE instance = GetModuleHandle(NULL);
-#if 0
-            Global_Text_Window = CreateWindowA("STATIC",
-                                               "TextWindow",
-                                               WS_VISIBLE|WS_CHILD|SS_LEFT,
-                                               100, 0,
-                                               900, 900,
-                                               window, 
-                                               NULL, instance, NULL);
-#else
-            Global_Text_Window = nullptr;
-#endif
-            
 #if 0
             HWND day_button = CreateWindow("BUTTON",
                                            "DAY",
@@ -469,25 +477,25 @@ WinProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
             // cbSize of NOTIFYICONDATA can be initialised correctly. 
             // https://docs.microsoft.com/en-us/windows/win32/api/shellapi/ns-shellapi-notifyicondataa
             
-            Global_Nid.cbSize = sizeof(NOTIFYICONDATA);
-            Global_Nid.hWnd = window;
+            global_nid.cbSize = sizeof(NOTIFYICONDATA);
+            global_nid.hWnd = window;
             // Not sure why we need this
-            Global_Nid.uID = ID_TRAY_APP_ICON;
-            Global_Nid.uFlags = NIF_ICON|NIF_MESSAGE|NIF_TIP;
+            global_nid.uID = ID_TRAY_APP_ICON;
+            global_nid.uFlags = NIF_ICON|NIF_MESSAGE|NIF_TIP;
             // This user invented message is sent when mouse event occurs or hovers over tray icon, or when icon selected or activated from keyboard
-            Global_Nid.uCallbackMessage = CUSTOM_WM_TRAY_ICON;
+            global_nid.uCallbackMessage = CUSTOM_WM_TRAY_ICON;
             // Recommented you provide 32x32 icon for higher DPI systems
             // Can use LoadIconMetric to specify correct one with correct settings is used
-            Global_Nid.hIcon = (HICON)LoadIcon(instance, MAKEINTRESOURCE(MAIN_ICON_ID));
+            global_nid.hIcon = (HICON)LoadIcon(instance, MAKEINTRESOURCE(MAIN_ICON_ID));
             
             // Maybe this should say "running"?
             TCHAR tooltip[] = {"Tooltip dinosaur"}; // Use max 64 chars
-            strncpy(Global_Nid.szTip, tooltip, sizeof(tooltip));
+            strncpy(global_nid.szTip, tooltip, sizeof(tooltip));
             
             
             // Adds icon to status area (I think)
             // TODO: Should this be in WM_ACTIVATE?
-            BOOL success = Shell_NotifyIconA(NIM_ADD, &Global_Nid);
+            BOOL success = Shell_NotifyIconA(NIM_ADD, &global_nid);
             if (!success) 
             {
                 tprint("Error: Couldn't create notify icon\n");;
@@ -507,35 +515,34 @@ WinProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
         {
             // TODO: This may not play nice with Waiting for a message in loop then pumping, if we:
             // wait -> msg recieved -> end sleep -> pump msgs (no message posted yet) -> winproc -> wait
-            
             // Resend message so pump can remove it from queue.
-            PostMessageA(window, msg, wParam, lParam);
-#if 0
             switch (HIWORD(wParam))
             {
-                // TODO: Better way to achieve same effect? Maybe using globals and just pass data out.
-                // Recieved by parent windproc if button proc doesn't handle BM_CLICK (I think)
                 case BN_CLICKED:
                 {
+                    
+                    Event e;
+                    e.type = Event_Button_Click;
                     if (ID_DAY_BUTTON == LOWORD(wParam))
                     {
-                        tprint("WNDPROCDay");
+                        e.button = Button_Day;
                     }
                     else if (ID_WEEK_BUTTON == LOWORD(wParam))
                     {
-                        tprint("WNDPROCWeek");
+                        e.button = Button_Week;
                     }
                     else if (ID_MONTH_BUTTON == LOWORD(wParam))
                     {
-                        tprint("WNDPROCMonth");
+                        e.button = Button_Month;
                     }
                     else
                     {
                         rvl_assert(0);
                     }
+                    
+                    global_event_queue.enqueue(e);
                 } break;
             }
-#endif
         } break;
         
         
@@ -546,47 +553,46 @@ WinProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
             //print_tray_icon_message(lParam);
             switch (LOWORD(lParam))
             {
-                // Want to use button up so user has to finish click on icon, not just start it.
                 case WM_RBUTTONUP:                  
                 {
-                    // Cound open a context menu here with option to quit etc.
+                    // Could open a context menu here with option to quit etc.
                 } break;
                 case WM_LBUTTONUP:
                 {
                     // NOTE: For now we just toggle with tray icon but, we will in future toggle with X button 
-                    if (Global_GUI_Visible)
+                    if (IsWindowVisible(window))
                     {
-                        tprint("Hiding\n\n");
-                        Global_GUI_Visible = !Global_GUI_Visible;
+                        Event e;
+                        e.type = Event_GUI_Close;
+                        global_event_queue.enqueue(e);
+                        
                         ShowWindow(window, SW_HIDE);
                     }
                     else
                     {
+                        Event e;
+                        e.type = Event_GUI_Open;
+                        global_event_queue.enqueue(e);
+                        
                         // TODO: This doesn't seem to 'fully activate' the window. The title bar is in focus but cant input escape key. So seem to need to call SetForegroundWindow
-                        tprint("SHOWING\n");
-                        Global_GUI_Visible = !Global_GUI_Visible;
                         ShowWindow(window, SW_SHOW);
                         ShowWindow(window, SW_RESTORE); // If window was minimised and hidden, also unminimise
                         SetForegroundWindow(window); // Need this to allow 'full focus' on window after showing
                     }
                 } break;
             }
-            
         } break;
         
         case WM_SYSKEYDOWN:
         case WM_KEYDOWN:
         {
-            // we should handle these in pump_messages
-            rvl_assert(0);
+            if (wParam == VK_ESCAPE)
+            {
+                global_running = false;
+            }
         } break;
         
         
-#if 0
-        case WM_ACTIVATEAPP:
-        {
-        } break;
-#endif
         // WM_SIZE and WM_PAINT messages recieved when window resized,
         case WM_PAINT:
         {
@@ -602,7 +608,7 @@ WinProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
             int height = rect.bottom - rect.top;
             
             // When window is resized, the process is suspended and recieves WM_PAINT
-            paint_window(&Global_Screen_Buffer, device_context, width, height);
+            paint_window(&global_screen_buffer, device_context, width, height);
             
             EndPaint(window, &ps);
         } break;
@@ -619,10 +625,8 @@ WinProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
 
 // TODO: Do we even need a pump messages or just handle everying in def window proc with GetMessage loop
 void
-pump_messages(Button_State *button_state)
+pump_messages()
 {
-    rvl_assert(button_state);
-    
     MSG msg;
     while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
     {
@@ -630,83 +634,28 @@ pump_messages(Button_State *button_state)
         LPARAM lParam = msg.lParam;
         switch (msg.message)
         {
-            
-            // From MSDN: Closing the window  // https://docs.microsoft.com/en-us/windows/win32/learnwin32/closing-the-window
-            // Clicking close or using alt-f4 causes window to recieve WM_CLOSE message
-            // Allowing you to prompt the user before closing the window
-            
-            // If you want to destroy the window you can call DestroyWindow when WM_CLOSE recieved
-            // or can return 0 from case statement and the OS will ignore message
-            
-            // If you ignore WM_CLOSE entirely DefWindowProc will call DestroyWindow for you
-            
-            // When window is about to be destroyed it will recieve WM_DESTROY message
-            // Typically you call PostQuitMessage(0) from case statement to post WM_QUIT message to
-            // end the message loop
-            case WM_QUIT:
-            {
-                // GetMessage will never recieve this message because it will return false and stop looping (I think)
-                
-                // minimise to tray
-                Global_Running = false;
-                
-                // Removing tray icon doesn't seem to make it disappear any faster than it does by itself.
-                // So seems to be no need for Shell_NotifyIconA(NIM_DELETE, &nid) stuff.
-                //tprint("WM_QUIT\n");
-            } break;
-            
+#if 0
             case WM_COMMAND:
             {
                 switch (HIWORD(wParam))
                 {
                     case BN_CLICKED:
                     {
-                        // TODO: Do we want this type of polling, or do we want to try to respond to 
-                        // messages as soon as they come, i.e. winproc function only.
-                        
-                        // Looping over all messages, only the last pressed button is accepted as input
-                        button_state->clicked = true;
-                        if (ID_DAY_BUTTON == LOWORD(wParam))
-                        {
-                            button_state->button = Button_Day;
-                            tprint("Day");
-                        }
-                        else if (ID_WEEK_BUTTON == LOWORD(wParam))
-                        {
-                            button_state->button = Button_Week;
-                            tprint("Week");
-                        }
-                        else if (ID_MONTH_BUTTON == LOWORD(wParam))
-                        {
-                            button_state->button = Button_Month;
-                            tprint("Month");
-                        }
-                        else
-                        {
-                            rvl_assert(0);
-                        }
-                        
-                        // See if this is even a problem
-                        rvl_assert(button_state->clicked);
                     } break;
                     
                     default:
                     {
-                        tprint("OTHER");
                     } break;
                 }
                 
             } break;
             
-            
             case WM_SYSKEYDOWN:
             case WM_KEYDOWN:
             {
-                if (wParam == VK_ESCAPE)
-                {
-                    Global_Running = false;
-                }
+                
             } break;
+#endif
             
             default:
             {
@@ -717,238 +666,6 @@ pump_messages(Button_State *button_state)
     }
 }
 
-struct V2i
-{
-    int x, y;
-};
-struct Rect2i
-{
-    V2i min, max;
-};
-
-inline V2i
-operator-(V2i a)
-{
-    V2i result;
-    
-    result.x = -a.x;
-    result.y = -a.y;
-    
-    return(result);
-}
-
-inline V2i
-operator+(V2i a, V2i b)
-{
-    V2i result;
-    
-    result.x = a.x + b.x;
-    result.y = a.y + b.y;
-    
-    return(result);
-}
-
-inline V2i &
-operator+=(V2i &a, V2i b)
-{
-    a = a + b;
-    
-    return(a);
-}
-
-inline V2i
-operator-(V2i a, V2i b)
-{
-    V2i result;
-    
-    result.x = a.x - b.x;
-    result.y = a.y - b.y;
-    
-    return(result);
-}
-
-inline V2i
-operator*(r32 A, V2i B)
-{
-    V2i Result;
-    
-    Result.x = A*B.x;
-    Result.y = A*B.y;
-    
-    return(Result);
-}
-
-inline V2i
-operator*(V2i B, r32 A)
-{
-    V2i Result = A*B;
-    
-    return(Result);
-}
-
-inline V2i &
-operator*=(V2i &B, r32 A)
-{
-    B = A * B;
-    
-    return(B);
-}
-
-
-
-template<class T>
-constexpr const T& rvl_clamp( const T& v, const T& lo, const T& hi )
-{
-    rvl_assert(!(hi < lo));
-    return (v < lo) ? lo : (hi < v) ? hi : v;
-}
-
-void draw_rectangle(Screen_Buffer *buffer, Rect2i rect, r32 R, r32 G, r32 B)
-{
-    int x0 = rvl_clamp(rect.min.x, 0, buffer->width);
-    int y0 = rvl_clamp(rect.min.y, 0, buffer->height);
-    int x1 = rvl_clamp(rect.max.x, 0, buffer->width);
-    int y1 = rvl_clamp(rect.max.y, 0, buffer->height);
-    
-    u32 colour = 
-        ((u32)roundf(R * 255.0f) << 16) |
-        ((u32)roundf(G * 255.0f) << 8) |
-        ((u32)roundf(B * 255.0f));
-    
-    u8 *row = (u8 *)buffer->data + x0*Screen_Buffer::BYTES_PER_PIXEL + y0*buffer->pitch;
-    for (int y = y0; y < y1; ++y)
-    {
-        u32 *dest = (u32 *)row;
-        for (int x = x0; x < x1; ++x)
-        {
-            *dest++ = colour;
-        }
-        
-        row += buffer->pitch;
-    }
-}
-
-void
-draw_win32_bitmap(Screen_Buffer *buffer, BITMAP *bitmap, int buffer_x, int buffer_y)
-{
-    int x0 = buffer_x;
-    int y0 = buffer_y;
-    int x1 = buffer_x + bitmap->bmWidth;
-    int y1 = buffer_y + bitmap->bmHeight;
-    
-    if (x0 < 0) 
-    {
-        x0 = 0;
-    }
-    if (y0 < 0)
-    {
-        y0 = 0;
-    }
-    if (x1 > buffer->width)
-    {
-        x1 = buffer->width;
-    }
-    if (y1 > buffer->height)
-    {
-        y1 = buffer->height;
-    }
-    
-    u8 *src_row = (u8 *)bitmap->bmBits;
-    u8 *dest_row = (u8 *)buffer->data + (x0 * buffer->BYTES_PER_PIXEL) + (y0 * buffer->pitch);
-    for (int y = y0; y < y1; ++y)
-    {
-        u32 *src = (u32 *)src_row;
-        u32 *dest = (u32 *)dest_row;
-        for (int x = x0; x < x1; ++x)
-        {
-            r32 A = ((*src >> 24) & 0xFF) / 255.0f;
-            
-            r32 SR = (r32)((*src >> 16) & 0xFF);
-            r32 SG = (r32)((*src >> 8) & 0xFF);
-            r32 SB = (r32)((*src >> 0) & 0xFF);
-            
-            r32 DR = (r32)((*dest >> 16) & 0xFF);
-            r32 DG = (r32)((*dest >> 8) & 0xFF);
-            r32 DB = (r32)((*dest >> 0) & 0xFF);
-            
-            r32 R = (1.0f-A)*DR + A*SR;
-            r32 G = (1.0f-A)*DG + A*SG;
-            r32 B = (1.0f-A)*DB + A*SB;
-            
-            *dest = (((u32)(R + 0.5f) << 16) |
-                     ((u32)(G + 0.5f) << 8) |
-                     ((u32)(B + 0.5f) << 0));
-            
-            ++dest;
-            ++src;
-        }
-        
-        src_row += bitmap->bmWidthBytes;
-        dest_row += buffer->pitch;
-    }
-}
-
-void
-draw_simple_bitmap(Screen_Buffer *buffer, Simple_Bitmap *bitmap, int buffer_x, int buffer_y)
-{
-    int x0 = buffer_x;
-    int y0 = buffer_y;
-    int x1 = buffer_x + bitmap->width;
-    int y1 = buffer_y + bitmap->height;
-    
-    if (x0 < 0) 
-    {
-        x0 = 0;
-    }
-    if (y0 < 0)
-    {
-        y0 = 0;
-    }
-    if (x1 > buffer->width)
-    {
-        x1 = buffer->width;
-    }
-    if (y1 > buffer->height)
-    {
-        y1 = buffer->height;
-    }
-    
-    u8 *src_row = (u8 *)bitmap->pixels;
-    u8 *dest_row = (u8 *)buffer->data + (x0 * buffer->BYTES_PER_PIXEL) + (y0 * buffer->pitch);
-    for (int y = y0; y < y1; ++y)
-    {
-        u32 *src = (u32 *)src_row;
-        u32 *dest = (u32 *)dest_row;
-        for (int x = x0; x < x1; ++x)
-        {
-            r32 A = ((*src >> 24) & 0xFF) / 255.0f;
-            
-            r32 SR = (r32)((*src >> 16) & 0xFF);
-            r32 SG = (r32)((*src >> 8) & 0xFF);
-            r32 SB = (r32)((*src >> 0) & 0xFF);
-            
-            r32 DR = (r32)((*dest >> 16) & 0xFF);
-            r32 DG = (r32)((*dest >> 8) & 0xFF);
-            r32 DB = (r32)((*dest >> 0) & 0xFF);
-            
-            r32 R = (1.0f-A)*DR + A*SR;
-            r32 G = (1.0f-A)*DG + A*SG;
-            r32 B = (1.0f-A)*DB + A*SB;
-            
-            *dest = (((u32)(R + 0.5f) << 16) |
-                     ((u32)(G + 0.5f) << 8) |
-                     ((u32)(B + 0.5f) << 0));
-            
-            ++dest;
-            ++src;
-        }
-        
-        src_row += bitmap->width*bitmap->BYTES_PER_PIXEL;
-        dest_row += buffer->pitch;
-    }
-}
-
-
 int WINAPI
 WinMain(HINSTANCE instance,
         HINSTANCE prev_instance, 
@@ -956,74 +673,31 @@ WinMain(HINSTANCE instance,
         int       cmd_show)
 {
     
-    // TRUE means thread owns the mutex, must have name to be visible to other processes
-    // CreateMutex opens mutex if it exists, and creates it if it doesn't
-    // ReleaseMutex gives up ownership ERROR_ALREADY_EXISTS and returns handle but not ownership
-    // If mutex already exists then LastError gives ERROR_ALREADY_EXISTS
-    // Dont need ownership to close handle
-    // NOTE:
-    // * Each process should create mutex (maybe open mutex instead) once, and hold onto handle
-    //   using WaitForSingleObject to wait for it and ReleaseMutex to release the lock.
-    // * A mutex can be in two states: signaled (when no thread owns the mutex) or unsignaled
-    //   
 #if CONSOLE_ON
     HANDLE con_in = create_console();
 #endif
     
-    char *exe_path = (char *)xalloc(MaxPathLen);
-    if (!exe_path)
     {
-        tprint("Error: Could not allocate memory");
-        return 1;
+        // Relative paths possible???
+        char exe_path[MaxPathLen];
+        DWORD filepath_len = GetModuleFileNameA(nullptr, exe_path, 1024);
+        if (filepath_len == 0 || GetLastError() == ERROR_INSUFFICIENT_BUFFER) return 1;
+        
+        global_savefile_path = make_filepath(exe_path, SaveFileName);
+        if (!global_savefile_path) return 1;
+        
+        global_debug_savefile_path = make_filepath(exe_path, DebugSaveFileName);
+        if (!global_debug_savefile_path) return 1;
+        
+        if (strlen(global_savefile_path) > MAX_PATH)
+        {
+            tprint("Error: Find first file ANSI version limited to MATH_PATH");
+            return 1;
+        }
     }
     
-    DWORD filepath_len = GetModuleFileNameA(nullptr, exe_path, 1024);
-    if (filepath_len == 0 || GetLastError() == ERROR_INSUFFICIENT_BUFFER)
-    {
-        tprint("Error: Could not get executable path");
-        return 1;
-    }
-    
-    global_savefile_path = make_filepath(exe_path, SaveFileName);
-    if (!global_savefile_path)
-    {
-        tprint("Error: Could not initialise filepath");
-        return 1;
-    }
-    
-    global_debug_savefile_path = make_filepath(exe_path, DebugSaveFileName);
-    if (!global_debug_savefile_path)
-    {
-        tprint("Error: Could not initialise debug filepath");
-        return 1;
-    }
-    
-    free(exe_path);
-    exe_path = nullptr;
-    
-    if (strlen(global_savefile_path) > MAX_PATH)
-    {
-        tprint("Error: Find first file ANSI version limited to MATH_PATH");
-        return 1;
-    }
-    
-    // Can also run FindWindow ?
-    HANDLE mutex = CreateMutexA(nullptr, TRUE, MutexName);
-    DWORD error = GetLastError();
-    if (mutex == nullptr ||
-        error == ERROR_ACCESS_DENIED ||
-        error == ERROR_INVALID_HANDLE)
-    {
-        tprint("Error creating mutex\n");
-        return 1;
-    }
-    
-    bool already_running = (error == ERROR_ALREADY_EXISTS);
-    if (already_running)
-    {
-        //CloseHandle(mutex); // this right?
-        // maximise GUI, unless already maximise
-    }
+    // If already running just open/show GUI, or if already open do nothing.
+    // FindWindowA();
     
     // On icons and resources from Forger's tutorial
     // The icon shown on executable file in explorer is the icon with lowest numerical ID in the program's resources. Not necessarily the one we load while running.
@@ -1031,8 +705,9 @@ WinMain(HINSTANCE instance,
     // You can create menus by specifying them in the .rc file or by specifying them at runtime, with AppendMenu etc
     
     // Better to init this before we even can recieve messages
-    resize_screen_buffer(&Global_Screen_Buffer, WindowWidth, WindowHeight);
+    resize_screen_buffer(&global_screen_buffer, WindowWidth, WindowHeight);
     
+    init_queue(&global_event_queue, 100);
     
     WNDCLASS window_class = {};
     window_class.style = CS_HREDRAW|CS_VREDRAW;
@@ -1064,9 +739,8 @@ WinMain(HINSTANCE instance,
     ShowWindow(window, cmd_show);
     UpdateWindow(window); // This sends WM_PAINT message so make sure screen buffer is initialised
     
-    Global_GUI_Visible = (bool)IsWindowVisible(window);
-    rvl_assert(Global_GUI_Visible == (cmd_show != SW_HIDE));
     
+    Font font = create_font("c:\\windows\\fonts\\times.ttf", 28);
     
     remove(global_savefile_path);
     remove(global_debug_savefile_path);
@@ -1075,7 +749,6 @@ WinMain(HINSTANCE instance,
     {
         // Create database
         make_empty_savefile(global_savefile_path);
-        rvl_assert(global_savefile_path);
         rvl_assert(valid_savefile(global_savefile_path));
     }
     else
@@ -1105,7 +778,7 @@ WinMain(HINSTANCE instance,
         // If there are zero days or progams it sets size to 30
         init_hash_table(&all_programs, header.total_program_count*2 + 30);
         
-        u32 max_days = std::max(MaxDays, (header.day_count*2) + 30);
+        u32 max_days = std::max(MaxDays, (header.day_count*2) + DefaultDayAllocationCount);
         days = (Day *)xalloc(sizeof(Day) * max_days);
         
         read_programs_from_savefile(savefile, header, &all_programs);
@@ -1144,6 +817,13 @@ WinMain(HINSTANCE instance,
         fclose(savefile);
     }
     
+    // Must have slot for all hash table ids
+    u32 program_paths_count = 0;
+    Program_Path program_paths[200] = {}; // NOTE: Must be zeroed out.
+    
+    u32 icon_count = 0;
+    Simple_Bitmap icons[200] = {};
+    
     String_Builder sb = create_string_builder();
     
     time_type added_times = 0;
@@ -1152,22 +832,74 @@ WinMain(HINSTANCE instance,
     auto old_time = Steady_Clock::now();
     auto loop_start = Steady_Clock::now();
     
+    DWORD sleep_milliseconds = 2000;
     //
     // Unsleep on message, and sleep remaining time?
     //
     
-    bool GUI_opened = false; // must start as false, for toggling to work.
+    Day *stored_days = nullptr;
+    u32 stored_day_count = 0;
+    u32 stored_cur_day = 0;
+    
+    
+    bool gui_visible = (bool)IsWindowVisible(window);
     
     // Create a freeze frame of data when GUI opened, and just add data to aside, and merge when closed.
     bool first_run = true;
-    Global_Running = true;
-    while (Global_Running)
+    global_running = true;
+    while (global_running)
     {
-        Button_State button_state = {};
-        pump_messages(&button_state);
+        // When MsgWaitForMultipleObjects tells you there is message, you have to process
+        // all messages
+        // Returns when there is a message no one knows about
+        DWORD wait_result = MsgWaitForMultipleObjects(0, nullptr, false, sleep_milliseconds,
+                                                      QS_SENDMESSAGE);
+        if (wait_result == WAIT_FAILED)
+        {
+            
+        }
+        else if (wait_result == WAIT_TIMEOUT)
+        {
+            
+        }
+        else if (wait_result == WAIT_OBJECT_0)
+        {
+            // Can return this even if no input available, if system event (like foreground
+            // activation) occurs.
+        }
+        else
+        {
+            // Should not get other return values
+        }
         
-        if (!GUI_opened && Global_GUI_Visible) GUI_opened = true;
-        else GUI_opened = false;
+        pump_messages(); // Need this to translate and dispatch messages.
+        
+        Button button = Button_Invalid;;
+        bool button_clicked = false;
+        bool gui_opened = false;
+        bool gui_closed = false;
+        
+        while (!global_event_queue.empty())
+        {
+            Event e = global_event_queue.dequeue();
+            if (e.type == Event_Button_Click) 
+            {
+                button_clicked = true;
+                button = e.button;
+            }
+            else if (e.type == Event_GUI_Open)
+            {
+                gui_opened = true;
+                gui_closed = false;
+                gui_visible = true;
+            }
+            else if (e.type == Event_GUI_Close)
+            {
+                gui_opened = false;
+                gui_closed = true;
+                gui_visible = false;
+            }
+        }
         
         auto new_time = Steady_Clock::now();
         std::chrono::duration<time_type> diff = new_time - old_time; 
@@ -1179,28 +911,10 @@ WinMain(HINSTANCE instance,
         duration_accumulator += dt;
         
         // speed up time!!!
-        
-        int seconds_per_day = 5;
+        // int seconds_per_day = 5;
         //sys_days current_date = floor<date::days>(System_Clock::now()) + date::days{(int)duration_accumulator / seconds_per_day};
         
         sys_days current_date = floor<date::days>(System_Clock::now());
-        
-        // I prefer if this wasn't here, and i could better query for name, and then possibly get URL
-        HWND foreground_win = GetForegroundWindow();
-        char program_name[MaxPathLen + 1] = {};
-        u32 len = get_forground_window_program(foreground_win, program_name);
-        
-        
-        if (strcmp(program_name, "firefox") == 0)
-        {
-            // for now just overwrite firefox window name and add url as a program
-            // TODO: If we get a URL but it has no url features like www. or https:// etc
-            // it is probably someone just writing into the url bar, and we don't want to save these
-            // as urls.
-            char *URL = program_name;
-            size_t URL_len = 0;
-            bool success = get_firefox_url(foreground_win, URL, &URL_len);
-        }
         
         if (current_date != days[cur_day].date)
         {
@@ -1211,17 +925,95 @@ WinMain(HINSTANCE instance,
             days[cur_day].date = current_date;
         }
         
-        add_program_duration(&all_programs, &days[cur_day], dt, program_name);
-        
+        {
+            char   full_path[MaxPathLen + 1]     = {};
+            char   *name_start                   = nullptr; 
+            char   program_name[MaxPathLen + 1]  = {};
+            size_t full_path_len                 = 0;
+            size_t name_len                      = 0;
+            
+            HWND foreground_win = GetForegroundWindow();
+            
+            full_path_len = get_forground_window_path(foreground_win, full_path, array_count(full_path));
+            name_start    = get_filename_from_path(full_path); // Returns a pointer to filename in full_path
+            name_len      = strlen(name_start);
+            
+            rvl_assert(name_len > 4 && strcmp(name_start + (name_len - 4), ".exe") == 0);
+            
+            // TODO: Does "No Window" ever appear???
+            
+            name_len -= 4;
+            memcpy(program_name, name_start, name_len); // Don't copy '.exe' from end
+            program_name[name_len] = '\0';
+            
+            if (strcmp(program_name, "firefox") == 0)
+            {
+                // for now just overwrite firefox window name and add url as a program
+                // TODO: If we get a URL but it has no url features like www. or https:// etc
+                // it is probably someone just writing into the url bar, and we don't want to save these
+                // as urls.
+                char *URL = program_name;
+                size_t URL_len = 0;
+                bool success = get_firefox_url(foreground_win, URL, &URL_len);
+            }
+            
+            // NOTE: Adds to the table and the days array, maybe these should be separate
+            // Mayne this could return an ID
+            add_program_duration(&all_programs, &days[cur_day], dt, program_name);
+            
+            // TODO: Table must be in sync with program_paths array, so ID slot must exist, is this bad?
+            // Maybe just put whole thing in hash table.
+            u32 ID = 0;
+            bool in_table = all_programs.search(program_name, &ID);
+            if (in_table)
+            {
+                if (program_paths[ID].occupied)
+                {
+                    if (!program_paths[ID].updated_recently)
+                    {
+                        if (strcmp(program_paths[ID].full_path, full_path) != 0)
+                        {
+                            free(program_paths[ID].full_path);
+                            program_paths[ID].full_path = clone_string(full_path, full_path_len+1);
+                            program_paths[ID].updated_recently = true;
+                        }
+                    }
+                }
+                else
+                {
+                    program_paths[ID].full_path = clone_string(full_path, full_path_len+1);
+                    program_paths[ID].updated_recently = true;
+                    program_paths[ID].occupied = true;
+                    program_paths_count += 1;
+                    
+                    rvl_assert(program_paths_count == all_programs.count);
+                }
+            }
+            else
+            {
+                rvl_assert(0);
+            }
+            
+            
+            if (in_table && strcmp(program_name, "firefox") != 0)
+            {
+                if (!icons[ID].pixels) 
+                {
+                    Simple_Bitmap icon_bitmap = get_icon_from_executable(full_path, 64);
+                    icons[ID] = icon_bitmap;
+                    ++icon_count;
+                }
+            }
+        }
         
         static char window_str[10000];
-        if (button_state.clicked)
+        if (button_clicked)
         {
-            rvl_assert(button_state.button != Button_Invalid);
+            Button button_clicked = Button_Day;
             
             u32 period = 
-                (button_state.button == Button_Day) ? 1 :
-            (button_state.button == Button_Week) ? 7 : 30; 
+                (button_clicked == Button_Day) ? 1 :
+            (button_clicked == Button_Week) ? 7 : 30; 
             
             sys_days period_start_date = current_date - date::days{period - 1};
             
@@ -1257,305 +1049,125 @@ WinMain(HINSTANCE instance,
             strcpy(window_str, display.str);
         }
         
-        if (first_run)
+        if (gui_opened)
         {
+            // Save a freeze frame of the currently saved days.
+            stored_days = days;
+            stored_day_count = day_count;
+            stored_cur_day = cur_day;
             
-            // Paint white background
-            u32 *dest = (u32 *)Global_Screen_Buffer.data;
-            for (int y = 0; y < Global_Screen_Buffer.height; ++y)
+            // It is unnecessary to save the hash table of programs as new programs will not be able to
+            // be referenced by existing IDs.
+            
+            days = (Day *)xalloc(sizeof(Day) * DefaultDayAllocationCount);
+            day_count = 1;
+            cur_day = 0;
+            
+            // Copy back todays records
+            days[cur_day] = stored_days[stored_cur_day];
+            days[cur_day].records = (Program_Record *)xalloc(sizeof(Program_Record) * MaxDailyRecords);
+            if (days[cur_day].record_count > 0)
             {
-                for (int x = 0; x < Global_Screen_Buffer.width; ++x)
-                {
-                    // 0xAARRGGBB
-                    *dest++ = 0xFF00FF90;
-                }
-                // Ignore pitch for now
+                memcpy(days[cur_day].records, 
+                       stored_days[stored_cur_day].records, sizeof(Program_Record) * stored_days[stored_cur_day].record_count);
             }
+        }
+        
+        // TODO: Do you need cur day, as it is always the last day
+        
+        if (gui_closed)
+        {
+            // Merge new days and records with the stored.
             
+            // stored_cur_day                 v = 6
+            // stored_days [0][1][2][3][4][5][6][][][]
+            // stored_day_count = 7
             
+            // cur_day  v = 1
+            // days [0][1][][]
+            // day_count = 2
             
-            // Get icon
+            free(stored_days[stored_cur_day].records);
             
-            //https://stackoverflow.com/questions/37370241/difference-between-extracticon-and-extractassociatedicon-need-to-extract-icon-o
-            
-            // A HMODULE and HINSTANCE are now the same thing (they once weren't), and represent a program in loaded in memory (they both contain the base address of the module in memory).
-            
-            
-            // LoadLibrary can be used to load a library module into the address space of the process
-            // e.g. Can specify an .exe file to get a handle that can be used in FindResource or LoadResource
-            HMODULE module = LoadLibraryA("C:\\Program Files\\Mozilla Firefox\\firefox.exe");
-            if (module == NULL)
+            // TODO: just use a vector
+            if (stored_day_count + day_count < MaxDays)
             {
-                tprint("");
+                rvl_assert(stored_day_count > 0);
+                
+                // NOTE: This doesn't work if we have one big record array.
+                memcpy(&stored_days[stored_cur_day], days, sizeof(Day) * day_count);
+                
+                days = stored_days;
+                day_count += stored_day_count - 1; // Because we always have one overlapping day I think.
+                cur_day += stored_cur_day;
+                
+                stored_days = nullptr;
+                stored_day_count = 0;
+                stored_cur_day = 0;
             }
-            
-            // If you don't know the id of the icon use positive number to get first (0), second (1) ... icon in file
-            // Get get number of icons in file use -1
-            
-            
-            auto win32_bitmap_to_simple_bitmap = [](BITMAP *win32_bitmap) -> Simple_Bitmap {
-                rvl_assert(win32_bitmap->bmType == 0);
-                rvl_assert(win32_bitmap->bmHeight > 0);
-                rvl_assert(win32_bitmap->bmHeight > 0);
-                rvl_assert(win32_bitmap->bmBitsPixel == 32);
-                rvl_assert(win32_bitmap->bmBits);
-                
-                Simple_Bitmap simple_bitmap = {};
-                simple_bitmap.width = win32_bitmap->bmWidth;
-                simple_bitmap.height = win32_bitmap->bmHeight;
-                simple_bitmap.pixels = (u32 *)xalloc(simple_bitmap.width * simple_bitmap.height * simple_bitmap.BYTES_PER_PIXEL);
-                
-                // BITMAP is bottom up with a positive height.
-                u32 *dest = (u32 *)simple_bitmap.pixels;
-                u8 *src_row = (u8 *)win32_bitmap->bmBits + (win32_bitmap->bmWidthBytes * (win32_bitmap->bmHeight-1));
-                for (int y = 0; y < win32_bitmap->bmHeight; ++y)
-                {
-                    u32 *src = (u32 *)src_row;
-                    for (int x = 0; x < win32_bitmap->bmWidth; ++x)
-                    {
-                        *dest++ = *src++;
-                    }
-                    
-                    src_row -= win32_bitmap->bmWidthBytes;
-                }
-                
-                return simple_bitmap;
-            };
-            
-            
-            auto draw_icon = [&](char *name, int screen_x, int screen_y) -> bool {
-                HICON icon = ExtractIconA(instance, name, 0);
-                if (icon == NULL || icon == (HICON)1)
-                {
-                    tprint("%: No icon", get_filename_from_path(name));
-                    return false;
-                }
-                
-                // DestroyIcon(icon);
-                
-                // Icons are generally created using an AND and XOR masks where the AND
-                // specifies boolean transparency (the pixel is either opaque or
-                // transparent) and the XOR mask contains the actual image pixels. If the XOR
-                // mask bitmap has an alpha channel, the AND monochrome bitmap won't
-                // actually be used for computing the pixel transparency. Even though all our
-                // bitmap has an alpha channel, Windows might not agree when all alpha values
-                // are zero. So the monochrome bitmap is created with all pixels transparent
-                // for this case. Otherwise, it is created with all pixels opaque
-                
-                auto pixels_have_alpha_component = [](BITMAP *bitmap) -> bool {
-                    u8 *row = (u8 *)bitmap->bmBits;
-                    for (int y = 0; y < bitmap->bmHeight; ++y)
-                    {
-                        u32 *pixels = (u32 *)row;
-                        for (int x = 0; x < bitmap->bmWidth; ++x)
-                        {
-                            u32 pixel = *pixels++;
-                            if (pixel & 0xFF000000) return true;
-                        }
-                        
-                        row += bitmap->bmWidthBytes;
-                    }
-                    
-                    return false;
-                };
-                
-                ICONINFOEX IconInfo = {};
-                IconInfo.cbSize = sizeof(ICONINFOEX);
-                GetIconInfoEx(icon, &IconInfo);
-                
-                // These bitmaps are stored as bottom up bitmaps, so the bottom row of image is stored in the first 'row' in memory.
-                BITMAP icon_bitmap = {};
-                BITMAP mask = {};
-                DIBSECTION ds = {};
-                
-                HBITMAP colour = (HBITMAP)CopyImage(IconInfo.hbmColor, IMAGE_BITMAP, 0, 0, LR_CREATEDIBSECTION);
-                int bytes = GetObject(colour, sizeof(BITMAP), &icon_bitmap);
-                
-                HBITMAP one_bit = (HBITMAP)CopyImage(IconInfo.hbmMask, IMAGE_BITMAP, 0, 0, LR_CREATEDIBSECTION);
-                GetObject(one_bit, sizeof(BITMAP), &mask);
-                
-                if (pixels_have_alpha_component(&icon_bitmap))
-                    tprint("%s: Has Alpha", get_filename_from_path(name));
-                else
-                    tprint("%s: No Alpha", get_filename_from_path(name));
-                
-                if (!pixels_have_alpha_component(&icon_bitmap))
-                {
-                    u8 *row = (u8 *)icon_bitmap.bmBits;
-                    u8 *bits = (u8 *)mask.bmBits;
-                    int i = 0;
-                    for (int y = 0; y < icon_bitmap.bmHeight; ++y)
-                    {
-                        u32 *dest = (u32 *)row;
-                        for (int x = 0; x < icon_bitmap.bmWidth; ++x)
-                        {
-                            if(*bits & (1 << 7-i))
-                            {
-                                // Pixel should be transparent
-                                u32 a = 0x00FFFFFF;
-                                *dest &= a;
-                            }
-                            else
-                            {
-                                // Pixel should be visible
-                                u32 a = 0xFF000000;
-                                *dest |= a;
-                            }
-                            
-                            ++i;
-                            if (i == 8)
-                            {
-                                ++bits;
-                                i = 0;
-                            }
-                            
-                            
-                            dest++;
-                        }
-                        
-                        row += icon_bitmap.bmWidthBytes;
-                    }
-                }
-                
-                //draw_win32_bitmap(&Global_Screen_Buffer, &icon_bitmap, screen_x, screen_y); 
-                
-                Simple_Bitmap simple_bitmap = win32_bitmap_to_simple_bitmap(&icon_bitmap);
-                draw_simple_bitmap(&Global_Screen_Buffer, &simple_bitmap, screen_x, screen_y);
-                
-                return true;
-            };
-            
-            
-            // No alpha component, some set bits in colour channels
-            // The mask has (32 width * 32 height) bits = 128 bytes of some set bits at start of mask (AND bitmask). Then zeroes from then on.
-            // Using set bits in start of mask as either 0x00 or 0xFF alpha value for colour bitmap makes render fine. 
-            char *krita = "C:\\Program Files\\Krita (x64)\\bin\\krita.exe";  // A==0 for all pixels
-            
-            // Firefox has alpha component, renders fine with just colour bitmap, and mask has no set bits
-            char *ff = "C:\\Program Files\\Mozilla Firefox\\firefox.exe";
-            
-            // Monitor has alpha component, renders fine with just colour, mask had some set bytes around top then all zeroes
-            char *mon = "C:\\dev\\projects\\monitor\\build\\monitor.exe";    // fine
-            
-            // Couldn't get icon
-            char *z7 = "C:\\Program Files\\7-Zip\\7z.exe";
-            
-            char *qt = "C:\\Qt\\5.12.2\\msvc2017_64\bin\\designer.exe";
-            
-            char *drop = "C:\\Program Files (x86)\\Dropbox\\Client\\Dropbox.exe";
-            
-            char *vim = "C:\\Program Files (x86)\\Vim\\vim80\\gvim.exe";
-            
-            char *note = "C:\\Windows\\notepad.exe";
-            
-            char *names[] = {
-                "C:\\Program Files\\Krita (x64)\\bin\\krita.exe",
-                "C:\\Program Files\\Mozilla Firefox\\firefox.exe",
-                "C:\\dev\\projects\\monitor\\build\\monitor.exe",
-                "C:\\Program Files\\7-Zip\\7z.exe",
-                "C:\\Qt\\5.12.2\\msvc2017_64\bin\\designer.exe",
-                "C:\\Program Files (x86)\\Dropbox\\Client\\Dropbox.exe",
-                "C:\\Program Files (x86)\\Vim\\vim80\\gvim.exe",
-                "C:\\Windows\\notepad.exe",
-            };
-            
-            int n = 40;
-            int row = 0;
-            int col = 0;
-            for (int i = 0; i < array_count(names); ++i)
+            else
             {
-                draw_icon(names[i], col*n, row*n);
-                ++col;
-                if (col == 3) {
-                    ++row;
-                    col = 0;
-                    tprint("");
-                }
-                
+                rvl_assert(0);
             }
+        }
+        
+        
+        if (gui_visible)
+        {
+            // Fill Background
+            draw_rectangle(&global_screen_buffer, 
+                           Rect2i{{0, 0}, {global_screen_buffer.width, global_screen_buffer.height}},
+                           1.0f, 1.0f, 1.0f);
+            
+            int origin_x = 200;
+            int origin_y = 400;
             
             
-#if 0
-            int line_thickness = 2;
-            int backtail = 10;
+            rvl_assert(stored_days);
+            rvl_assert(stored_day_count > 0);
             
-            int x_axis_length = 500;
-            int y_axis_height = 300;
+            Day &today = stored_days[cur_day];
             
-            int bar_width = 40;
-            int bar_spacing = 30;
+            Program_Record sorted_records[MaxDailyRecords];
+            memcpy(sorted_records, today.records, sizeof(Program_Record) * today.record_count);
             
-            V2i origin = {200, 400};
-            
-            Rect2i x_axis = {
-                origin - V2i{backtail, 0},
-                origin + V2i{x_axis_length, line_thickness}
-            };
-            Rect2i y_axis = {
-                origin - V2i{0, y_axis_height},
-                origin + V2i{line_thickness, backtail+line_thickness}
-            };
-            
-            draw_rectangle(&Global_Screen_Buffer, 
-                           x_axis,
-                           0.0f, 0.0f, 0.0f);
-            
-            draw_rectangle(&Global_Screen_Buffer, 
-                           y_axis,
-                           0.0f, 0.0f, 0.0f);
-            
-            
-            
-            Day &today = days[cur_day];
-            double max_duration = 0;
-            for (int j = 0; j < today.record_count; ++j)
-            {
-                max_duration = std::max(max_duration, today.records[j].duration);
-            }
+            std::sort(sorted_records, sorted_records+today.record_count, [](Program_Record &a, Program_Record &b){ return a.duration > b.duration; });
             
             int max_bars = x_axis_length / (bar_width + bar_spacing);
-            int bars = std::min(max_bars, (int)today.record_count);
+            int bar_count = std::min(max_bars, (int)today.record_count);
             
-            for (int i = 0; i < bars; ++i)
+            for (int i = 0; i < bar_count; ++i)
             {
-                double scale = (today.records[i].duration / max_duration);
-                int bar_height = y_axis_height * scale;
+                Program_Record &record = sorted_records[i];
+                rvl_assert(icons[record.ID].pixels);
                 
-                Rect2i bar = {
-                    {0, 0},
-                    {bar_width, bar_height}
-                };
+                Simple_Bitmap &icon = icons[record.ID];
                 
-                V2i bar_offset = V2i{bar_spacing + i*(bar_width + bar_spacing), 0};
-                V2i top_left = origin + bar_offset - V2i{0, bar_height};
+                int bar_centre_line_x = origin_x + ((bar_spacing + bar_width) * (i+1)) - (bar_width/2);
+                int icon_pen_x = bar_centre_line_x - (icon.width/2);
+                int icon_pen_y = origin_y + 10;
                 
-                bar.min += top_left;
-                bar.max += top_left;
-                
-                r32 t = (r32)i/bars;
-                r32 red = (1 - t) * 0.0f + t * 1.0f;
-                draw_rectangle(&Global_Screen_Buffer, 
-                               bar,
-                               red, 0.0f, 0.0f);
-                
-            }
-#endif
-            // Don't sleep if GUI opened
-            // Just wait for messages I guess
-            {
-                HDC device_context = GetDC(window);
-                
-                RECT rect;
-                GetClientRect(window, &rect);
-                int width = rect.right - rect.left;
-                int height = rect.bottom - rect.top;
-                paint_window(&Global_Screen_Buffer, device_context, width, height);
-                
-                ReleaseDC(window, device_context);
+                draw_simple_bitmap(&global_screen_buffer, &icon, icon_pen_x, icon_pen_y);
             }
             
-            first_run = false;
-        } // end first run
+            draw_bar_plot_from_records(&global_screen_buffer, &font, sorted_records, bar_count, origin_x, origin_y);
+        }
+        
+        
+        // Don't sleep if GUI opened
+        // Just wait for messages I guess
+        {
+            HDC device_context = GetDC(window);
+            
+            RECT rect;
+            GetClientRect(window, &rect);
+            int width = rect.right - rect.left;
+            int height = rect.bottom - rect.top;
+            paint_window(&global_screen_buffer, device_context, width, height);
+            
+            ReleaseDC(window, device_context);
+        }
+        
         
         Sleep(60);
         
@@ -1574,11 +1186,11 @@ WinMain(HINSTANCE instance,
     // NOTE: Maybe be slightly different because of instructions between loop finishing and taking the time here, also Sleep may not be exact. Probably fine to ignore.
     sb.appendf("Diff: %lf\n", loop_time.count() - duration_accumulator);
     
-    SetWindowTextA(Global_Text_Window, sb.str);
+    SetWindowTextA(global_text_window, sb.str);
     
     
-    Global_Running = true;
-    while (Global_Running)
+    Global_running = true;
+    while (Global_running)
     {
         Button_State button_state = {};
         pump_messages(&button_state);
@@ -1657,13 +1269,11 @@ WinMain(HINSTANCE instance,
     
     free_table(&all_programs);
     
-    
-    // Can open new background instance when this is closed
-    rvl_assert(mutex);
-    CloseHandle(mutex);
+    free(font.atlas);
+    free(font.glyphs);
     
     // Just in case we exit using ESCAPE
-    Shell_NotifyIconA(NIM_DELETE, &Global_Nid);
+    Shell_NotifyIconA(NIM_DELETE, &global_nid);
     
     FreeConsole();
     
@@ -1739,7 +1349,81 @@ for (u32 i = 0; i < today.record_count; ++i)
 }
 sb.appendf("\nAccumulated duration: %lf\n\n", duration_accumulator);
 sb.appendf("Sum records duration: %lf\n\n", sum_duration);
-SetWindowTextA(Global_Text_Window, sb.str);
+SetWindowTextA(global_text_window, sb.str);
 
-if (Global_Running) sb.clear();
+if (Global_running) sb.clear();
+
+//
+//
+//
+
+// TRUE means thread owns the mutex, must have name to be visible to other processes
+// CreateMutex opens mutex if it exists, and creates it if it doesn't
+// ReleaseMutex gives up ownership ERROR_ALREADY_EXISTS and returns handle but not ownership
+// If mutex already exists then LastError gives ERROR_ALREADY_EXISTS
+// Dont need ownership to close handle
+// NOTE:
+// * Each process should create mutex (maybe open mutex instead) once, and hold onto handle
+//   using WaitForSingleObject to wait for it and ReleaseMutex to release the lock.
+// * A mutex can be in two states: signaled (when no thread owns the mutex) or unsignaled
+//   
+// Can also run FindWindow ?
+HANDLE mutex = CreateMutexA(nullptr, TRUE, MutexName);
+DWORD error = GetLastError();
+if (mutex == nullptr ||
+    error == ERROR_ACCESS_DENIED ||
+    error == ERROR_INVALID_HANDLE)
+{
+    tprint("Error creating mutex\n");
+    return 1;
+}
+
+bool already_running = (error == ERROR_ALREADY_EXISTS);
+if (already_running)
+{
+    //CloseHandle(mutex); // this right?
+    // maximise GUI, unless already maximise
+}
+
+CloseHandle(mutex);
+
+
+
+
+#endif
+
+#if 0
+char *names[] = {
+    "C:\\Program Files\\Krita (x64)\\bin\\krita.exe",
+    "C:\\Program Files\\Mozilla Firefox\\firefox.exe",
+    "C:\\dev\\projects\\monitor\\build\\monitor.exe",
+    "C:\\Program Files\\7-Zip\\7zFM.exe",  // normal 7z.exe had no icon
+    "C:\\Qt\\5.12.2\\msvc2017_64\\bin\\designer.exe",
+    "C:\\Qt\\5.12.2\\msvc2017_64\\bin\\assistant.exe",
+    "C:\\Program Files (x86)\\Dropbox\\Client\\Dropbox.exe",
+    "C:\\Program Files (x86)\\Vim\\vim80\\gvim.exe",
+    "C:\\Windows\\notepad.exe",
+    "C:\\Program Files\\CMake\\bin\\cmake-gui.exe",
+    "C:\\Program Files\\Git\\git-bash.exe",
+    "C:\\Program Files\\Malwarebytes\\Anti-Malware\\mbam.exe",
+    "C:\\Program Files\\Sublime Text 3\\sublime_text.exe",
+    "C:\\Program Files\\Typora\\bin\\typora.exe",
+    "C:\\files\\applications\\cmder\\cmder.exe",
+    "C:\\files\\applications\\4coder\\4ed.exe",
+    "C:\\files\\applications\\Aseprite\\aseprite.exe",
+    "C:\\dev\\projects\\shell\\shell.exe",  // No icon in executable just default windows icon showed in explorer, so can't load anything
+};
+
+UINT size = 64;
+int n = size * 1.2f;
+int row = 0;
+int col = 0;
+for (int i = 0; i < array_count(names); ++i, ++col)
+{
+    if (col == 3) {
+        ++row;
+        col = 0;
+    }
+    
+    Simple_Bitmap icon_bitmap = get_icon_from_executable(names[i], size);
 #endif

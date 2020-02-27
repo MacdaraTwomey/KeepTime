@@ -1,20 +1,4 @@
 
-Create a application monitoring application, will browser integration, to assist in
-of personal accountability and awareness of how time is spent on the computer.
-
-Personal goals;
- * To learn how to use a GUI library
- * To learn (minimally) how web stuff works
- * Make a fully fleshed applicaiton that I can use
-
-Goals:
- * Easy to use: require only one press or so to download extension and program,
-   and then can just open report to get time based summary of usages.
-
-Main features:
- * Browser integration
- * Creates a report (text and graphs) of used apps and visited websites
-
 Possible other features:
  * Can detect if multiple windows are being viewed even if just one is in focus
  * Detect that window is opened in second monitor and is being read from
@@ -31,55 +15,6 @@ User interface:
  * Should not be realtime in GUI (timers ticking up etc), just snapshop when opened
    and when gains focus (maybe not focus could be confusin g)
 
-Roadmap:
- 1. Record times and names of in foces desktop programs
- 2. Show times in GUI with text
- 3. Add graphs
- 4. Browser integration with firefox and chrome
- 5. Other platforms
-
-
-
-TODO:
- * Create appropriate action of program for all possible opening states
-
- 1. Nothing open              
-     - no flag			-> start background and then create GUI process
-     - background flag (could be from registry or startup folder)	-> start background
-     - gui flag			-> start GUI
-
- 2. Background open
-     - no flag			-> start GUI
-     - background flag		-> ???
-       (could be from startup folder, after registry started,
-       or user just passed -background and ran program).
-     - gui flag			-> start GUI
-
- 3. Background and GUI open
-     - no flag			-> start another GUI
-     - background flag		-> ???
-     (could be from startup folder, after registry started,
-     or user just passed -background flag).
-     - gui flag			-> start another GUI
-
- 4. GUI open
-     - no flag			-> open another GUI, and background
-     - background flag		-> open background
-     - guiflag			-> open another GUI
-
-
-
-
-Polishing TODOs:
- * When serialising data pack data into file, then unpack into memory (to minimise file size)
- * Test cases with > 1000 programs, (or lower initial program number from 1000 to test)
-
-
-
-
-
-
-
 
 Gotchas:
  * Procrastitracker source says win 8/10 hide real process in a wrapper
@@ -89,12 +24,6 @@ Gotchas:
  * Closing programs (without switching to new program)
  * Shutdown and sleep
  * Messaging other process when it isn't open
-
-Browser integration:
- * Some browsers once supported dde functions (e.g. DdeCreateStringHandleA) allowing to
-   get the URL, probably not anymore?
- * Maybe can use Microsoft UI Automation to get URLS from browsers?
-   https://stackoverflow.com/questions/20798935/how-can-i-get-the-url-from-running-instance-of-firefox-and-chrome-web-browser-in
 
 Time management:
  * Could just use time of day (day starts at 12:00 am) but ignores late night users (would include previous 'day' in current day)
@@ -125,27 +54,7 @@ Implementation
 	- Maybe just put in startup folder with flag in shortcut
  2. May not make it appear program closed properly, if gui is just hidden
 
-
-//
-// Old idea
-//
-Best idea - one .exe, up to two instances open,
-
-Problems
- 1. When starting background on startup or on schedule, we don't want to open GUI,
-    but would have to because opening program invokes GUI.
- 2. Running program with background running and GUI already open, so have multiple GUIs
- 3. Starting background from GUI, when background not running
- 4. Multiple GUIs trying to read at same time, if opened 
- 5. Have shortcut with -background flag but also have run at startup registry edit)
-
-Possible solutions:
- 1. Get user to add shortcut (with command line args), to startup folder.
-     - This doesn't need registry access, so is more portable, and controllable.
- 1. Or can have setting to run from startup by editing registry, which will run program with a commmand line
- 3. Reopening from GUI with button can pass command line args, to tell program to just run background
-
-
+//---
 Foreground polling:
  * SetWinEventHook can be slow, have to inject dll into address of processes you want to monitor
    could test against polling foreground window later.
@@ -157,27 +66,9 @@ Time of day:
  * Don't handle changing local time yet (daylight davings or move to new timezone)
  * tm_dst can tell if daylight savings
 
-Messaging:
- * Close		(GUI -> background)
- * Write current data   (GUI -> background)
- * Read new settings	(GUI -> background)
- 
-File format:
- * Notes
-     - Write to text file at same time as writing to binary (for debug purposes)
-     - Endianness?
-
 Settings:
  * User
      - Blacklist program names
-
-Database file:
- * GUI and background can share file access by just opening exclusive handles to file
- * Have to keep settings in here to persist across sessions
- * But allow FILE_SHARE_READ between GUI<->GUI or GUI<->background but not shared read write
- * GUI will only write to settings in header (I think), and background will be alerted to this
- * Need to read file into memory so all data has correct alignment
-
 UI:
  * Could make horizontal graphs, with layout similar like win10 task manager processes screen
 

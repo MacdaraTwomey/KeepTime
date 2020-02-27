@@ -1,10 +1,12 @@
 
-#include "monitor.h"
+//#include "monitor.h"
 #include "stdlib.h"
+#include "helper.h"
 
 #include <stdarg.h>
 #include <stdio.h>
 
+#include <algorithm>
 
 // TODO: BETTER HASH FUNCTION
 // TODO: This only returns 32-bit value in windows
@@ -72,7 +74,7 @@ s64 Hash_Table::add_item(char *key, u32 value)
     }
     
     s64 index = (i+start) % size;
-    buckets[index].key = copy_string(key);
+    buckets[index].key = clone_string(key);
     buckets[index].value = value;
     occupancy[index] = OCCUPIED;
     count += 1;
@@ -246,6 +248,79 @@ void String_Builder::clear()
     len = 0;
     str[0] = '\0';
 }
+
+// ------------------------------------------------------------------------------
+
+template<typename T>
+void init_queue(Queue<T> *queue, s64 initial_capacity)
+{
+    queue->front_i = 0;
+    queue->capacity = std::max(initial_capacity, (s64)30);
+    queue->rear = queue->capacity - 1;
+    queue->count = 0;
+    queue->data = (T *)malloc(sizeof(T) * queue->capacity);
+    rvl_assert(queue->data);
+}
+
+template<typename T>
+void 
+Queue<T>::enqueue(T x) {
+    if (count + 1 > capacity)
+    {
+        grow();
+    }
+    
+    rear = (rear + 1) % capacity;
+    data[rear] = x;
+    ++count;
+}
+
+template<typename T>
+T 
+Queue<T>::dequeue() {
+    rvl_assert(count > 0);
+    T x = data[front_i];
+    front_i = (front_i + 1) % capacity;
+    --count;
+    return x;
+}
+
+template<typename T>
+T 
+Queue<T>::front() {
+    rvl_assert(count > 0);
+    T x = data[front_i];
+    return x;
+}
+
+template<typename T>
+bool 
+Queue<T>::empty() {
+    return count == 0;
+}
+
+template<typename T>
+void 
+Queue<T>::grow()
+{
+    T *new_data = (T *)malloc(sizeof(T) * (capacity * 2));
+    rvl_assert(new_data);
+    
+    s64 n = count;
+    for (s64 i = 0; i < n; ++i)
+    {
+        new_data[i] = dequeue();
+    }
+    
+    front_i = 0;
+    rear = n - 1;
+    count = n;
+    capacity *= 2;
+    free(data);
+    data = new_data;
+}
+
+// -----------------------------------------------------------------
 
 // Windows stuff that we don't want clogging up main file
 void

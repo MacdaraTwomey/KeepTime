@@ -202,8 +202,9 @@ void convert_savefile_to_text_file(char *savefile_path, char *text_file_path)
         sb.appendf("\nDates //--------------------------------------\n");
         for (u32 i = 0; i < header.day_count; ++i)
         {
+            // day is 1-31, month is 1-12 for this type
             auto d = year_month_day(dates[i]);
-            sb.appendf("%u: [%u/%u/%i]   ", i, (unsigned int)d.day(), (unsigned int)d.month()+1, (int)d.year());
+            sb.appendf("%u: [%u/%u/%i]   ", i, (unsigned int)d.day(), (unsigned int)d.month(), (int)d.year());
         }
         sb.appendf("\n\nCounts //------------------------------------\n");
         for (u32 i = 0; i < header.day_count; ++i)
