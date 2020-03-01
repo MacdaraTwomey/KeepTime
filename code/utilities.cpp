@@ -132,3 +132,11 @@ operator*=(V2i &B, r32 A)
     
     return(B);
 }
+
+
+template<class T>
+constexpr const T& rvl_clamp( const T& v, const T& lo, const T& hi )
+{
+    rvl_assert(!(hi < lo));
+    return (v < lo) ? lo : (hi < v) ? hi : v;
+}

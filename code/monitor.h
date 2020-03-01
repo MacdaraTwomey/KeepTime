@@ -3,16 +3,15 @@
 #include "date.h"
 #include "helper.h"
 
-using namespace date;
-// unpacked
-// 16 bytes unpacked
-// avg 10 progams a day
-// 5 yeafs of days
-// 16 * 10 * 365 = 58400 (58kb) per year
+#include "stb_truetype.h"
 
-// packed
-// 10 * 10 * 365 = 35600 (36kb) per year
+// TODO: Think of better way than just having error prone max amounts.
+static constexpr u32 MaxDailyRecords = 1000;
+static constexpr u32 MaxDays = 1000;
+static constexpr u32 DefaultDayAllocationCount = 30;
 
+typedef double time_type;
+// using namespace date;
 
 // static constexpr u32 DefaultVersion = 0;
 // static constexpr u32 MaxSupportedVersion = 0;
@@ -30,8 +29,6 @@ using namespace date;
 // On windows Steady clock is based on QueryPerformanceCounter
 using Steady_Clock = std::chrono::steady_clock;
 using System_Clock = std::chrono::system_clock;
-
-typedef double time_type;
 
 // Holds settings and info about file contents
 struct Header
@@ -80,7 +77,7 @@ struct Day
 {
     Program_Record *records;
     u32 record_count;
-    sys_days date;
+    date::sys_days date;
 };
 
 struct NOT_SURE
@@ -100,9 +97,11 @@ enum Button : u8
 
 enum Event_Type 
 {
+    Event_Invalid,
     Event_Button_Click,
     Event_GUI_Open,
     Event_GUI_Close,
+    Event_Poll_Programs,
 };
 
 struct Event
@@ -112,10 +111,6 @@ struct Event
     };
     Event_Type type;
 };
-
-
-// ---------------------------
-// Rendering
 
 struct Simple_Bitmap
 {
@@ -128,22 +123,39 @@ struct Simple_Bitmap
     // No pitch for now, pitch == width
 };
 
-struct Screen_Buffer
+struct Font
 {
-    static constexpr int BYTES_PER_PIXEL = 4;
-    void *data;
-    BITMAPINFO bitmap_info;
-    int width;
-    int height;
-    int pitch;
+    i32 atlas_width;
+    i32 atlas_height;
+    u8 *atlas;  // Not sure if should be 32-bit
+    stbtt_bakedchar *glyphs;
+    i32 glyphs_count;
 };
 
-// We have to store paths in file as old program records might need their icon.
-// These are updated, at most once per program run, as the same program is identified as foreground window.
-struct Program_Path
+struct Day_View
 {
-    char *full_path;
+    // Must pass by reference because of pointer to last day 
+    Day *days[MaxDays];
+    Day last_day_;
+    i32 day_count;
+};
+
+struct Exe_Path
+{
+    char *path;
     bool updated_recently;
-    bool occupied;
 };
 
+struct Database
+{
+    Hash_Table all_programs;
+    
+    // Can have:
+    // - a path (updated or not) with no corresponding bitmap (either not loaded or unable to be loaded)
+    // - a path (updated or not) with a bitmap
+    Simple_Bitmap icons[200]; // Loaded on demand
+    Exe_Path paths[200];      // Updated when possible at most once a session.
+    
+    Day days[MaxDays];
+    i32 day_count;
+};

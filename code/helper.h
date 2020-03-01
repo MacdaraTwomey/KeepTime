@@ -8,7 +8,6 @@
 #define Gigabytes(Value) (Megabytes((Value)) * 1024LL)
 
 
-
 struct Hash_Node
 {
     char *key;
@@ -28,9 +27,9 @@ struct Hash_Table
     u8 *occupancy;
     
     s64 add_item(char *key, u32 value);
-    bool search(char *key, u32 *found_value);
+    bool search(char *key, u32 *value);
     void remove(char *key);
-    char *search_by_value(u32 value);
+    char *get_key_by_value(u32 value);
     private:
     void grow_table();
 };
@@ -47,15 +46,6 @@ struct String_Builder
     void add_bytes(char *new_str, size_t len); // Will add all bytes of string of size len (including extra null terminators you insert)
     void clear();
 };
-
-
-template<class T>
-constexpr const T& rvl_clamp( const T& v, const T& lo, const T& hi )
-{
-    rvl_assert(!(hi < lo));
-    return (v < lo) ? lo : (hi < v) ? hi : v;
-}
-
 
 
 // TODO: Do you really need rear index, or is just count enough

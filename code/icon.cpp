@@ -32,6 +32,7 @@
 // 128   Used by the Shell (e.g. for shortcuts).
 
 
+
 Simple_Bitmap
 win32_bitmap_to_simple_bitmap(BITMAP *win32_bitmap)
 {
@@ -88,6 +89,11 @@ win32_bitmap_has_alpha_component(BITMAP *bitmap)
 Simple_Bitmap
 get_icon_bitmap(HICON icon)
 {
+    // TODO: Get icon from UWP:
+    // Process is wrapped in a parent process, and can't extract icons from the child, not sure about parent
+    // SO might need to use SHLoadIndirectString, GetPackageInfo could be helpful.
+    
+    
     // Info from Chromium source: ui/gfx/icon_itil.cc
     // https://chromium.googlesource.com/chromium/chromium/+/master/ui/gfx/icon_util.cc
     
@@ -197,56 +203,89 @@ get_icon_bitmap(HICON icon)
 
 
 
-Simple_Bitmap
-get_icon_from_executable(char *full_path, u32 size)
+bool
+get_icon_from_executable(char *path, u32 size, Simple_Bitmap *icon_bitmap, bool load_default_on_failure = true)
 {
-    rvl_assert(full_path);
+    rvl_assert(path);
+    rvl_assert(icon_bitmap);
     rvl_assert(size > 0);
     
     HICON small_icon = 0;
     HICON icon = 0;
-#if 0
-    icon = ExtractIconA(instance, full_path, 0);
-    if (icon == NULL || icon == (HICON)1)
+    
+    //icon = ExtractIconA(instance, path, 0);
+    //if (icon == NULL || icon == (HICON)1) printf("ERROR");
+    
+    if(SHDefExtractIconA(path, 0, 0, &icon, &small_icon, size) != S_OK)
     {
-        // NOTE: To me that path was wrong.
-        if (!LoadLibraryA(full_path))
+        // NOTE: Show me that path was actually wrong and it wasn't just failed icon extraction.
+        // If we can load the executable, it means we probably should be able to get the icon
+        rvl_assert(!LoadLibraryA(path)); 
+        
+        if (load_default_on_failure)
         {
-            printf("Couldn't open file");
-        }
-    }
-#else
-    if (SHDefExtractIconA(full_path, 0, 0, &icon, &small_icon, size) != S_OK)
-    {
-        icon = LoadIconA(NULL, IDI_APPLICATION); // load default application icon
-        if (!icon) {
-            // NOTE: To me that path was wrong.
-            if (!LoadLibraryA(full_path))
+            icon = LoadIconA(NULL, IDI_APPLICATION);
+            if (!icon) 
             {
-                printf("Couldn't open file");
+                return false;
             }
         }
     }
-#endif
-    
     
     Simple_Bitmap bitmap;
     if (icon)
     {
         bitmap = get_icon_bitmap(icon);
     }
-    if (small_icon && !icon)
+    else if (small_icon && !icon)
     {
         bitmap = get_icon_bitmap(small_icon);
-        tprint("Had to use small icon");
     }
     
     if (icon) DestroyIcon(icon);
+    if (small_icon) DestroyIcon(small_icon);
     
-    if (small_icon)        DestroyIcon(small_icon);
-    return bitmap;
+    
+    if (bitmap.pixels && bitmap.width > 0 && bitmap.height > 0)
+    {
+        *icon_bitmap = bitmap;
+        return true;
+    }
+    else
+    {
+        if (bitmap.pixels) free(bitmap.pixels);
+        return false;
+    }
 }
 
+
+Simple_Bitmap *
+get_icon_from_database(Database *database, u32 id)
+{
+    rvl_assert(database);
+    rvl_assert(id < 200);
+    if (database->icons[id].pixels)
+    {
+        rvl_assert(database->icons[id].width > 0 && database->icons[id].pixels > 0);
+        return &database->icons[id];
+    }
+    else
+    {
+        // Load bitmap on demand
+        if (database->paths[id].path)
+        {
+            Simple_Bitmap *destination_icon = &database->icons[id];
+            bool success = get_icon_from_executable(database->paths[id].path, 64, destination_icon, true);
+            if (success)
+            {
+                // TODO: Maybe mark old paths that couldn't get correct icon for deletion.
+                return destination_icon;
+            }
+        }
+    }
+    
+    return nullptr;
+}
 
 
 

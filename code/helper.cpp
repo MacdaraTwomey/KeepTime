@@ -1,8 +1,9 @@
 
 //#include "monitor.h"
-#include "stdlib.h"
+
 #include "helper.h"
 
+#include <stdlib.h>
 #include <stdarg.h>
 #include <stdio.h>
 
@@ -52,7 +53,7 @@ void free_table(Hash_Table *table)
     *table = {};
 }
 
-// Returns -1 if already added or index of added node
+// Returns -1 if already added, or if not, the index of the added node.
 s64 Hash_Table::add_item(char *key, u32 value)
 {
     rvl_assert(key);
@@ -82,11 +83,11 @@ s64 Hash_Table::add_item(char *key, u32 value)
     return i;
 }
 
-bool Hash_Table::search(char *key, u32 *found_value)
+bool Hash_Table::search(char *key, u32 *value)
 {
     rvl_assert(key);
     rvl_assert(key[0]);
-    rvl_assert(found_value);
+    rvl_assert(value);
     
     if (count == 0) return false;
     
@@ -99,7 +100,7 @@ bool Hash_Table::search(char *key, u32 *found_value)
         {
             if (strcmp(key, buckets[index].key) == 0)
             {
-                *found_value = buckets[index].value;
+                *value = buckets[index].value;
                 return true;
             }
         }
@@ -166,7 +167,7 @@ void Hash_Table::grow_table()
     // count stays same
 }
 
-char *Hash_Table::search_by_value(u32 value)
+char *Hash_Table::get_key_by_value(u32 value)
 {
     for (s64 i = 0; i < size; ++i)
     {
@@ -318,68 +319,4 @@ Queue<T>::grow()
     capacity *= 2;
     free(data);
     data = new_data;
-}
-
-// -----------------------------------------------------------------
-
-// Windows stuff that we don't want clogging up main file
-void
-print_tray_icon_message(LPARAM lParam)
-{
-    static int counter = 0;
-    switch (LOWORD(lParam))
-    {
-        case WM_RBUTTONDOWN: 
-        {
-            tprint("%. WM_RBUTTONDOWN", counter++); 
-        }break;
-        case WM_RBUTTONUP:                  
-        {
-            tprint("%. WM_RBUTTONUP", counter++); 
-        } break;
-        case WM_LBUTTONDOWN:
-        {
-            tprint("%. WM_LBUTTONDOWN", counter++);
-        }break;
-        case WM_LBUTTONUP:
-        {
-            tprint("%. WM_LBUTTONUP", counter++);
-        }break;
-        case WM_LBUTTONDBLCLK:
-        {
-            tprint("%. WM_LBUTTONDBLCLK", counter++);
-        }break;
-        case NIN_BALLOONSHOW:
-        {
-            tprint("%. NIN_BALLOONSHOW", counter++);
-        }break;
-        case NIN_POPUPOPEN:
-        {
-            tprint("%. NIN_POPUPOPEN", counter++);
-        }break;
-        case NIN_KEYSELECT:
-        {
-            tprint("%. NIN_KEYSELECT", counter++);
-        }break;
-        case NIN_BALLOONTIMEOUT:
-        {
-            tprint("%. NIN_BALLOONTIMEOUT", counter++);
-        }break;
-        case NIN_BALLOONUSERCLICK:
-        {
-            tprint("%. NIN_BALLOONUSERCLICK", counter++);
-        }break;
-        case NIN_SELECT:
-        {
-            tprint("%. NIN_SELECT\n", counter++);
-        } break;
-        case WM_CONTEXTMENU:
-        {
-            tprint("%. WM_CONTEXTMENU\n", counter++);
-        } break;
-        default:
-        {
-            tprint("%. OTHER", counter++);
-        }break;
-    }
 }

@@ -1,12 +1,14 @@
 
-struct Font
-{
-    i32 atlas_width;
-    i32 atlas_height;
-    u8 *atlas;  // Not sure if should be 32-bit
-    stbtt_bakedchar *glyphs;
-    i32 glyphs_count;
-};
+#include "monitor.h"
+
+
+int bar_width = 40;
+int bar_spacing = 30;
+int line_thickness = 2;
+int backtail = 10;
+int x_axis_length = 500;
+int y_axis_height = 300;
+
 
 void draw_text(Screen_Buffer *buffer, Font *font, char *text, int baseline_x, int baseline_y, r32 r, r32 g, r32 b)
 {
@@ -222,6 +224,112 @@ void draw_bar_plot_from_records(Screen_Buffer *buffer, Font *font,  Program_Reco
 
 
 void
+draw_simple_bitmap(Screen_Buffer *buffer, Simple_Bitmap *bitmap, int buffer_x, int buffer_y)
+{
+    int x0 = buffer_x;
+    int y0 = buffer_y;
+    int x1 = buffer_x + bitmap->width;
+    int y1 = buffer_y + bitmap->height;
+    
+    if (x0 < 0) 
+    {
+        x0 = 0;
+    }
+    if (y0 < 0)
+    {
+        y0 = 0;
+    }
+    if (x1 > buffer->width)
+    {
+        x1 = buffer->width;
+    }
+    if (y1 > buffer->height)
+    {
+        y1 = buffer->height;
+    }
+    
+    u32 *src = bitmap->pixels;
+    u8 *dest_row = (u8 *)buffer->data + (x0 * buffer->BYTES_PER_PIXEL) + (y0 * buffer->pitch);
+    for (int y = y0; y < y1; ++y)
+    {
+        u32 *dest = (u32 *)dest_row;
+        for (int x = x0; x < x1; ++x)
+        {
+            // Linear blend with destination colour based on alpha value
+            r32 A = ((*src >> 24) & 0xFF) / 255.0f;
+            
+            r32 SR = (r32)((*src >> 16) & 0xFF);
+            r32 SG = (r32)((*src >> 8) & 0xFF);
+            r32 SB = (r32)((*src >> 0) & 0xFF);
+            
+            r32 DR = (r32)((*dest >> 16) & 0xFF);
+            r32 DG = (r32)((*dest >> 8) & 0xFF);
+            r32 DB = (r32)((*dest >> 0) & 0xFF);
+            
+            r32 R = (1.0f-A)*DR + A*SR;
+            r32 G = (1.0f-A)*DG + A*SG;
+            r32 B = (1.0f-A)*DB + A*SB;
+            
+            *dest = (((u32)(R + 0.5f) << 16) |
+                     ((u32)(G + 0.5f) << 8) |
+                     ((u32)(B + 0.5f) << 0));
+            
+            ++dest;
+            ++src;
+        }
+        
+        dest_row += buffer->pitch;
+    }
+}
+
+void
+render_gui(Screen_Buffer *buffer, Database *database, Day_View *day_view, Font *font)
+{
+    // Fill Background
+    draw_rectangle(buffer, 
+                   Rect2i{{0, 0}, {buffer->width, buffer->height}},
+                   1.0f, 1.0f, 1.0f);
+    
+    int origin_x = 200;
+    int origin_y = 400;
+    
+    Day *today = day_view->days[day_view->day_count-1];
+    
+    Program_Record sorted_records[MaxDailyRecords];
+    if (today->record_count > 0)
+    {
+        memcpy(sorted_records, today->records, sizeof(Program_Record) * today->record_count);
+        
+        std::sort(sorted_records, sorted_records + today->record_count, [](Program_Record &a, Program_Record &b){ return a.duration > b.duration; });
+    }
+    
+    int max_bars = x_axis_length / (bar_width + bar_spacing);
+    int bar_count = std::min(max_bars, (int)today->record_count);
+    
+    for (int i = 0; i < bar_count; ++i)
+    {
+        int bar_centre_line_x = origin_x + ((bar_spacing + bar_width) * (i+1)) - (bar_width/2);
+        
+        Program_Record &record = sorted_records[i];
+        
+        Simple_Bitmap *icon = get_icon_from_database(database, record.ID);
+        if (icon)
+        {
+            int icon_pen_x = bar_centre_line_x - (icon->width/2);
+            int icon_pen_y = origin_y + 10;
+            
+            draw_simple_bitmap(buffer, icon, icon_pen_x, icon_pen_y);
+        }
+    }
+    
+    if (bar_count > 0)
+    {
+        draw_bar_plot_from_records(buffer, font, sorted_records, bar_count, origin_x, origin_y);
+    }
+}
+
+
+void
 draw_win32_bitmap(Screen_Buffer *buffer, BITMAP *bitmap, int buffer_x, int buffer_y)
 {
     int x0 = buffer_x;
@@ -277,65 +385,6 @@ draw_win32_bitmap(Screen_Buffer *buffer, BITMAP *bitmap, int buffer_x, int buffe
         }
         
         src_row += bitmap->bmWidthBytes;
-        dest_row += buffer->pitch;
-    }
-}
-
-void
-draw_simple_bitmap(Screen_Buffer *buffer, Simple_Bitmap *bitmap, int buffer_x, int buffer_y)
-{
-    int x0 = buffer_x;
-    int y0 = buffer_y;
-    int x1 = buffer_x + bitmap->width;
-    int y1 = buffer_y + bitmap->height;
-    
-    if (x0 < 0) 
-    {
-        x0 = 0;
-    }
-    if (y0 < 0)
-    {
-        y0 = 0;
-    }
-    if (x1 > buffer->width)
-    {
-        x1 = buffer->width;
-    }
-    if (y1 > buffer->height)
-    {
-        y1 = buffer->height;
-    }
-    
-    u32 *src = bitmap->pixels;
-    u8 *dest_row = (u8 *)buffer->data + (x0 * buffer->BYTES_PER_PIXEL) + (y0 * buffer->pitch);
-    for (int y = y0; y < y1; ++y)
-    {
-        u32 *dest = (u32 *)dest_row;
-        for (int x = x0; x < x1; ++x)
-        {
-            // Linear blend with destination colour based on alpha value
-            r32 A = ((*src >> 24) & 0xFF) / 255.0f;
-            
-            r32 SR = (r32)((*src >> 16) & 0xFF);
-            r32 SG = (r32)((*src >> 8) & 0xFF);
-            r32 SB = (r32)((*src >> 0) & 0xFF);
-            
-            r32 DR = (r32)((*dest >> 16) & 0xFF);
-            r32 DG = (r32)((*dest >> 8) & 0xFF);
-            r32 DB = (r32)((*dest >> 0) & 0xFF);
-            
-            r32 R = (1.0f-A)*DR + A*SR;
-            r32 G = (1.0f-A)*DG + A*SG;
-            r32 B = (1.0f-A)*DB + A*SB;
-            
-            *dest = (((u32)(R + 0.5f) << 16) |
-                     ((u32)(G + 0.5f) << 8) |
-                     ((u32)(B + 0.5f) << 0));
-            
-            ++dest;
-            ++src;
-        }
-        
         dest_row += buffer->pitch;
     }
 }

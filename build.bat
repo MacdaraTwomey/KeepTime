@@ -10,6 +10,6 @@ cd
 
 :: Turn off EHsc in future
 :: rc icon.rc
-cl c:\dev\projects\monitor\code\monitor.cpp /EHsc -nologo -Zi /link user32.lib shell32.lib Gdi32.lib icon.res
+cl c:\dev\projects\monitor\code\win32_monitor.cpp /EHsc -nologo -Zi /link user32.lib shell32.lib Gdi32.lib icon.res /out:monitor.exe
 
 popd

@@ -78,7 +78,7 @@ read_programs_from_savefile(FILE *savefile, Header header, Hash_Table *programs)
         {
             if (*p == '\0')
             {
-                programs->add_item(program_names, program_ids[name_index]);
+                programs->add_item(program_names, program_ids[name_index]); // TODO: read full path from file
                 ++name_index;
                 program_names = p+1;
             }
@@ -370,3 +370,148 @@ void update_savefile(char *filepath,
     fwrite(records, sizeof(Program_Record), record_count, savefile);
     fclose(savefile);
 }
+
+#if 0
+// Save all to file
+
+{
+    // NOTE: Always create a new savefile for now
+    Header new_header = header;
+    
+    String_Builder sb = create_string_builder(); // We will build strings will add_string to allow null terminators to be interspersed
+    
+    u32 total_record_count = 0;
+    for (u32 i = 0; i < day_count; ++i)
+    {
+        total_record_count += days[i].record_count;
+    }
+    
+    std::vector<u32> program_ids;
+    std::vector<sys_days> dates;
+    std::vector<u32> counts;
+    std::vector<Program_Record> records;
+    
+    program_ids.reserve(all_programs.count);
+    dates.reserve(day_count);
+    counts.reserve(day_count);
+    records.reserve(total_record_count);
+    
+    u32 test = 0; // TODO: remove this
+    for (s64 i = 0; i < all_programs.size; ++i)
+    {
+        if (all_programs.occupancy[i] == Hash_Table::OCCUPIED)
+        {
+            // add null terminator
+            sb.add_bytes(all_programs.buckets[i].key, strlen(all_programs.buckets[i].key) + 1);
+            
+            program_ids.push_back(all_programs.buckets[i].value);
+            
+            test += strlen(all_programs.buckets[i].key) + 1;
+        }
+    }
+    
+    rvl_assert(test == sb.len);
+    rvl_assert(program_ids.size() == all_programs.count);
+    
+    // TODO: Not sure whether to keep days as AOS or SOA
+    // SOA wouldn't need to do this kind of thing when saving to file
+    
+    new_header.program_names_block_size = sb.len;
+    new_header.total_program_count = all_programs.count;
+    new_header.day_count = day_count;
+    new_header.total_record_count = total_record_count;
+    
+    u32 index = 0;
+    for (u32 i = 0; i < day_count; ++i)
+    {
+        dates.push_back(days[i].date);
+        counts.push_back(days[i].record_count);
+        for (u32 j = 0; j < days[i].record_count; ++j)
+        {
+            records.push_back(days[i].records[j]);
+        }
+    }
+    
+    update_savefile(global_savefile_path, 
+                    &new_header, 
+                    sb.str, sb.len, 
+                    program_ids.data(), program_ids.size(), 
+                    dates.data(), dates.size(),
+                    counts.data(), counts.size(),
+                    records.data(), records.size());
+    
+    convert_savefile_to_text_file(global_savefile_path, global_debug_savefile_path);
+}
+
+read_from_file()
+
+// TODO: This is bad and error prone
+// Consider a separate array, or linked list of chunks to hold records, when the days then point into.
+// Easy to just allocate a big chunk add all the days, then easily add more days, with no resizing/reallocating
+{
+    // Can there be no records for a day in the file, or there be days with no programs and vice versa?
+    FILE *savefile = fopen(global_savefile_path, "rb");
+    fread(&header, sizeof(Header), 1, savefile);
+    
+    // If there are zero days or progams it sets size to 30
+    init_hash_table(&all_programs, header.total_program_count*2 + 30);
+    
+    u32 max_days = std::max(MaxDays, (header.day_count*2) + DefaultDayAllocationCount);
+    days = (Day *)xalloc(sizeof(Day) * max_days);
+    
+    read_programs_from_savefile(savefile, header, &all_programs);
+    read_all_days_from_savefile(savefile, header, days);
+    
+    day_count = header.day_count;
+    
+    sys_days now = floor<date::days>(System_Clock::now());
+    
+    // Leave space for 30 days
+    if (day_count > 0)
+    {
+        if (now == days[day_count-1].date)
+        {
+            cur_day = day_count-1;
+            days[day_count-1].records = (Program_Record *)realloc(days[day_count-1].records, sizeof(Program_Record) * MaxDailyRecords); 
+        }
+        else
+        {
+            cur_day = day_count;
+            day_count += 1;
+            days[cur_day].records = (Program_Record *)xalloc(sizeof(Day) * MaxDailyRecords);
+            days[cur_day].date = now;
+            days[cur_day].record_count = 0;
+        }
+    }
+    else
+    {
+        cur_day = 0;
+        day_count = 1;
+        days[cur_day].records = (Program_Record *)xalloc(sizeof(Program_Record) * MaxDailyRecords);
+        days[cur_day].date = now;
+        days[cur_day].record_count = 0;
+    }
+    
+    fclose(savefile);
+}
+
+
+if (!file_exists(global_savefile_path))
+{
+    // Create database
+    make_empty_savefile(global_savefile_path);
+    rvl_assert(valid_savefile(global_savefile_path));
+}
+else
+{
+    // check database in valid state
+    if (!valid_savefile(global_savefile_path))
+    {
+        tprint("Error: savefile corrupted");
+        return 1;
+    }
+}
+
+
+
+#endif
