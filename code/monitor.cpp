@@ -56,9 +56,47 @@ init_day_view(Database *database, Day_View *day_view)
     // Point last day at copied day owned by view
     // View must be passed by reference for this to be used
     day_view->days[database->day_count-1] = &day_view->last_day_;
+    
+    day_view->start_range = 0;
+    day_view->range_count = day_view->day_count;
+    day_view->accumulate = false;
 }
 
-void destroy_day_view(Day_View *day_view)
+// TODO: Consider reworking this
+void
+set_range(Day_View *day_view, i32 period, sys_days current_date)
+{
+    // From start date until today
+    if (day_view->day_count > 0)
+    {
+        sys_days start_date = current_date - date::days{period - 1};
+        
+        i32 end_range = day_view->day_count-1;
+        i32 start_range = end_range;
+        i32 start_search = std::max(0, end_range - (period-1));
+        
+        i32 range_count = 1;
+        for (i32 day_index = start_search; day_index <= end_range; ++day_index)
+        {
+            if (day_view->days[day_index]->date >= start_date)
+            {
+                start_range = day_index;
+                break;
+            }
+        }
+        
+        day_view->start_range = start_range;
+        day_view->range_count = range_count;
+        day_view->accumulate = (period == 1) ? false : true;
+    }
+    else
+    {
+        rvl_assert(0);
+    }
+}
+
+void 
+destroy_day_view(Day_View *day_view)
 {
     rvl_assert(day_view);
     if (day_view->last_day_.records)
@@ -66,4 +104,148 @@ void destroy_day_view(Day_View *day_view)
         free(day_view->last_day_.records);
     }
     *day_view = {};
+}
+
+
+void init_database(Database *database)
+{
+    *database = {};
+    init_hash_table(&database->all_programs, 30);
+    
+    database->next_exe_id = 0;
+    database->next_website_id = 1 << 31;
+}
+
+
+bool is_exe(u32 id)
+{
+    return !(id & (1 << 31));
+} 
+
+bool is_firefox(u32 id)
+{
+    return !is_exe(id);
+}
+
+u32 make_id(Database *database, Record_Type type)
+{
+    rvl_assert(type != Record_Invalid);
+    u32 id = 0;
+    
+    if (type == Record_Exe)
+    {
+        // No high bit set
+        id = database->next_exe_id;
+        database->next_exe_id += 1;
+    }
+    else if (type == Record_Firefox)
+    {
+        id = database->next_website_id;
+        database->next_website_id += 1;
+    }
+    
+    rvl_assert(is_exe(id) || is_firefox(id));
+    
+    return id;
+}
+
+void add_keyword(Database *database, char *str)
+{
+    rvl_assert(database->keyword_count < MaxKeywordCount);
+    if (database->keyword_count < MaxKeywordCount)
+    {
+        // TODO: Handle deletion of keywords
+        u32 id = make_id(database, Record_Firefox);
+        Keyword *keyword = &database->keywords[database->keyword_count];
+        
+        rvl_assert(keyword->str == 0 && keyword->id == 0);
+        keyword->id = id;
+        keyword->str = clone_string(str);
+        
+        database->keyword_count += 1;
+    }
+}
+
+Keyword *
+find_keywords(char *url, Keyword *keywords, i32 keyword_count)
+{
+    // TODO: Keep looking through keywords for one that fits better (i.e docs.microsoft vs docs.microsoft/buttons).
+    // TODO: Sort based on common substrings so we don't have to look further.
+    for (i32 i = 0; i < keyword_count; ++i)
+    {
+        Keyword *keyword = &keywords[i];
+        char *sub_str = strstr(url, keyword->str);
+        
+        return keyword;
+    }
+    
+    return nullptr;
+}
+
+void
+update_days_records(Day *day, u32 id, double dt)
+{
+    for (u32 i = 0; i < day->record_count; ++i)
+    {
+        if (id == day->records[i].ID)
+        {
+            day->records[i].duration += dt;
+            return;
+        }
+    }
+    
+    rvl_assert(day->record_count < MaxDailyRecords);
+    day->records[day->record_count] = {id, dt};
+    day->record_count += 1;
+}
+
+
+Simple_Bitmap *
+get_icon_from_database(Database *database, u32 id)
+{
+    rvl_assert(database);
+    if (is_exe(id))
+    {
+        // TODO: Change this assert
+        rvl_assert(id < 200);
+        
+        if (database->icons[id].pixels)
+        {
+            rvl_assert(database->icons[id].width > 0 && database->icons[id].pixels > 0);
+            return &database->icons[id];
+        }
+        else
+        {
+            // Load bitmap on demand
+            if (database->paths[id].path)
+            {
+                Simple_Bitmap *destination_icon = &database->icons[id];
+                bool success = get_icon_from_executable(database->paths[id].path, ICON_SIZE, destination_icon, true);
+                if (success)
+                {
+                    // TODO: Maybe mark old paths that couldn't get correct icon for deletion.
+                    return destination_icon;
+                }
+            }
+        }
+    }
+    else
+    {
+        if (database->firefox_icon.pixels)
+        {
+            return &database->firefox_icon;
+        }
+        else
+        {
+            // TODO: @Cleanup: This is debug
+            u32 temp;
+            rvl_assert(!(database->all_programs.search("firefox", &temp))); // should not have gotten firefox
+            rvl_assert(database->website_count == 0);
+            temp = 1; // too see which assert triggers more clearly.
+            rvl_assert(0);
+            return nullptr;
+        }
+    }
+    
+    return nullptr;
 }

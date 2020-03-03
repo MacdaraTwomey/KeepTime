@@ -10,6 +10,9 @@ static constexpr u32 MaxDailyRecords = 1000;
 static constexpr u32 MaxDays = 1000;
 static constexpr u32 DefaultDayAllocationCount = 30;
 
+static constexpr i32 MaxKeywordCount = 50;
+static constexpr i32 MaxWebsiteCount = 50;
+
 typedef double time_type;
 // using namespace date;
 
@@ -138,6 +141,16 @@ struct Day_View
     Day *days[MaxDays];
     Day last_day_;
     i32 day_count;
+    
+    i32 start_range;
+    i32 range_count;
+    bool accumulate;
+};
+
+struct website
+{
+    char *url;
+    char *name;
 };
 
 struct Exe_Path
@@ -146,9 +159,33 @@ struct Exe_Path
     bool updated_recently;
 };
 
+struct Keyword
+{
+    char *str;
+    u32 id;
+};
+
+struct Website
+{
+    u32 id;
+    char *website_name;
+};
+
 struct Database
 {
-    Hash_Table all_programs;
+    Hash_Table all_programs; // name -> ID
+    Website websites[50];    // ID -> name TODO: Replace with a hash table?
+    i32 website_count;
+    Keyword keywords[50];
+    i32 keyword_count;
+    
+    u32 next_exe_id;      // starts at 0x00000000 zero
+    u32 next_website_id;  // starts at 0x80000000 top bit set
+    
+    // Set these when possible
+    Exe_Path firefox_path;
+    Simple_Bitmap firefox_icon;
+    u32 firefox_id;
     
     // Can have:
     // - a path (updated or not) with no corresponding bitmap (either not loaded or unable to be loaded)
@@ -158,4 +195,11 @@ struct Database
     
     Day days[MaxDays];
     i32 day_count;
+};
+
+enum Record_Type
+{
+    Record_Invalid,
+    Record_Exe,
+    Record_Firefox,
 };

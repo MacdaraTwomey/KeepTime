@@ -1,4 +1,5 @@
 
+#define ICON_SIZE 32
 
 // Some icons glitch out on some sizes, maybe getting the icon sizes up/down for icons without that specific size. But good ones like firefox are built in with lots of sizes. 
 // NOTE: Can test this by looking at the colour of monitor.exe icon
@@ -220,7 +221,7 @@ get_icon_from_executable(char *path, u32 size, Simple_Bitmap *icon_bitmap, bool 
     {
         // NOTE: Show me that path was actually wrong and it wasn't just failed icon extraction.
         // If we can load the executable, it means we probably should be able to get the icon
-        rvl_assert(!LoadLibraryA(path)); 
+        //rvl_assert(!LoadLibraryA(path)); // TODO: Enable this when we support UWP icons
         
         if (load_default_on_failure)
         {
@@ -257,36 +258,6 @@ get_icon_from_executable(char *path, u32 size, Simple_Bitmap *icon_bitmap, bool 
         return false;
     }
 }
-
-
-Simple_Bitmap *
-get_icon_from_database(Database *database, u32 id)
-{
-    rvl_assert(database);
-    rvl_assert(id < 200);
-    if (database->icons[id].pixels)
-    {
-        rvl_assert(database->icons[id].width > 0 && database->icons[id].pixels > 0);
-        return &database->icons[id];
-    }
-    else
-    {
-        // Load bitmap on demand
-        if (database->paths[id].path)
-        {
-            Simple_Bitmap *destination_icon = &database->icons[id];
-            bool success = get_icon_from_executable(database->paths[id].path, 64, destination_icon, true);
-            if (success)
-            {
-                // TODO: Maybe mark old paths that couldn't get correct icon for deletion.
-                return destination_icon;
-            }
-        }
-    }
-    
-    return nullptr;
-}
-
 
 
 

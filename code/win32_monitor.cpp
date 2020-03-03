@@ -1,8 +1,7 @@
 #include "ravel.h"
 
-//                     Should be:
-#include "helper.h"   // Mostly project independent stuff
-#include "monitor.h"  // Project stuff
+#include "helper.h"   
+#include "monitor.h" 
 #include "resource.h" 
 #include "win32_monitor.h"
 
@@ -32,12 +31,12 @@ using namespace date;
 static_assert(sizeof(date::sys_days) == sizeof(u32), "");
 static_assert(sizeof(date::year_month_day) == sizeof(u32), "");
 
-#include "utilities.cpp"  
-#include "helper.cpp"
-#include "icon.cpp"
-#include "file.cpp"
-#include "render.cpp"
-#include "monitor.cpp"
+#include "utilities.cpp" // General programming and graphics necessaries
+#include "helper.cpp"  // General ADTs and useful classes
+#include "icon.cpp"    // Deals with win32 icon interface
+#include "file.cpp"    // Deals with savefile and file operations
+#include "monitor.cpp" // This deals with id, days, databases, websites, bitmap icons
+#include "render.cpp"  // Rendering code
 
 #define CONSOLE_ON 1
 
@@ -62,14 +61,24 @@ static constexpr int WindowHeight = 540;
 // * !!! If GUI is visible don't sleep. But we still want to poll infrequently. So maybe check elapsed poll time.
 // * Remember window width and height
 // * Unicode correctness
-// * Path length correctnedd
+// * Path length correctness
 // * Dynamic window, button layout with resizing
 // * OpenGL graphing?
-// * Stop repeating work getting the firefox URL
+// * Stop repeating work getting the firefox URL, maybe use UIAutomation cache?
 // * Get favicon from webpages, maybe use libcurl and a GET request for favicon.ico. Seems possible to use win32 api for this.
+// 
+// * Finalise GUI design
+// * 
 // -----------------------------------------------------------------
 
+// Top bit of id specifies is the 'program' is a normal executable or a website
+// where rest of the bits are the actual id of its name.
+// For websites whenever a user creates a new keyword that keyword gets an id and the id count increases by 1
+// If a keyword is deleted the records with that website id can be given firefox's id.
 
+// TODO: 
+bug;
+// only one website record/icon is rendering
 
 HANDLE
 create_console()
@@ -368,31 +377,54 @@ get_forground_window_path(HWND foreground_win, char *buffer, size_t buf_size)
     return len;
 }
 
+struct Window_Info
+{
+    char   full_path[MaxPathLen + 1];
+    char   program_name[MaxPathLen + 1];
+    size_t full_path_len;
+    size_t program_name_len;
+};
+
+void
+get_window_info(HWND window, Window_Info *info)
+{
+    size_t full_path_len     = get_forground_window_path(window, info->full_path, array_count(info->full_path));
+    char *name_start         = get_filename_from_path(info->full_path);
+    size_t  program_name_len = strlen(name_start);
+    
+    for (int i = 0; i < full_path_len; ++i)
+    {
+        info->full_path[i] = tolower(info->full_path[i]);
+    }
+    
+    rvl_assert(program_name_len > 4 && strcmp(name_start + (program_name_len - 4), ".exe") == 0);
+    
+    program_name_len -= 4;
+    memcpy(info->program_name, name_start, program_name_len); // Don't copy '.exe' from end
+    info->program_name[program_name_len] = '\0';
+    
+    info->program_name_len = program_name_len;
+    info->full_path_len = full_path_len;
+}
+
 void 
 poll_windows(Database *database, double dt)
 {
     rvl_assert(database);
     
-    char   full_path[MaxPathLen + 1]     = {};
-    char   *name_start                   = nullptr; 
-    char   program_name[MaxPathLen + 1]  = {};
-    size_t full_path_len                 = 0;
-    size_t name_len                      = 0;
-    
     HWND foreground_win = GetForegroundWindow();
     if (!foreground_win) return;
     
-    full_path_len = get_forground_window_path(foreground_win, full_path, array_count(full_path));
-    name_start    = get_filename_from_path(full_path); // Returns a pointer to filename in full_path
-    name_len      = strlen(name_start);
+    Window_Info window_info = {};
+    get_window_info(foreground_win, &window_info);
     
-    rvl_assert(name_len > 4 && strcmp(name_start + (name_len - 4), ".exe") == 0);
+    // If this is a good feature then just pass in created HWND and test
+    // if (strcmp(winndow_info->full_path, "c:\\dev\\projects\\monitor\\build\\monitor.exe") == 0) return; 
     
-    name_len -= 4;
-    memcpy(program_name, name_start, name_len); // Don't copy '.exe' from end
-    program_name[name_len] = '\0';
+    u32 record_id = 0;
     
-    bool program_is_firefox = (strcmp(program_name, "firefox") == 0);
+    bool program_is_firefox = (strcmp(window_info.program_name, "firefox") == 0);
+    bool add_to_executables = !program_is_firefox;
     
     if (program_is_firefox)
     {
@@ -401,69 +433,93 @@ poll_windows(Database *database, double dt)
         // TODO: If we get a URL but it has no url features like www. or https:// etc
         // it is probably someone just writing into the url bar, and we don't want to save these
         // as urls.
-        char *first_keyword[] = {
-            "youtube",
-            "echo360",
-            "teaching.csse"
-        };
-        
         char url[2100];
         size_t url_len = 0;
         bool success = get_firefox_url(foreground_win, url, &url_len);
-        for (int i = 0; i < array_count(first_keyword); ++i)
+        
+        bool keyword_match = false;
+        Keyword *keyword = find_keywords(url, database->keywords, database->keyword_count);
+        if (keyword)
         {
-            char *sub_str = strstr(url, first_keyword[i]);
-            if (sub_str)
+            bool website_is_stored = false;
+            for (i32 website_index = 0; website_index < database->website_count; ++website_index)
             {
-                // HACK: For now we just store the URL in the hash table, with the user keyword as its key.
-                // NOTE: This should be improved as after we identify a keyword in the URL we never need to further identify what it is, or have to hash the user keywords, so it kind of wants to be stored separately to the programs, but still wants to have an ID.
-                strcpy(program_name, first_keyword[i]);
-                break;
+                if (database->websites[website_index].id == keyword->id)
+                {
+                    website_is_stored = true;
+                    break;
+                }
             }
+            
+            if (!website_is_stored)
+            {
+                rvl_assert(database->website_count < MaxWebsiteCount);
+                
+                Website *website = &database->websites[database->website_count];
+                website->id = keyword->id;
+                website->website_name = clone_string(keyword->str);
+                
+                database->website_count += 1;
+            }
+            
+            record_id = keyword->id;
+            
+            // HACK: We would like to treat websites and programs the same and just index their icons
+            // in a smarter way maybe.
+            if (!database->firefox_path.updated_recently)
+            {
+                if (database->firefox_path.path) free(database->firefox_path.path);
+                
+                database->firefox_path.path = clone_string(window_info.full_path, window_info.full_path_len);
+                database->firefox_path.updated_recently = true;
+                database->firefox_id = keyword->id;
+                
+            }
+        }
+        else
+        {
+            add_to_executables = true;
+        }
+        
+        if (!database->firefox_icon.pixels)
+        {
+            char *firefox_path = window_info.full_path;
+            database->firefox_icon = {};
+            bool success = get_icon_from_executable(firefox_path, ICON_SIZE, &database->firefox_icon, true);
+            rvl_assert(success);
+        }
+    }
+    
+    if (add_to_executables)
+    {
+        u32 temp_id = 0;
+        bool in_table = database->all_programs.search(window_info.program_name, &temp_id);
+        if (!in_table)
+        {
+            temp_id = make_id(database, Record_Exe);
+            database->all_programs.add_item(window_info.program_name, temp_id);
+        }
+        
+        record_id = temp_id;
+        
+        // TODO: This is similar to what happens to firefox path and icon, needs collapsing.
+        rvl_assert(!(temp_id & (1 << 31)));
+        if (!in_table || (in_table && !database->paths[temp_id].updated_recently))
+        {
+            
+            if (in_table && database->paths[temp_id].path) 
+            {
+                free(database->paths[temp_id].path);
+            }
+            database->paths[temp_id].path = clone_string(window_info.full_path);
+            database->paths[temp_id].updated_recently = true;
         }
     }
     
     rvl_assert(database->day_count > 0);
     Day *current_day = &database->days[database->day_count-1];
     
-    bool program_in_day = false;
-    u32 id = 0;
-    bool in_table = database->all_programs.search(program_name, &id);
-    if (in_table)
-    {
-        for (u32 i = 0; i < current_day->record_count; ++i)
-        {
-            if (id == current_day->records[i].ID)
-            {
-                program_in_day = true;
-                current_day->records[i].duration += dt;
-                break;
-            }
-        }
-    }
-    else
-    {
-        id = database->all_programs.count;
-        database->all_programs.add_item(program_name, id);
-    }
-    
-    if (!program_in_day)
-    {
-        rvl_assert(current_day->record_count < MaxDailyRecords);
-        current_day->records[current_day->record_count] = {id, dt};
-        current_day->record_count += 1;
-    }
-    
-    
-    if (!in_table || (in_table && !database->paths[id].updated_recently))
-    {
-        if (in_table && database->paths[id].path) 
-        {
-            free(database->paths[id].path);
-        }
-        database->paths[id].path = clone_string(full_path, full_path_len);
-        database->paths[id].updated_recently = true;
-    }
+    update_days_records(current_day, record_id, dt);
 }
 
 LRESULT CALLBACK
@@ -549,36 +605,37 @@ WinProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
             
             // Alse creating a static control to allow printing text
             // This needs its own message loop
+            
+            V2i button_pos = {30, 30};
+            int button_width = 100;
+            int button_height = 100;
             HINSTANCE instance = GetModuleHandle(NULL);
-#if 0
             HWND day_button = CreateWindow("BUTTON",
                                            "DAY",
                                            WS_VISIBLE|WS_CHILD|BS_PUSHBUTTON,
-                                           10, 10,
-                                           70, 50,
+                                           button_pos.x, button_pos.y,
+                                           button_width, button_height,
                                            window,
                                            (HMENU)ID_DAY_BUTTON, 
                                            instance, NULL);
-            
+            button_pos.y += button_height + 30;
             HWND week_button = CreateWindow("BUTTON",
                                             "WEEK",
                                             WS_VISIBLE|WS_CHILD|BS_PUSHBUTTON,
-                                            10, 90,
-                                            70, 50,
+                                            button_pos.x, button_pos.y,
+                                            button_width, button_height,
                                             window,
                                             (HMENU)ID_WEEK_BUTTON, 
                                             instance, NULL);
-            
+            button_pos.y += button_height + 30;
             HWND month_button = CreateWindow("BUTTON",
                                              "MONTH",
                                              WS_VISIBLE|WS_CHILD|BS_PUSHBUTTON,
-                                             10, 170,
-                                             70, 50,
+                                             button_pos.x, button_pos.y,
+                                             button_width, button_height,
                                              window,
                                              (HMENU)ID_MONTH_BUTTON, 
                                              instance, NULL);
-            
-#endif 
             
             // TODO: To maintain compatibility with older and newer versions of shell32.dll while using
             // current header files may need to check which version of shell32.dll is installed so the
@@ -617,13 +674,10 @@ WinProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
         } break;
         
         
-        // Seems you can't wait to handle all messages and they are just sent directly to WinProc.
-        // So pump messages can't see them in queue.
+        // It seems that pressing a button gives it the keyboard focus (shown by grey dotted border) and takes away the main windows keyboard focus. 
+        // These are sent directly to WinProc can't PeekMessage them.
         case WM_COMMAND:
         {
-            // TODO: This may not play nice with Waiting for a message in loop then pumping, if we:
-            // wait -> msg recieved -> end sleep -> pump msgs (no message posted yet) -> winproc -> wait
-            // Resend message so pump can remove it from queue.
             switch (HIWORD(wParam))
             {
                 case BN_CLICKED:
@@ -649,6 +703,10 @@ WinProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
                     }
                     
                     global_event_queue.enqueue(e);
+                    
+                    // Return keyboard focus to parent
+                    SetFocus(window);
+                    
                 } break;
             }
         } break;
@@ -833,9 +891,13 @@ WinMain(HINSTANCE instance,
     //remove(global_debug_savefile_path);
     
     Header header = {};
-    Database database = {};
+    Database database;
+    init_database(&database);
     
-    init_hash_table(&database.all_programs, 30);
+    add_keyword(&database, "CITS3003");
+    add_keyword(&database, "youtube");
+    add_keyword(&database, "docs.microsoft");
+    
     start_new_day(&database, floor<date::days>(System_Clock::now()));
     
     // Strings:
@@ -931,8 +993,21 @@ WinMain(HINSTANCE instance,
             destroy_day_view(&day_view);
         }
 #endif
-        
         init_day_view(&database, &day_view);
+        
+        
+        if (button_clicked)
+        {
+            Button button_clicked = Button_Day;
+            
+            i32 period = 
+                (button_clicked == Button_Day) ? 1 :
+            (button_clicked == Button_Week) ? 7 : 30; 
+            
+            set_range(&day_view, period, current_date);
+        }
+        
+        
         if (gui_visible)
         {
             render_gui(&global_screen_buffer, &database, &day_view, &font);
@@ -976,78 +1051,10 @@ WinMain(HINSTANCE instance,
 }
 
 
-#if 0
-if (button_clicked)
-{
-    Button button_clicked = Button_Day;
-    
-    u32 period = 
-        (button_clicked == Button_Day) ? 1 :
-    (button_clicked == Button_Week) ? 7 : 30; 
-    
-    sys_days period_start_date = current_date - date::days{period - 1};
-    
-    rvl_assert(day_count > 0);
-    
-    u32 end_range = cur_day;
-    u32 start_range = end_range;
-    i32 start_search = std::max(0, (i32)end_range - (i32)(period-1));
-    
-    for (u32 i = (u32)start_search; i <= end_range; ++i)
-    {
-        if (days[i].date >= period_start_date)
-        {
-            start_range = i;
-            break;
-        }
-    }
-    
-    for (u32 i = start_range; i <= end_range; ++i)
-    {
-        Day &d = days[i];
-        for (int j = 0; j < d.record_count; ++j)
-        {
-            Program_Record &pr = d.records[j];
-            char *name = all_programs.search_by_value(pr.ID);
-        }
-    }
-}
-#endif
-
 
 
 
 #if 0
-// NOTE: Can maybe use this to be alerted for messages when sleeping
-// When MsgWaitForMultipleObjects tells you there is message, you have to process
-// all messages
-// Returns when there is a message no one knows about
-DWORD wait_result = MsgWaitForMultipleObjects(0, nullptr, false, sleep_milliseconds,
-                                              QS_ALLEVENTS);
-if (wait_result == WAIT_FAILED)
-{
-    
-}
-else if (wait_result == WAIT_TIMEOUT)
-{
-    
-}
-else if (wait_result == WAIT_OBJECT_0)
-{
-    // Can return this even if no input available, if system event (like foreground
-    // activation) occurs.
-}
-else
-{
-    // Should not get other return values
-}
-#endif
-
-
-#if 0
-
-// a name called s, and records being added without corresponding name in hash table
-
 Day &today = days[cur_day];
 double sum_duration = 0;
 for (u32 i = 0; i < today.record_count; ++i)

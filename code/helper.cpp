@@ -58,6 +58,10 @@ s64 Hash_Table::add_item(char *key, u32 value)
 {
     rvl_assert(key);
     rvl_assert(key[0]);
+    
+    // TODO: Remove or make into more specific class
+    rvl_assert(!(value & (1 << 31))); // is_exe
+    
     if (count >= size*0.75)
     {
         grow_table();

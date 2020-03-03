@@ -2,14 +2,6 @@
 #include "monitor.h"
 
 
-int bar_width = 40;
-int bar_spacing = 30;
-int line_thickness = 2;
-int backtail = 10;
-int x_axis_length = 500;
-int y_axis_height = 300;
-
-
 void draw_text(Screen_Buffer *buffer, Font *font, char *text, int baseline_x, int baseline_y, r32 r, r32 g, r32 b)
 {
     // TODO: make pen_x and y float and accululate and round advance widths
@@ -103,126 +95,6 @@ void draw_rectangle(Screen_Buffer *buffer, Rect2i rect, r32 R, r32 G, r32 B)
     }
 }
 
-
-void draw_bar_plot(Screen_Buffer *buffer, Day *days, u32 cur_day, int origin_x, int origin_y)
-{
-    V2i origin = {origin_x, origin_y};
-    
-    Rect2i x_axis = {
-        origin - V2i{backtail, 0},
-        origin + V2i{x_axis_length, line_thickness}
-    };
-    Rect2i y_axis = {
-        origin - V2i{0, y_axis_height},
-        origin + V2i{line_thickness, backtail+line_thickness}
-    };
-    
-    draw_rectangle(buffer, 
-                   x_axis,
-                   0.0f, 0.0f, 0.0f);
-    
-    draw_rectangle(buffer, 
-                   y_axis,
-                   0.0f, 0.0f, 0.0f);
-    
-    
-    Day &today = days[cur_day];
-    double max_duration = 0;
-    for (int j = 0; j < today.record_count; ++j)
-    {
-        max_duration = std::max(max_duration, today.records[j].duration);
-    }
-    
-    int max_bars = x_axis_length / (bar_width + bar_spacing);
-    int bars = std::min(max_bars, (int)today.record_count);
-    
-    for (int i = 0; i < bars; ++i)
-    {
-        double scale = (today.records[i].duration / max_duration);
-        int bar_height = y_axis_height * scale;
-        
-        Rect2i bar = {
-            {0, 0},
-            {bar_width, bar_height}
-        };
-        
-        V2i bar_offset = V2i{bar_spacing + i*(bar_width + bar_spacing), 0};
-        V2i top_left = origin + bar_offset - V2i{0, bar_height};
-        
-        bar.min += top_left;
-        bar.max += top_left;
-        
-        r32 t = (r32)i/bars;
-        r32 red = (1 - t) * 0.0f + t * 1.0f;
-        draw_rectangle(buffer, 
-                       bar,
-                       red, 0.0f, 0.0f);
-    }
-}
-
-
-void draw_bar_plot_from_records(Screen_Buffer *buffer, Font *font,  Program_Record *records, u32 record_count, 
-                                int origin_x, int origin_y)
-{
-    V2i origin = {origin_x, origin_y};
-    
-    Rect2i x_axis = {
-        origin - V2i{backtail, 0},
-        origin + V2i{x_axis_length, line_thickness}
-    };
-    Rect2i y_axis = {
-        origin - V2i{0, y_axis_height},
-        origin + V2i{line_thickness, backtail+line_thickness}
-    };
-    
-    draw_rectangle(buffer, 
-                   x_axis,
-                   0.0f, 0.0f, 0.0f);
-    
-    draw_rectangle(buffer, 
-                   y_axis,
-                   0.0f, 0.0f, 0.0f);
-    
-    
-    // Max should be the first but leave this for now
-    double max_duration = 0;
-    for (int j = 0; j < record_count; ++j)
-    {
-        max_duration = std::max(max_duration, records[j].duration);
-    }
-    
-    int max_bars = x_axis_length / (bar_width + bar_spacing);
-    int bar_count = std::min(max_bars, (int)record_count);
-    
-    for (int i = 0; i < bar_count; ++i)
-    {
-        double scale = (records[i].duration / max_duration);
-        int bar_height = y_axis_height * scale;
-        
-        Rect2i bar = {
-            {0, 0},
-            {bar_width, bar_height}
-        };
-        
-        V2i bar_offset = V2i{bar_spacing + i*(bar_width + bar_spacing), 0};
-        V2i top_left = origin + bar_offset - V2i{0, bar_height};
-        
-        bar.min += top_left;
-        bar.max += top_left;
-        
-        r32 t = (r32)i/bar_count;
-        r32 red = (1 - t) * 0.0f + t * 1.0f;
-        
-        char text[512];
-        snprintf(text, array_count(text), "%.2lfs", records[i].duration);
-        draw_rectangle(buffer, 
-                       bar,
-                       red, 0.0f, 0.0f);
-        draw_text(buffer, font, text, bar.min.x - 6, bar.min.y - 4, 0.0f, 0.0f, 0.0f);
-    }
-}
-
-
 void
 draw_simple_bitmap(Screen_Buffer *buffer, Simple_Bitmap *bitmap, int buffer_x, int buffer_y)
 {
@@ -285,46 +157,119 @@ draw_simple_bitmap(Screen_Buffer *buffer, Simple_Bitmap *bitmap, int buffer_x, i
 void
 render_gui(Screen_Buffer *buffer, Database *database, Day_View *day_view, Font *font)
 {
+    rvl_assert(day_view);
+    rvl_assert(buffer);
+    rvl_assert(database);
+    rvl_assert(font);
+    
     // Fill Background
-    draw_rectangle(buffer, 
-                   Rect2i{{0, 0}, {buffer->width, buffer->height}},
-                   1.0f, 1.0f, 1.0f);
+    draw_rectangle(buffer, Rect2i{{0, 0}, {buffer->width, buffer->height}}, 1.0f, 1.0f, 1.0f);
     
-    int origin_x = 200;
-    int origin_y = 400;
+    int canvas_x = 200;
+    int canvas_y = 0;
+    int canvas_width = 700; 
+    int canvas_height = 540; 
     
+    Rect2i canvas = {{canvas_x, canvas_y}, {canvas_x + canvas_width, canvas_y + canvas_height}};
+    draw_rectangle(buffer, canvas, 0.9f, 0.9f, 0.9f);
+    
+    int bar_thickness = 30;
+    int bar_spacing = 10;
+    int line_thickness = 1;
+    
+    int x_axis_length = 500;
+    int y_axis_length = 400;
+    
+    int icon_margin = 50;
+    int text_margin = 70;
+    
+    V2i bar_origin = canvas.min + V2i{icon_margin, 0};
+    
+#if 0
+    Rect2i x_axis = {
+        bar_origin,
+        bar_origin + V2i{x_axis_length, line_thickness}
+    };
+    Rect2i y_axis = {
+        bar_origin,
+        bar_origin + V2i{line_thickness, y_axis_length}
+    };
+    
+    draw_rectangle(buffer, x_axis, 0.0f, 0.0f, 0.0f);
+    draw_rectangle(buffer, y_axis, 0.0f, 0.0f, 0.0f);
+#endif
+    
+    rvl_assert(day_view->day_count > 0);
     Day *today = day_view->days[day_view->day_count-1];
     
-    Program_Record sorted_records[MaxDailyRecords];
-    if (today->record_count > 0)
-    {
-        memcpy(sorted_records, today->records, sizeof(Program_Record) * today->record_count);
-        
-        std::sort(sorted_records, sorted_records + today->record_count, [](Program_Record &a, Program_Record &b){ return a.duration > b.duration; });
-    }
+    if (today->record_count == 0) return;
     
-    int max_bars = x_axis_length / (bar_width + bar_spacing);
+    Program_Record sorted_records[MaxDailyRecords];
+    memcpy(sorted_records, today->records, sizeof(Program_Record) * today->record_count);
+    
+    std::sort(sorted_records, sorted_records + today->record_count, [](Program_Record &a, Program_Record &b){ return a.duration > b.duration; });
+    
+    int max_bars = canvas_height / (bar_thickness + bar_spacing);
     int bar_count = std::min(max_bars, (int)today->record_count);
+    
+    double max_duration = sorted_records[0].duration;
+    int max_bar_length = canvas_width - icon_margin - text_margin;
     
     for (int i = 0; i < bar_count; ++i)
     {
-        int bar_centre_line_x = origin_x + ((bar_spacing + bar_width) * (i+1)) - (bar_width/2);
-        
         Program_Record &record = sorted_records[i];
         
-        Simple_Bitmap *icon = get_icon_from_database(database, record.ID);
+        double scale = (record.duration / max_duration);
+        int bar_length = max_bar_length * scale;
+        Rect2i bar = {{0, 0}, {bar_length, bar_thickness}};
+        
+        bar.min += bar_origin;
+        bar.max += bar_origin;
+        
+        int bar_y_offset = bar_spacing + i*(bar_thickness + bar_spacing);
+        bar.min.y += bar_y_offset;
+        bar.max.y += bar_y_offset;
+        
+        {
+            r32 t = (r32)i/bar_count;
+            r32 red = rvl_lerp(0.0f, 1.0f, t);
+            
+            draw_rectangle(buffer, bar, red, 0.0f, 0.0f);
+            
+            char text[512];
+            if (record.duration < 60.0f)
+            {
+                // Seconds
+                snprintf(text, array_count(text), "%.2lfs", record.duration);
+            }
+            else if(record.duration < 3600.0f)
+            {
+                // Minutes
+                snprintf(text, array_count(text), "%.0lfm", record.duration/60);
+            }
+            else
+            {
+                // Hours
+                snprintf(text, array_count(text), "%.0lfh", record.duration/3600);
+            }
+            
+            
+            draw_text(buffer, font, text, bar.max.x + 5, bar.max.y - 5, 0.0f, 0.0f, 0.0f);
+        }
+        
+        // TODO: line between icon and bar?
+        
+        Simple_Bitmap *icon = 0;
+        icon = get_icon_from_database(database, record.ID);
         if (icon)
         {
-            int icon_pen_x = bar_centre_line_x - (icon->width/2);
-            int icon_pen_y = origin_y + 10;
+            int icon_centre_x = canvas_x + (bar_origin.x - canvas_x) / 2; 
+            int icon_centre_y = bar.min.y + (bar.max.y - bar.min.y) / 2;
             
-            draw_simple_bitmap(buffer, icon, icon_pen_x, icon_pen_y);
+            V2i icon_top_left = {icon_centre_x - (icon->width/2), icon_centre_y - (icon->height/2)};
+            
+            draw_simple_bitmap(buffer, icon, icon_top_left.x, icon_top_left.y);
         }
-    }
-    
-    if (bar_count > 0)
-    {
-        draw_bar_plot_from_records(buffer, font, sorted_records, bar_count, origin_x, origin_y);
     }
 }
 

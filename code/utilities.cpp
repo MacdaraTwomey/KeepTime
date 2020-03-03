@@ -3,7 +3,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-
 void *xalloc(size_t size)
 {
     rvl_assert(size > 0);
@@ -53,8 +52,6 @@ concat_strings(char *dest, size_t dest_len,
     dest[len1 + len2] = '\0';
 }
 
-
-#define rvl_lerp(x, y, t) (((1.0f-(t))*(x)) + ((t)*(y)))
 
 struct V2i
 {
@@ -133,10 +130,3 @@ operator*=(V2i &B, r32 A)
     return(B);
 }
 
-
-template<class T>
-constexpr const T& rvl_clamp( const T& v, const T& lo, const T& hi )
-{
-    rvl_assert(!(hi < lo));
-    return (v < lo) ? lo : (hi < v) ? hi : v;
-}

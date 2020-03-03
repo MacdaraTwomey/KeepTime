@@ -130,6 +130,16 @@ constexpr size_t array_count(T(&)[n])
     return n;
 }
 
+#define rvl_lerp(x, y, t) (((1.0f-(t))*(x)) + ((t)*(y)))
+
+template<class T>
+constexpr const T& rvl_clamp( const T& v, const T& lo, const T& hi )
+{
+    rvl_assert(!(hi < lo));
+    return (v < lo) ? lo : (hi < v) ? hi : v;
+}
+
+
 // ------------------------------------------------------------------------------------------------
 // This is suspect in lieu of bugs in term on linux
 
