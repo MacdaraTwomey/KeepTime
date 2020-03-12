@@ -7,6 +7,10 @@
 
 // Undef stuff??
 
+
+// TODO: TPRINT void * buffers are being pronted as a pointer rather than giving a compile error saying expected a char * array and recieved a void *.
+// also wchar_t need %ls i think.
+
 #include <stdint.h>
 #include <limits.h>
 #include <stdio.h>
@@ -173,7 +177,7 @@ template <typename F> gbprivDefer<F> gb_defer_func(F &&f) { return gbprivDefer<F
 #define ANON_VARIABLE(x)    CONCATENATE_2(x, __LINE__)
 #endif
 
-// NOTE: 
+// NOTE:
 // defer calls are executed in reverse order (later in scope called first)
 // If deferred function takes arguments, the arguments values can change before being called at
 // scope exit.
@@ -355,7 +359,7 @@ tprint_col(Red, "Hello %", name);
 Future nicehaves TODO:
 - Allow other format specifiers (maybe above todo would allow this also)
 - tprint() just prints newline
-- Print (null) explicitly if null pointer passed (GCC and MSVC do this I think but it's 
+- Print (null) explicitly if null pointer passed (GCC and MSVC do this I think but it's
   implementation defined).
 
 // Example code to test
@@ -640,7 +644,7 @@ void rvl_snprintf(char *buf, size_t n, const char *str, Targs... args)
     // Doesn't handle booleans
     // May not gracefully handle arument number and '%' number mismatch
     
-    if (n >= 3900) 
+    if (n >= 3900)
     {
         rvl_assert(0);
         return;

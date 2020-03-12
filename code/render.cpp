@@ -1,6 +1,11 @@
 
 #include "monitor.h"
 
+// TODO: This is debug only
+#define RGB_COLOUR(r, g, b)\
+(0xFF << 24|(u32)roundf((r) * 255.0f) << 16)|((u32)roundf((g) * 255.0f) << 8)|((u32)roundf((b) * 255.0f))
+
+typedef u32 Colour;
 
 void draw_text(Screen_Buffer *buffer, Font *font, char *text, int baseline_x, int baseline_y, r32 r, r32 g, r32 b)
 {
@@ -70,17 +75,12 @@ void draw_text(Screen_Buffer *buffer, Font *font, char *text, int baseline_x, in
 }
 
 
-void draw_rectangle(Screen_Buffer *buffer, Rect2i rect, r32 R, r32 G, r32 B)
+void draw_rectangle(Screen_Buffer *buffer, Rect2i rect, Colour colour)
 {
     int x0 = rvl_clamp(rect.min.x, 0, buffer->width);
     int y0 = rvl_clamp(rect.min.y, 0, buffer->height);
     int x1 = rvl_clamp(rect.max.x, 0, buffer->width);
     int y1 = rvl_clamp(rect.max.y, 0, buffer->height);
-    
-    u32 colour = 
-        ((u32)roundf(R * 255.0f) << 16) |
-        ((u32)roundf(G * 255.0f) << 8) |
-        ((u32)roundf(B * 255.0f));
     
     u8 *row = (u8 *)buffer->data + x0*Screen_Buffer::BYTES_PER_PIXEL + y0*buffer->pitch;
     for (int y = y0; y < y1; ++y)
@@ -163,7 +163,7 @@ render_gui(Screen_Buffer *buffer, Database *database, Day_View *day_view, Font *
     rvl_assert(font);
     
     // Fill Background
-    draw_rectangle(buffer, Rect2i{{0, 0}, {buffer->width, buffer->height}}, 1.0f, 1.0f, 1.0f);
+    draw_rectangle(buffer, Rect2i{{0, 0}, {buffer->width, buffer->height}}, RGB_COLOUR(1.0f, 1.0f, 1.0f));
     
     int canvas_x = 200;
     int canvas_y = 0;
@@ -171,7 +171,7 @@ render_gui(Screen_Buffer *buffer, Database *database, Day_View *day_view, Font *
     int canvas_height = 540; 
     
     Rect2i canvas = {{canvas_x, canvas_y}, {canvas_x + canvas_width, canvas_y + canvas_height}};
-    draw_rectangle(buffer, canvas, 0.9f, 0.9f, 0.9f);
+    draw_rectangle(buffer, canvas, RGB_COLOUR(0.9f, 0.9f, 0.9f));
     
     int bar_thickness = 30;
     int bar_spacing = 10;
@@ -234,7 +234,7 @@ render_gui(Screen_Buffer *buffer, Database *database, Day_View *day_view, Font *
             r32 t = (r32)i/bar_count;
             r32 red = rvl_lerp(0.0f, 1.0f, t);
             
-            draw_rectangle(buffer, bar, red, 0.0f, 0.0f);
+            draw_rectangle(buffer, bar, RGB_COLOUR(red, 0.0f, 0.0f));
             
             char text[512];
             if (record.duration < 60.0f)
@@ -274,66 +274,6 @@ render_gui(Screen_Buffer *buffer, Database *database, Day_View *day_view, Font *
 }
 
 
-void
-draw_win32_bitmap(Screen_Buffer *buffer, BITMAP *bitmap, int buffer_x, int buffer_y)
-{
-    int x0 = buffer_x;
-    int y0 = buffer_y;
-    int x1 = buffer_x + bitmap->bmWidth;
-    int y1 = buffer_y + bitmap->bmHeight;
-    
-    if (x0 < 0) 
-    {
-        x0 = 0;
-    }
-    if (y0 < 0)
-    {
-        y0 = 0;
-    }
-    if (x1 > buffer->width)
-    {
-        x1 = buffer->width;
-    }
-    if (y1 > buffer->height)
-    {
-        y1 = buffer->height;
-    }
-    
-    u8 *src_row = (u8 *)bitmap->bmBits;
-    u8 *dest_row = (u8 *)buffer->data + (x0 * buffer->BYTES_PER_PIXEL) + (y0 * buffer->pitch);
-    for (int y = y0; y < y1; ++y)
-    {
-        u32 *src = (u32 *)src_row;
-        u32 *dest = (u32 *)dest_row;
-        for (int x = x0; x < x1; ++x)
-        {
-            r32 A = ((*src >> 24) & 0xFF) / 255.0f;
-            
-            r32 SR = (r32)((*src >> 16) & 0xFF);
-            r32 SG = (r32)((*src >> 8) & 0xFF);
-            r32 SB = (r32)((*src >> 0) & 0xFF);
-            
-            r32 DR = (r32)((*dest >> 16) & 0xFF);
-            r32 DG = (r32)((*dest >> 8) & 0xFF);
-            r32 DB = (r32)((*dest >> 0) & 0xFF);
-            
-            r32 R = (1.0f-A)*DR + A*SR;
-            r32 G = (1.0f-A)*DG + A*SG;
-            r32 B = (1.0f-A)*DB + A*SB;
-            
-            *dest = (((u32)(R + 0.5f) << 16) |
-                     ((u32)(G + 0.5f) << 8) |
-                     ((u32)(B + 0.5f) << 0));
-            
-            ++dest;
-            ++src;
-        }
-        
-        src_row += bitmap->bmWidthBytes;
-        dest_row += buffer->pitch;
-    }
-}
-
 
 
 struct Glyph
@@ -349,6 +289,10 @@ struct Glyph
 };
 Font create_font(char *font_name, int pixel_height)
 {
+    // TODO: Do we even need a texture atlas, can just have a bitmap for each char
+    // TODO: Can we just write the whole rasterised font data to a file and convert it to a c-array and
+    // put into source code, to avoid rasterising at run time. Because we don't really need to change fonts
+    // at run time.
     char *times = "c:\\dev\\projects\\monitor\\build\\times.ttf";
     char *liberation = "c:\\dev\\projects\\monitor\\build\\LiberationMono-Regular.ttf";
     FILE* font_file = fopen(font_name, "rb");

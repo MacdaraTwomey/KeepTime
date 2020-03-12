@@ -175,8 +175,10 @@ find_keywords(char *url, Keyword *keywords, i32 keyword_count)
     {
         Keyword *keyword = &keywords[i];
         char *sub_str = strstr(url, keyword->str);
-        
-        return keyword;
+        if (sub_str) 
+        {
+            return keyword;
+        }
     }
     
     return nullptr;
@@ -231,6 +233,19 @@ get_icon_from_database(Database *database, u32 id)
     }
     else
     {
+#if 1
+        
+        u32 index = id & ((1 << 31) - 1);
+        if (index >= array_count(global_ms_icons))
+        {
+            return &global_ms_icons[0];
+        }
+        else
+        {
+            Simple_Bitmap *ms_icon = &global_ms_icons[index];
+            return ms_icon;
+        }
+#else
         if (database->firefox_icon.pixels)
         {
             return &database->firefox_icon;
@@ -239,12 +254,16 @@ get_icon_from_database(Database *database, u32 id)
         {
             // TODO: @Cleanup: This is debug
             u32 temp;
-            rvl_assert(!(database->all_programs.search("firefox", &temp))); // should not have gotten firefox
+            bool has_firefox = database->all_programs.search("firefox", &temp); 
+            
+            // should not have gotten firefox, else we would have saved its icon
+            rvl_assert(!has_firefox);
             rvl_assert(database->website_count == 0);
             temp = 1; // too see which assert triggers more clearly.
             rvl_assert(0);
             return nullptr;
         }
+#endif
     }
     
     return nullptr;

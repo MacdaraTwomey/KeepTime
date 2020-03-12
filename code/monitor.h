@@ -176,6 +176,7 @@ struct Database
     Hash_Table all_programs; // name -> ID
     Website websites[50];    // ID -> name TODO: Replace with a hash table?
     i32 website_count;
+    
     Keyword keywords[50];
     i32 keyword_count;
     

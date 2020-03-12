@@ -1,8 +1,8 @@
 #include "ravel.h"
 
-#include "helper.h"   
-#include "monitor.h" 
-#include "resource.h" 
+#include "helper.h"
+#include "monitor.h"
+#include "resource.h"
 #include "win32_monitor.h"
 
 #include <chrono>
@@ -13,15 +13,19 @@
 #include <string.h>
 #include <stdio.h>
 
+#include <wchar.h>
+
 #include <AtlBase.h>
 #include <UIAutomation.h>
 
 #include <shellapi.h>
-#include <shlobj_core.h> // SHDefExtractIconA 
+#include <shlobj_core.h> // SHDefExtractIconA
+
+#include <winhttp.h>
 
 #include <windows.h>
 
-#include "date.h" 
+#include "date.h"
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
@@ -30,6 +34,9 @@ using namespace date;
 
 static_assert(sizeof(date::sys_days) == sizeof(u32), "");
 static_assert(sizeof(date::year_month_day) == sizeof(u32), "");
+
+// NOTE: Debug use only
+Simple_Bitmap global_ms_icons[5];
 
 #include "utilities.cpp" // General programming and graphics necessaries
 #include "helper.cpp"  // General ADTs and useful classes
@@ -66,19 +73,16 @@ static constexpr int WindowHeight = 540;
 // * OpenGL graphing?
 // * Stop repeating work getting the firefox URL, maybe use UIAutomation cache?
 // * Get favicon from webpages, maybe use libcurl and a GET request for favicon.ico. Seems possible to use win32 api for this.
-// 
-// * Finalise GUI design
-// * 
+
+// * Finalise GUI design (look at task manager and nothings imgui for inspiration)
+// * Make api better/clearer, especially graphics api
+// * BUG: Program time slows down when mouse is moved quickly within window or when a key is held down
 // -----------------------------------------------------------------
 
 // Top bit of id specifies is the 'program' is a normal executable or a website
 // where rest of the bits are the actual id of its name.
 // For websites whenever a user creates a new keyword that keyword gets an id and the id count increases by 1
 // If a keyword is deleted the records with that website id can be given firefox's id.
-
-// TODO: 
-bug;
-// only one website record/icon is rendering
 
 HANDLE
 create_console()
@@ -91,8 +95,8 @@ create_console()
     
     HANDLE con_out = GetStdHandle(STD_OUTPUT_HANDLE);
     DWORD out_mode;
-    GetConsoleMode(con_out, &out_mode); 
-    SetConsoleMode(con_out, out_mode|ENABLE_VIRTUAL_TERMINAL_PROCESSING); 
+    GetConsoleMode(con_out, &out_mode);
+    SetConsoleMode(con_out, out_mode|ENABLE_VIRTUAL_TERMINAL_PROCESSING);
     
     return GetStdHandle(STD_INPUT_HANDLE);
 }
@@ -112,11 +116,11 @@ bool get_firefox_url(HWND window, char *URL, size_t *URL_len)
     if(FAILED(uia.CoCreateInstance(CLSID_CUIAutomation)) || !uia)
         return false;
     
-#if 0 
+#if 0
     // Different style
     CComQIPtr<IUIAutomation> uia;
     CoCreateInstance(CLSID_CUIAutomation, NULL,
-                     CLSCTX_INPROC_SERVER, IID_IUIAutomation, 
+                     CLSCTX_INPROC_SERVER, IID_IUIAutomation,
                      reinterpret_cast<void**>(&uia));
 #endif
     
@@ -135,12 +139,15 @@ bool get_firefox_url(HWND window, char *URL, size_t *URL_len)
                                  CComVariant(UIA_ToolBarControlTypeId), &toolbar_cond);
     
     CComPtr<IUIAutomationCondition> combobox_cond;
-    uia->CreatePropertyCondition(UIA_ControlTypePropertyId, 
+    uia->CreatePropertyCondition(UIA_ControlTypePropertyId,
                                  CComVariant(UIA_ComboBoxControlTypeId), &combobox_cond);
     
     CComPtr<IUIAutomationCondition> editbox_cond;
-    uia->CreatePropertyCondition(UIA_ControlTypePropertyId, 
+    uia->CreatePropertyCondition(UIA_ControlTypePropertyId,
                                  CComVariant(UIA_EditControlTypeId), &editbox_cond);
+    
+    
+    
     
     // TODO:
     // This AND condition finds the navigation toolbar straight away, rather than other one looping
@@ -149,12 +156,12 @@ bool get_firefox_url(HWND window, char *URL, size_t *URL_len)
     VARIANT variant;
     variant.vt = VT_BSTR;
     variant.bstrVal = SysAllocString(L"Navigation");
-    if (!variant.bstrVal) 
+    if (!variant.bstrVal)
         return false;
     defer(SysFreeString(variant.bstrVal));
     
     CComPtr<IUIAutomationCondition> navigation_name_cond;
-    uia->CreatePropertyCondition(UIA_NamePropertyId, 
+    uia->CreatePropertyCondition(UIA_NamePropertyId,
                                  variant, &navigation_name_cond);
     
     
@@ -169,14 +176,14 @@ bool get_firefox_url(HWND window, char *URL, size_t *URL_len)
     if (FAILED(element->FindAll(TreeScope_Children, and_cond, &toolbars)) || !toolbars)
         return false;
     
-    // NOTE: 27/02/2020: 
+    // NOTE: 27/02/2020:
     // (according to Inspect.exe)
     // To get the URLs of all open tabs in Firefox Window:
     // Mozilla firefox window ControlType: UIA_WindowControlTypeId (0xC370) LocalizedControlType: "window"
     // "" group               ControlType: UIA_GroupControlTypeId (0xC36A) LocalizedControlType: "group"
     //
     // containing multiple nestings of this (one for each tab):
-    // ""                     no TypeId or Type  
+    // ""                     no TypeId or Type
     //   ""                   no TypeId or Type
     //     "tab text"         ControlType: UIA_DocumentControlTypeId (0xC36E) LocalizedControlType: "document"
     //     which has Value.Value = URL
@@ -228,7 +235,7 @@ bool get_firefox_url(HWND window, char *URL, size_t *URL_len)
             if(FAILED(edit->GetCurrentPropertyValue(UIA_ValueValuePropertyId, &bstr)))
                 continue;
             
-            // A null pointer is the same as an empty string to a BSTR. An empty BSTR is a pointer to a zero-length string. It has a single null character to the right of the address being pointed to, and a long integer containing zero to the left. A null BSTR is a null pointer pointing to nothing. There can't be any characters to the right of nothing, and there can't be any length to the left of nothing. Nevertheless, a null pointer is considered to have a length of zero (that's what SysStringLen returns). 
+            // A null pointer is the same as an empty string to a BSTR. An empty BSTR is a pointer to a zero-length string. It has a single null character to the right of the address being pointed to, and a long integer containing zero to the left. A null BSTR is a null pointer pointing to nothing. There can't be any characters to the right of nothing, and there can't be any length to the left of nothing. Nevertheless, a null pointer is considered to have a length of zero (that's what SysStringLen returns).
             
             // On my firefox a empty URL bar gives a length of 0
             
@@ -276,7 +283,7 @@ resize_screen_buffer(Screen_Buffer *buffer, int new_width, int new_height)
     buffer->width = new_width;
     buffer->height = new_height;
     
-    buffer->bitmap_info = {}; 
+    buffer->bitmap_info = {};
     buffer->bitmap_info.bmiHeader.biSize = sizeof(buffer->bitmap_info.bmiHeader);
     buffer->bitmap_info.bmiHeader.biWidth = buffer->width;
     buffer->bitmap_info.bmiHeader.biHeight = -buffer->height; // Negative height to tell Windows this is a top-down bitmap
@@ -295,11 +302,11 @@ paint_window(Screen_Buffer *buffer, HDC device_context, int window_width, int wi
 {
     // Causing window flickering
 #if 0
-    PatBlt(device_context, 
+    PatBlt(device_context,
            0, 0,
            buffer->width, buffer->height,
            BLACKNESS);
-#endif 
+#endif
     // GetClientRect gets slightly smaller dimensions
     //rvl_assert(window_width == buffer->width && window_height == buffer->height);
     
@@ -316,7 +323,7 @@ paint_window(Screen_Buffer *buffer, HDC device_context, int window_width, int wi
 }
 
 
-BOOL CALLBACK 
+BOOL CALLBACK
 MyEnumChildWindowsCallback(HWND hwnd, LPARAM lParam)
 {
     // From // https://stackoverflow.com/questions/32360149/name-of-process-for-active-window-in-windows-8-10
@@ -341,7 +348,7 @@ get_forground_window_path(HWND foreground_win, char *buffer, size_t buf_size)
     if (foreground_win)
     {
         Process_Ids process_ids = {0, 0};
-        GetWindowThreadProcessId(foreground_win, &process_ids.parent); 
+        GetWindowThreadProcessId(foreground_win, &process_ids.parent);
         process_ids.child = process_ids.parent; // In case it is a normal process
         
         // Modern universal windows apps in 8 and 10 have the process we want inside a parent process called
@@ -359,7 +366,7 @@ get_forground_window_path(HWND foreground_win, char *buffer, size_t buf_size)
             DWORD filename_len = (DWORD)buf_size;
             if (QueryFullProcessImageNameA(process, 0, buffer, &filename_len))
             {
-                CloseHandle(process); 
+                CloseHandle(process);
                 return (size_t)filename_len;
             }
             else
@@ -367,7 +374,7 @@ get_forground_window_path(HWND foreground_win, char *buffer, size_t buf_size)
                 tprint("Couldn't get executable path");
             }
             
-            CloseHandle(process); 
+            CloseHandle(process);
         }
     }
     
@@ -407,7 +414,7 @@ get_window_info(HWND window, Window_Info *info)
     info->full_path_len = full_path_len;
 }
 
-void 
+void
 poll_windows(Database *database, double dt)
 {
     rvl_assert(database);
@@ -419,7 +426,7 @@ poll_windows(Database *database, double dt)
     get_window_info(foreground_win, &window_info);
     
     // If this is a good feature then just pass in created HWND and test
-    // if (strcmp(winndow_info->full_path, "c:\\dev\\projects\\monitor\\build\\monitor.exe") == 0) return; 
+    // if (strcmp(winndow_info->full_path, "c:\\dev\\projects\\monitor\\build\\monitor.exe") == 0) return;
     
     u32 record_id = 0;
     
@@ -507,7 +514,7 @@ poll_windows(Database *database, double dt)
         if (!in_table || (in_table && !database->paths[temp_id].updated_recently))
         {
             
-            if (in_table && database->paths[temp_id].path) 
+            if (in_table && database->paths[temp_id].path)
             {
                 free(database->paths[temp_id].path);
             }
@@ -563,9 +570,9 @@ WinProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
             DestroyWindow(window); // Have to call this or main window X won't close program
         } break;
         
-        case WM_DESTROY: 
+        case WM_DESTROY:
         {
-            // Recieved when window is removed from screen but before destruction occurs 
+            // Recieved when window is removed from screen but before destruction occurs
             // and before child windows are destroyed.
             // Typicall call PostQuitMessage(0) to send WM_QUIT to message loop
             // So typically goes CLOSE -> DESTROY -> QUIT
@@ -616,7 +623,7 @@ WinProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
                                            button_pos.x, button_pos.y,
                                            button_width, button_height,
                                            window,
-                                           (HMENU)ID_DAY_BUTTON, 
+                                           (HMENU)ID_DAY_BUTTON,
                                            instance, NULL);
             button_pos.y += button_height + 30;
             HWND week_button = CreateWindow("BUTTON",
@@ -625,7 +632,7 @@ WinProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
                                             button_pos.x, button_pos.y,
                                             button_width, button_height,
                                             window,
-                                            (HMENU)ID_WEEK_BUTTON, 
+                                            (HMENU)ID_WEEK_BUTTON,
                                             instance, NULL);
             button_pos.y += button_height + 30;
             HWND month_button = CreateWindow("BUTTON",
@@ -634,12 +641,12 @@ WinProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
                                              button_pos.x, button_pos.y,
                                              button_width, button_height,
                                              window,
-                                             (HMENU)ID_MONTH_BUTTON, 
+                                             (HMENU)ID_MONTH_BUTTON,
                                              instance, NULL);
             
             // TODO: To maintain compatibility with older and newer versions of shell32.dll while using
             // current header files may need to check which version of shell32.dll is installed so the
-            // cbSize of NOTIFYICONDATA can be initialised correctly. 
+            // cbSize of NOTIFYICONDATA can be initialised correctly.
             // https://docs.microsoft.com/en-us/windows/win32/api/shellapi/ns-shellapi-notifyicondataa
             
             global_nid.cbSize = sizeof(NOTIFYICONDATA);
@@ -661,7 +668,7 @@ WinProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
             // Adds icon to status area (I think)
             // TODO: Should this be in WM_ACTIVATE?
             BOOL success = Shell_NotifyIconA(NIM_ADD, &global_nid);
-            if (!success) 
+            if (!success)
             {
                 tprint("Error: Couldn't create notify icon\n");;
             }
@@ -674,7 +681,7 @@ WinProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
         } break;
         
         
-        // It seems that pressing a button gives it the keyboard focus (shown by grey dotted border) and takes away the main windows keyboard focus. 
+        // It seems that pressing a button gives it the keyboard focus (shown by grey dotted border) and takes away the main windows keyboard focus.
         // These are sent directly to WinProc can't PeekMessage them.
         case WM_COMMAND:
         {
@@ -719,13 +726,13 @@ WinProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
             //print_tray_icon_message(lParam);
             switch (LOWORD(lParam))
             {
-                case WM_RBUTTONUP:                  
+                case WM_RBUTTONUP:
                 {
                     // Could open a context menu here with option to quit etc.
                 } break;
                 case WM_LBUTTONUP:
                 {
-                    // NOTE: For now we just toggle with tray icon but, we will in future toggle with X button 
+                    // NOTE: For now we just toggle with tray icon but, we will in future toggle with X button
                     if (IsWindowVisible(window))
                     {
                         Event e = {};
@@ -807,10 +814,54 @@ pump_messages()
     }
 }
 
+
+// https://en.wikipedia.org/wiki/ICO_(file_format)
+// result is a .ico file with possibly multiple sizes of icon inside.
+// individual icons can be in BMP or PNG format.
+
+// Wikipedia: The bits per pixel might be set to zero, but can be inferred from the other data; specifically, if the bitmap is not PNG compressed, then the bits per pixel can be calculated based on the length of the bitmap data relative to the size of the image.
+
+// wikipedia says this
+struct ICONDIRENTRY
+{
+    u8 Width;
+    u8 height;
+    u8 color_count;
+    u8 reserved;
+    u16 planes;
+    u16 bits_per_pixel;
+    u32 size;
+    u32 offset;
+};
+
+// GRPICONDIRENTRY != IconDirectoryEntry the last member is different size/meaning
+
+typedef struct GRPICONDIRENTRY
+{
+    BYTE  bWidth;
+    BYTE  bHeight;
+    BYTE  bColorCount;
+    BYTE  bReserved;
+    WORD  wPlanes;
+    WORD  wBitCount;
+    DWORD dwBytesInRes;
+    WORD  nId;
+} GRPICONDIRENTRY;
+
+struct ICONDIR
+{
+    u16 reserved; // Reserved. Must always be 0.
+    u16 type;     // Specifies image type: 1 for icon (.ICO) image, 2 for cursor (.CUR) image.
+    u16 count;    // Specifies number of images in the file.
+    ICONDIRENTRY *entries;
+};
+
+
+
 int WINAPI
 WinMain(HINSTANCE instance,
-        HINSTANCE prev_instance, 
-        LPTSTR    cmd_line, 
+        HINSTANCE prev_instance,
+        LPTSTR    cmd_line,
         int       cmd_show)
 {
     
@@ -851,6 +902,12 @@ WinMain(HINSTANCE instance,
     
     // Better to init this before we even can recieve messages
     
+    for (int i = 0; i < array_count(global_ms_icons); ++i)
+    {
+        HICON ico = LoadIconA(NULL, MAKEINTRESOURCE(32513 + i));
+        global_ms_icons[i] = get_icon_bitmap(ico);
+    }
+    
     resize_screen_buffer(&global_screen_buffer, WindowWidth, WindowHeight);
     
     init_queue(&global_event_queue, 100);
@@ -861,7 +918,7 @@ WinMain(HINSTANCE instance,
     window_class.style = CS_HREDRAW|CS_VREDRAW;
     window_class.lpfnWndProc = WinProc;
     window_class.hInstance = instance;
-    window_class.hIcon =  LoadIcon(instance, MAKEINTRESOURCE(MAIN_ICON_ID)); // Function looks for resource with this ID, 
+    window_class.hIcon =  LoadIcon(instance, MAKEINTRESOURCE(MAIN_ICON_ID)); // Function looks for resource with this ID,
     window_class.hCursor = LoadCursor(NULL, IDC_ARROW);
     // window_class_ex.hIconsm = ; OS may still look in ico file for small icon anyway
     // window_class.hbrBackground;
@@ -877,7 +934,7 @@ WinMain(HINSTANCE instance,
                                   WS_VISIBLE|WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN,
                                   800, 100,  // Screen pos, TODO: Change to CS_USEDEFAULT
                                   WindowWidth, WindowHeight,
-                                  NULL, NULL, 
+                                  NULL, NULL,
                                   instance, NULL);
     if (!window)
     {
@@ -890,13 +947,135 @@ WinMain(HINSTANCE instance,
     //remove(global_savefile_path);
     //remove(global_debug_savefile_path);
     
+    
+    
+    https://docs.microsoft.com/en-us/windows/win32/winhttp/error-messages
+    
+    // many WinHTTP error codes not supported by FormatMessage
+    DWORD error = 0;
+    auto print_error = [&](){ error = GetLastError(); tprint("Error code: %", error); };
+    
+    HINTERNET session = WinHttpOpen(L"WinHttpPostSample",
+                                    WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+                                    WINHTTP_NO_PROXY_NAME,
+                                    WINHTTP_NO_PROXY_BYPASS, 0);
+    if (session == NULL)
+    {
+        tprint("No open");
+        print_error();
+    }
+    
+    // WinHttp does not accept international host names without converting them first to Punycode
+    
+    // Don't want https:// at start or a slash '/' at end both will give error
+    HINTERNET connection = WinHttpConnect(session,
+                                          L"www.docs.microsoft.com",
+                                          INTERNET_DEFAULT_HTTPS_PORT, 0);
+    if (connection == NULL)
+    {
+        tprint("No connection");
+        print_error();
+    }
+    
+    // From Wikipedia:
+    // While the IANA-registered MIME type for ICO files is image/vnd.microsoft.icon,[8] it was submitted to IANA in 2003 by a third party and is not recognised by Microsoft software, which uses image/x-icon instead.[9] Erroneous types image/ico, image/icon, text/ico and application/ico have also been seen in use.[8]
+    
+    wchar_t target[] = L"favicon.ico"; // maybe need full path
+    wchar_t icon_type[] = L"vnd.microsoft.icon";
+    const wchar_t *media_types[] = {icon_type, NULL}; // maybe image/vnd.microsoft.icon
+    // can try HINTERNET hRequest = WinHttpOpenRequest( hConnect, L"GET", NULL, NULL, NULL, NULL, 0);
+    
+    // or this      hRequest = WinHttpOpenRequest( hConnect, L"GET", NULL, NULL, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE);
+    
+    
+    // WINHTTP_FLAG_SECURE translates to using Secure Sockets Layer (SSL)/Transport Layer Security (TLS).
+    HINTERNET request = WinHttpOpenRequest(connection,
+                                           L"GET",
+                                           target,
+                                           NULL,
+                                           WINHTTP_NO_REFERER,
+                                           media_types,
+                                           WINHTTP_FLAG_SECURE);
+    if (request == NULL)
+    {
+        tprint("No request");
+    }
+    
+    BOOL sent = WinHttpSendRequest(request,
+                                   WINHTTP_NO_ADDITIONAL_HEADERS, 0,
+                                   WINHTTP_NO_REQUEST_DATA, 0, 0, 0);
+    if (!sent)
+    {
+        tprint("No send");
+    }
+    
+    // when in synchronous mode can recieve response when sendrequest returns
+    
+    // When WinHttpReceiveResponse completes successfully, the status code and response headers have been received and are available for the application to inspect using WinHttpQueryHeaders. An application must call WinHttpReceiveResponse before it can use WinHttpQueryDataAvailable and WinHttpReadData to access the response entity body (if any).
+    BOOL recieved = WinHttpReceiveResponse(request, NULL);
+    if (!recieved)
+    {
+        tprint("No recieve");
+        print_error();
+    }
+    
+    u8 *recieved_data = (u8 *)xalloc(Megabytes(8));
+    i32 total_recieved = 0;
+    
+    DWORD available_bytes = 0;
+    do
+    {
+        BOOL query_success =  WinHttpQueryDataAvailable(request, &available_bytes);
+        if (!query_success)
+        {
+            tprint("No query");
+            break;
+        }
+        
+        if (available_bytes == 0) break;
+        
+        u8 *response_buffer = (u8 *)xalloc(available_bytes + 1);
+        memset(response_buffer, 0, available_bytes + 1);
+        
+        // If you are using WinHttpReadData synchronously, and the return value is TRUE and the number of bytes read is zero, the transfer has been completed and there are no more bytes to read on the handle.
+        DWORD bytes_read = 0;
+        BOOL read_success = WinHttpReadData(request, response_buffer, available_bytes, &bytes_read);
+        if (!read_success)
+        {
+            tprint("No read");
+            free(response_buffer);
+            break;
+        }
+        
+        tprint("Read % bytes", bytes_read);
+        
+        if (bytes_read == 0)
+        {
+            tprint("0 bytes read, not sure if this is an error because can try to read when nothing is there and are at EOF");
+        }
+        
+        memcpy(recieved_data + total_recieved, response_buffer, bytes_read);
+        total_recieved += bytes_read;
+        
+        free(response_buffer);
+    } while(available_bytes > 0);
+    
+    
+    if (request) WinHttpCloseHandle(request);
+    if (connection) WinHttpCloseHandle(connection);
+    if (session) WinHttpCloseHandle(session);
+    
+    ICONDIR *dir = (ICONDIR *)recieved_data;
+    ICONDIRENTRY *entry = (ICONDIRENTRY *)(recieved_data + sizeof(ICONDIR));
+    
     Header header = {};
+    
     Database database;
     init_database(&database);
-    
     add_keyword(&database, "CITS3003");
     add_keyword(&database, "youtube");
     add_keyword(&database, "docs.microsoft");
+    add_keyword(&database, "eso-community");
     
     start_new_day(&database, floor<date::days>(System_Clock::now()));
     
@@ -922,7 +1101,7 @@ WinMain(HINSTANCE instance,
     bool gui_visible = (bool)IsWindowVisible(window);
     
     global_running = true;
-    while (global_running)
+    while (global_running) // main loop
     {
         WaitMessage();
         pump_messages(); // Need this to translate and dispatch messages.
@@ -936,7 +1115,7 @@ WinMain(HINSTANCE instance,
         while (!global_event_queue.empty())
         {
             Event e = global_event_queue.dequeue();
-            if (e.type == Event_Button_Click) 
+            if (e.type == Event_Button_Click)
             {
                 button_clicked = true;
                 button = e.button;
@@ -960,12 +1139,12 @@ WinMain(HINSTANCE instance,
         }
         
         auto new_time = Steady_Clock::now();
-        std::chrono::duration<time_type> diff = new_time - old_time; 
+        std::chrono::duration<time_type> diff = new_time - old_time;
         old_time = new_time;
         time_type dt = diff.count();
         
         // Steady clock also accounts for time paused in debugger etc, so can introduce bugs that aren't there
-        // normally when debugging. 
+        // normally when debugging.
         duration_accumulator += dt;
         
         // speed up time!!!
@@ -996,13 +1175,14 @@ WinMain(HINSTANCE instance,
         init_day_view(&database, &day_view);
         
         
+        
         if (button_clicked)
         {
             Button button_clicked = Button_Day;
             
-            i32 period = 
+            i32 period =
                 (button_clicked == Button_Day) ? 1 :
-            (button_clicked == Button_Week) ? 7 : 30; 
+            (button_clicked == Button_Week) ? 7 : 30;
             
             set_range(&day_view, period, current_date);
         }
@@ -1084,7 +1264,7 @@ if (Global_running) sb.clear();
 // * Each process should create mutex (maybe open mutex instead) once, and hold onto handle
 //   using WaitForSingleObject to wait for it and ReleaseMutex to release the lock.
 // * A mutex can be in two states: signaled (when no thread owns the mutex) or unsignaled
-//   
+//
 // Can also run FindWindow ?
 HANDLE mutex = CreateMutexA(nullptr, TRUE, MutexName);
 DWORD error = GetLastError();
@@ -1149,9 +1329,9 @@ for (int i = 0; i < array_count(names); ++i, ++col)
     
     bool
         esc_key_pressed(HANDLE con_in)
-    {     
+    {
         DWORD events_count;
-        GetNumberOfConsoleInputEvents(con_in, &events_count); 
+        GetNumberOfConsoleInputEvents(con_in, &events_count);
         
         if (events_count > 0)
         {
@@ -1181,13 +1361,13 @@ for (int i = 0; i < array_count(names); ++i, ++col)
         static int counter = 0;
         switch (LOWORD(lParam))
         {
-            case WM_RBUTTONDOWN: 
+            case WM_RBUTTONDOWN:
             {
-                tprint("%. WM_RBUTTONDOWN", counter++); 
+                tprint("%. WM_RBUTTONDOWN", counter++);
             }break;
-            case WM_RBUTTONUP:                  
+            case WM_RBUTTONUP:
             {
-                tprint("%. WM_RBUTTONUP", counter++); 
+                tprint("%. WM_RBUTTONUP", counter++);
             } break;
             case WM_LBUTTONDOWN:
             {
