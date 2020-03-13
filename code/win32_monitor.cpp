@@ -815,139 +815,9 @@ pump_messages()
 }
 
 
-// https://en.wikipedia.org/wiki/ICO_(file_format)
-// result is a .ico file with possibly multiple sizes of icon inside.
-// individual icons can be in BMP or PNG format.
-
-// Wikipedia: The bits per pixel might be set to zero, but can be inferred from the other data; specifically, if the bitmap is not PNG compressed, then the bits per pixel can be calculated based on the length of the bitmap data relative to the size of the image.
-
-// wikipedia says this
-struct ICONDIRENTRY
+void
+network()
 {
-    u8 Width;
-    u8 height;
-    u8 color_count;
-    u8 reserved;
-    u16 planes;
-    u16 bits_per_pixel;
-    u32 size;
-    u32 offset;
-};
-
-// GRPICONDIRENTRY != IconDirectoryEntry the last member is different size/meaning
-
-typedef struct GRPICONDIRENTRY
-{
-    BYTE  bWidth;
-    BYTE  bHeight;
-    BYTE  bColorCount;
-    BYTE  bReserved;
-    WORD  wPlanes;
-    WORD  wBitCount;
-    DWORD dwBytesInRes;
-    WORD  nId;
-} GRPICONDIRENTRY;
-
-struct ICONDIR
-{
-    u16 reserved; // Reserved. Must always be 0.
-    u16 type;     // Specifies image type: 1 for icon (.ICO) image, 2 for cursor (.CUR) image.
-    u16 count;    // Specifies number of images in the file.
-    ICONDIRENTRY *entries;
-};
-
-
-
-int WINAPI
-WinMain(HINSTANCE instance,
-        HINSTANCE prev_instance,
-        LPTSTR    cmd_line,
-        int       cmd_show)
-{
-    
-#if CONSOLE_ON
-    HANDLE con_in = create_console();
-#endif
-    
-    // TODO: Why don't we need to link ole32.lib?
-    // Call this because we use CoCreateInstance in UIAutomation
-    HRESULT gg = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
-    
-    {
-        // Relative paths possible???
-        char exe_path[MaxPathLen];
-        DWORD filepath_len = GetModuleFileNameA(nullptr, exe_path, 1024);
-        if (filepath_len == 0 || GetLastError() == ERROR_INSUFFICIENT_BUFFER) return 1;
-        
-        global_savefile_path = make_filepath(exe_path, SaveFileName);
-        if (!global_savefile_path) return 1;
-        
-        global_debug_savefile_path = make_filepath(exe_path, DebugSaveFileName);
-        if (!global_debug_savefile_path) return 1;
-        
-        if (strlen(global_savefile_path) > MAX_PATH)
-        {
-            tprint("Error: Find first file ANSI version limited to MATH_PATH");
-            return 1;
-        }
-    }
-    
-    // If already running just open/show GUI, or if already open do nothing.
-    // FindWindowA();
-    
-    // On icons and resources from Forger's tutorial
-    // The icon shown on executable file in explorer is the icon with lowest numerical ID in the program's resources. Not necessarily the one we load while running.
-    
-    // You can create menus by specifying them in the .rc file or by specifying them at runtime, with AppendMenu etc
-    
-    // Better to init this before we even can recieve messages
-    
-    for (int i = 0; i < array_count(global_ms_icons); ++i)
-    {
-        HICON ico = LoadIconA(NULL, MAKEINTRESOURCE(32513 + i));
-        global_ms_icons[i] = get_icon_bitmap(ico);
-    }
-    
-    resize_screen_buffer(&global_screen_buffer, WindowWidth, WindowHeight);
-    
-    init_queue(&global_event_queue, 100);
-    
-    Font font = create_font("c:\\windows\\fonts\\times.ttf", 28);
-    
-    WNDCLASS window_class = {};
-    window_class.style = CS_HREDRAW|CS_VREDRAW;
-    window_class.lpfnWndProc = WinProc;
-    window_class.hInstance = instance;
-    window_class.hIcon =  LoadIcon(instance, MAKEINTRESOURCE(MAIN_ICON_ID)); // Function looks for resource with this ID,
-    window_class.hCursor = LoadCursor(NULL, IDC_ARROW);
-    // window_class_ex.hIconsm = ; OS may still look in ico file for small icon anyway
-    // window_class.hbrBackground;
-    // window_class.lpszMenuName
-    window_class.lpszClassName = "MonitorWindowClassName";
-    
-    if (!RegisterClassA(&window_class))
-    {
-        return 1;
-    }
-    
-    HWND window = CreateWindowExA(0, window_class.lpszClassName, "Monitor",
-                                  WS_VISIBLE|WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN,
-                                  800, 100,  // Screen pos, TODO: Change to CS_USEDEFAULT
-                                  WindowWidth, WindowHeight,
-                                  NULL, NULL,
-                                  instance, NULL);
-    if (!window)
-    {
-        return 1;
-    }
-    
-    ShowWindow(window, cmd_show);
-    UpdateWindow(window); // This sends WM_PAINT message so make sure screen buffer is initialised
-    
-    //remove(global_savefile_path);
-    //remove(global_debug_savefile_path);
-    
-    
     
     https://docs.microsoft.com/en-us/windows/win32/winhttp/error-messages
     
@@ -1065,8 +935,142 @@ WinMain(HINSTANCE instance,
     if (connection) WinHttpCloseHandle(connection);
     if (session) WinHttpCloseHandle(session);
     
-    ICONDIR *dir = (ICONDIR *)recieved_data;
-    ICONDIRENTRY *entry = (ICONDIRENTRY *)(recieved_data + sizeof(ICONDIR));
+    u8 *ico_file = recieved_data;
+    u32 file_size = total_recieved;
+    if (sizeof(ICONDIR) >= file_size)
+    {
+        // error
+        return;
+    }
+    
+    
+    ICONDIR *dir = (ICONDIR *)ico_file;
+    if (dir->entry_count > 0)
+    {
+        if (sizeof(ICONDIR) + (sizeof(ICONDIRENTRY)*dir->entry_count) >= file_size)
+        {
+            // error
+            return;
+        }
+        
+        tprint(sizeof(BITMAPINFOHEADER));
+        
+        ICONDIRENTRY *entries = (ICONDIRENTRY *)(ico_file + sizeof(ICONDIR));
+        
+        // does size account for colours table and BITMAPINFOHEADER?
+        if (entries[dir->entry_count-1].offset + entries[dir->entry_count-1].size - 1 > file_size)
+        {
+            // error
+            return;
+        }
+        
+        // assume bitmap, not PNG
+        BITMAPINFOHEADER **headers = (BITMAPINFOHEADER **)xalloc(sizeof(*headers) * dir->entry_count);
+        for (int i = 0; i < 6; ++i)
+        {
+            headers[i] = (BITMAPINFOHEADER *)(ico_file + entries[i].offset);
+        }
+        
+        // Table looks right for microsoft example as 0 and 1st headers have identicle values
+        // It seems that XOR mask uses index 15 of table even though it (like many of the other slots is 0)
+        u32 *table = (u32 *)((u8 *)headers[1] + headers[1]->biSize);
+        u8 *XOR = (u8 *)table + 64;
+        u8 *AND = XOR + 128*128/2;
+        
+        u32 j = dir->entry_count;
+    }
+}
+
+int WINAPI
+WinMain(HINSTANCE instance,
+        HINSTANCE prev_instance,
+        LPTSTR    cmd_line,
+        int       cmd_show)
+{
+    
+#if CONSOLE_ON
+    HANDLE con_in = create_console();
+#endif
+    
+    // TODO: Why don't we need to link ole32.lib?
+    // Call this because we use CoCreateInstance in UIAutomation
+    HRESULT gg = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+    
+    {
+        // Relative paths possible???
+        char exe_path[MaxPathLen];
+        DWORD filepath_len = GetModuleFileNameA(nullptr, exe_path, 1024);
+        if (filepath_len == 0 || GetLastError() == ERROR_INSUFFICIENT_BUFFER) return 1;
+        
+        global_savefile_path = make_filepath(exe_path, SaveFileName);
+        if (!global_savefile_path) return 1;
+        
+        global_debug_savefile_path = make_filepath(exe_path, DebugSaveFileName);
+        if (!global_debug_savefile_path) return 1;
+        
+        if (strlen(global_savefile_path) > MAX_PATH)
+        {
+            tprint("Error: Find first file ANSI version limited to MATH_PATH");
+            return 1;
+        }
+    }
+    
+    // If already running just open/show GUI, or if already open do nothing.
+    // FindWindowA();
+    
+    // On icons and resources from Forger's tutorial
+    // The icon shown on executable file in explorer is the icon with lowest numerical ID in the program's resources. Not necessarily the one we load while running.
+    
+    // You can create menus by specifying them in the .rc file or by specifying them at runtime, with AppendMenu etc
+    
+    // Better to init this before we even can recieve messages
+    
+    for (int i = 0; i < array_count(global_ms_icons); ++i)
+    {
+        HICON ico = LoadIconA(NULL, MAKEINTRESOURCE(32513 + i));
+        global_ms_icons[i] = get_icon_bitmap(ico);
+    }
+    
+    resize_screen_buffer(&global_screen_buffer, WindowWidth, WindowHeight);
+    
+    init_queue(&global_event_queue, 100);
+    
+    Font font = create_font("c:\\windows\\fonts\\times.ttf", 28);
+    
+    WNDCLASS window_class = {};
+    window_class.style = CS_HREDRAW|CS_VREDRAW;
+    window_class.lpfnWndProc = WinProc;
+    window_class.hInstance = instance;
+    window_class.hIcon =  LoadIcon(instance, MAKEINTRESOURCE(MAIN_ICON_ID)); // Function looks for resource with this ID,
+    window_class.hCursor = LoadCursor(NULL, IDC_ARROW);
+    // window_class_ex.hIconsm = ; OS may still look in ico file for small icon anyway
+    // window_class.hbrBackground;
+    // window_class.lpszMenuName
+    window_class.lpszClassName = "MonitorWindowClassName";
+    
+    if (!RegisterClassA(&window_class))
+    {
+        return 1;
+    }
+    
+    HWND window = CreateWindowExA(0, window_class.lpszClassName, "Monitor",
+                                  WS_VISIBLE|WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN,
+                                  800, 100,  // Screen pos, TODO: Change to CS_USEDEFAULT
+                                  WindowWidth, WindowHeight,
+                                  NULL, NULL,
+                                  instance, NULL);
+    if (!window)
+    {
+        return 1;
+    }
+    
+    ShowWindow(window, cmd_show);
+    UpdateWindow(window); // This sends WM_PAINT message so make sure screen buffer is initialised
+    
+    //remove(global_savefile_path);
+    //remove(global_debug_savefile_path);
+    
+    network();
     
     Header header = {};
     

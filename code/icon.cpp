@@ -1,7 +1,7 @@
 
 #define ICON_SIZE 32
 
-// Some icons glitch out on some sizes, maybe getting the icon sizes up/down for icons without that specific size. But good ones like firefox are built in with lots of sizes. 
+// Some icons glitch out on some sizes, maybe getting the icon sizes up/down for icons without that specific size. // But maybe good ones like firefox are built in with lots of sizes.
 // NOTE: Can test this by looking at the colour of monitor.exe icon
 
 // dark Blue   256 (used for large and extra large icon in explorer in my Win10)
@@ -31,6 +31,159 @@
 // 64,   Recommended by the MSDN as a nice to have icon size.
 // 96,   Recommended by the MSDN as a nice to have icon size.
 // 128   Used by the Shell (e.g. for shortcuts).
+
+
+// BITMAPS for icons
+#if 0
+struct ICON_IMAGE
+{
+    // only biSize, biWidth, biHeight, biPlanes, biBitCount, biSizeImage are used others must be 0.
+    // The biHeight member specifies the combined height of the XOR and AND masks.
+    BITMAPINFOHEADER header;
+    
+    // hiHeight is width*2
+    
+    // If biCompression equals BI_RGB and the bitmap uses 8 bpp or less, the bitmap has a color table immediately following the BITMAPINFOHEADER structure.
+    // The array contains the maximum number of colors for the given bitdepth; which is, 2^biBitCount colors, as biClrUsed == 0, see notes.
+    RGB_QUAD colours[2^bitcount]; // (optional)
+    // u32 == RGB_QUAD
+    
+    // These have the same dimensions
+    // XOR is first in memory, then and (PC Mag 26 Jan 1993)
+    //https://books.google.com.au/books?id=LpkFEO2FG8sC&pg=PA320&lpg=PA320&dq=is+and+or+xor+mask+first+in+icon&source=bl&ots=2eFRPsG5No&sig=ACfU3U17mCL0Jt3INruonl4_MevZEPZiQA&hl=en&sa=X&ved=2ahUKEwi2rNSx6JfoAhVawTgGHT6wA8kQ6AEwDXoECAoQAQ#v=onepage&q=is%20and%20or%20xor%20mask%20first%20in%20icon&f=false
+    u8 XOR[w * h/2 * bitcount/8]; // number of bytes in XOR mask, depends bpp in header
+    u8 AND[w * h/2 * 1/8];        // 1bpp, number of bytes depends on member in header
+};
+
+// For BITMAPINFOHEADER biCompression
+typedef  enum
+{
+    BI_RGB = 0x0000, // uncompressed
+    BI_RLE8 = 0x0001,
+    BI_RLE4 = 0x0002,
+    BI_BITFIELDS = 0x0003,
+    BI_JPEG = 0x0004,
+    BI_PNG = 0x0005,
+    BI_CMYK = 0x000B,
+    BI_CMYKRLE8 = 0x000C,
+    BI_CMYKRLE4 = 0x000D
+};
+#endif
+
+// biBitcount is the number of bits per pixel
+// For 16-bpp bitmaps, if biCompression equals BI_RGB, the format is always RGB 555. If biCompression equals BI_BITFIELDS, the format is either RGB 555 or RGB 565.
+// If biCompression equals BI_BITFIELDS, the bitmap uses three DWORD color masks (red, green, and blue, respectively), which specify the byte layout of the pixels. The 1 bits in each mask indicate the bits for that color within the pixel.
+
+// Color Tables
+// NOTE:
+// As biClrUsed is unsed for icons it is always zero, the array contains the maximum number of colors for the given bitdepth; that is, 2^biBitCount colors.
+
+// I think windows only supports 2, 16 and 256 colours, so only need a table for 16 bit colours.
+// 2 and 256 can just use the value directly I think.
+
+// Stride
+// For uncompressed RGB formats
+// stride = ((((biWidth * biBitCount) + 31) & ~31) >> 3)
+
+// --------------------------------------
+// Example case www.docs.windows.com icon:
+// ICONDIR
+// 6 ICONDIRENTRYs
+
+// 1st entry
+// width and heigh 128
+// colour count 16
+// bitcount 0
+// planes 0
+// size 10344
+// offst 102
+
+// 1st BITMAPINFOHEADER
+// width 128, height 256  (128 for AND 128 for XOR)
+// planes 1
+// bitcount 4      (so colour count = 1 << 1 * 4 = 16)
+// compression 0   (BI_RGB)
+// biSizeImage  10240
+
+// calculation probably was:
+// 128*128*(1/2) w*h*(4/8)  (4bpp / 8bits per byte) - XOR mask
+// + 128*128*(1/8)      (1bpp so 1/8 bytes) -  AND mask
+// = 10240              (but this is != 10344 for ICONDIRENTRY.size)
+
+// so 10344 byte size is probably composed of:
+//   40 byte BITMAPINFOHEADER
+//   64 byte colour table
+//   10240 byte XOR and AND masks
+
+// colour table is sizeof(RGB_QUAD) * 2^biBitcount colours = 4*16 = 64 bytes
+// The table contains only 6 colours being used the rest are just 0x00000000
+// black, white, and four colours of windows 'window' square
+
+// ----------------------------------------
+
+struct MY_RGBQUAD
+{
+    u8 blue;
+    u8 green;
+    u8 red;
+    u8 reserved;
+};
+
+// Wikipedia: The bits per pixel might be set to zero, but can be inferred from the other data; specifically, if the bitmap is not PNG compressed, then the bits per pixel can be calculated based on the length of the bitmap data relative to the size of the image.
+
+// These are structures for ICO file format, which differs slightly from format of windows icon resources
+struct ICONDIRENTRY
+{
+    u8  width;     // Originally range was 1-255 originally but 0 is accepted to represent width of 256
+    u8  height;    // Originally range was 1-255 originally but 0 is accepted to represent width of 256
+    u8  color_count; // should be equal to bColorCount = 1 << (wBitCount * wPlanes) ... but see notes
+    u8  reserved;  // Must be 0
+    u16 planes;    // typically not used and set to 0. PCMAG
+    u16 bit_count; // typically not used and set to 0. PCMAG
+    u32 size;      // in bytes of the image data
+    u32 offset;    // from start of ICO file
+};
+
+struct ICONDIR
+{
+    u16 reserved;       // Reserved. Must always be 0.
+    u16 type;           // Specifies image type: 1 for icon (.ICO) image, 2 for cursor (.CUR) image.
+    u16 entry_count;    // Specifies number of images in the file.
+    // ICONDIRENTRY entries[count]; folled by count entries in file
+};
+
+// ICO file format:
+
+// NOTE: colour_count should be th enumber of colours in the image (i.e)
+//           bColorCount = 1 << (wBitCount * wPlanes)
+// If wBitCount * wPlanes is greater than or equal to 8, then bColorCount is zero.
+// But lazy people often just set it to 0, so windows autodetects this error and tries to autocorrect.
+
+// From Raymond Chen series: The evolution of the ICO file format
+// Monochrome Icons:
+// A monochome icon is described by two bitmaps, called AND (or mask) and XOR (or image, or when we get to color icons, color).
+
+// The mask (or AND) and image (or XOR) bitmaps are physically stored as one single double-height DIB. So if you actually look at the bitmap the mask is in the top half of the bitmap and the image is in the bottom.
+
+// In terms of file format, each icon image is stored in the form of a BITMAPINFO (which itself takes the form of a BITMAPINFOHEADER followed by a color table), followed by the image pixels, followed by the mask pixels.
+
+// The biCompression must be BI_RGB. Since this is a double-height bitmap, the biWidth is the width of the image, but the biHeight is double the image height.
+
+// Colour Icons:
+// The representation of color images in an ICO file is almost the same as the representation of monochrome images: All that changes is that the image bitmap is now in color. (The mask remains monochrome.)
+
+// So the image format consists of a BITMAPINFOHEADER where the bmWidth is the width of the image and bmHeight is double the height of the image, followed by the bitmap color table, followed by the image pixels, followed by the mask pixels.
+
+// Supported values for biCompression for color images are BI_RGB and (if your bitmap is 16bpp or 32bpp) BI_BITFIELDS.
+
+// Alpha blended images:
+// Windows XP introduced the ability to provide icon images which contain an 8-bit alpha channel. Up until this point, you had only a 1-bit alpha channel, represented by a mask.
+
+// To use an alpha-blended image, just drop in a ARGB 32bpp bitmap. However, you must still provide a mask. Some people just provide a zeroed out mask, but this shouldn't be done. Because if the user calls GetIconInfo and to draw the bitmap will get an ugly result.
+
+// PNG images:
+// _NOT_ shown by BI_PNG in biCompression in BITMAPINFOHEADER, the PNG image just starts where the bitmap would.
+// The format of a PNG-compressed image consists simply of a PNG image, starting with the PNG file signature. The image must be in 32bpp ARGB format (known to GDI+ as Pixel­Format­32bpp­ARGB). There is no BITMAP­INFO­HEADER prefix, and no monochrome mask is present.
 
 
 
@@ -101,20 +254,6 @@ get_icon_bitmap(HICON icon)
     // THe AND mask of the icon specifies the transparency of each pixel, where one
     // each bit represents one pixel. The XOR mask contains the images pixels,
     // and possibly it's own alpha channel, meaning the AND mask isn't needed.
-    
-    // Icon sizes
-    // 8,    Recommended by the MSDN as a nice to have icon size.
-    // 10,   Used by the Shell (e.g. for shortcuts).
-    // 14,   Recommended by the MSDN as a nice to have icon size.
-    // 16,   Toolbar, Application and Shell icon sizes.
-    // 22,   Recommended by the MSDN as a nice to have icon size.
-    // 24,   Used by the Shell (e.g. for shortcuts).
-    // 32,   Toolbar, Dialog and Wizard icon size.
-    // 40,   Quick Launch.
-    // 48,   Alt+Tab icon size.
-    // 64,   Recommended by the MSDN as a nice to have icon size.
-    // 96,   Recommended by the MSDN as a nice to have icon size.
-    // 128   Used by the Shell (e.g. for shortcuts).
     
     // Mostly copied from raymond chen article
     // https://devblogs.microsoft.com/oldnewthing/20101020-00/?p=12493
@@ -226,7 +365,7 @@ get_icon_from_executable(char *path, u32 size, Simple_Bitmap *icon_bitmap, bool 
         if (load_default_on_failure)
         {
             icon = LoadIconA(NULL, IDI_APPLICATION);
-            if (!icon) 
+            if (!icon)
             {
                 return false;
             }
@@ -258,132 +397,3 @@ get_icon_from_executable(char *path, u32 size, Simple_Bitmap *icon_bitmap, bool 
         return false;
     }
 }
-
-
-
-// Thos stuff cam get low quality versions of the same icons that extracticonA can get
-#if 0
-struct Ico_Res
-{
-    bool set;
-    char *str;
-    DWORD id;
-    DWORD type;
-};
-
-//Ico_Res resources[1000] = {};
-
-BOOL CALLBACK MyEnumProcedure( HANDLE  hModule, LPCTSTR  lpszType, LPTSTR  lpszName, LONG  lParam )
-{
-    Ico_Res *ico_res;
-    
-    // Type 0x0e means 14 which might be     RT_GROUP_ICON = (RT_ICON) + 11) = 3 + 11 = 14
-    for (int i = 0; i < 1000; ++i)
-    {
-        if (!resources[i].set)
-        {
-            ico_res = resources + i;
-            ico_res->set = true;
-            break;
-        }
-    }
-    
-    ico_res->type = (DWORD)lpszType;
-    
-    // Name is from MAKEINTRESOURCE()
-    if( HIWORD(lpszName) == 0 )
-    {
-        ico_res->id = (DWORD)lpszName;
-    }
-    else
-    {
-        size_t len = strlen(lpszName);
-        ico_res->str = (char *)malloc(len + 1);
-        strcpy(ico_res->str, lpszName);
-    }
-    
-    return TRUE;
-}
-
-HICON
-GetIconFromInstance( HINSTANCE hInstance, LPTSTR nIndex )
-{
-    HICON	hIcon = NULL;
-    HRSRC	hRsrc = NULL;
-    HGLOBAL	hGlobal = NULL;
-    LPVOID	lpRes = NULL;
-    int    	nID;
-    
-    // Find the group icon
-    if( (hRsrc = FindResource( hInstance, nIndex, RT_GROUP_ICON )) == NULL )
-        return NULL;
-    if( (hGlobal = LoadResource( hInstance, hRsrc )) == NULL )
-        return NULL;
-    if( (lpRes = LockResource(hGlobal)) == NULL )
-        return NULL;
-    
-    // Find this particular image
-    nID = LookupIconIdFromDirectory( (PBYTE)lpRes, TRUE );
-    if( (hRsrc = FindResource( hInstance, MAKEINTRESOURCE(nID), RT_ICON )) == NULL )
-        return NULL;
-    if( (hGlobal = LoadResource( hInstance, hRsrc )) == NULL )
-        return NULL;
-    if( (lpRes = LockResource(hGlobal)) == NULL )
-        return NULL;
-    // Let the OS make us an icon
-    hIcon = CreateIconFromResource( (PBYTE)lpRes, SizeofResource(hInstance,hRsrc), TRUE, 0x00030000 );
-    return hIcon;
-}
-
-/*
-  Icon images are stored in ICO files and as resources in EXEs and DLLs in near
-DIB format - a BITMAPINFO followed by XOR bits followed by AND bits. A block
-of memory like this can be passed to CreateIconFromResourceEx() to create a
-HICON from the resource. This API expects the bmiHeader.biHeight member of the
-BITMAPINFO to be the sum of the heights of the XOR and AND masks. Further,
-this API is not implemented on NT at this time, so CreateIconFromResource()
-must be used instead
-*/
-
-HMODULE module = LoadLibraryA("firefox....");
-
-HINSTANCE inst = (HINSTANCE)module;
-
-
-EnumResourceNames(inst, RT_GROUP_ICON, (ENUMRESNAMEPROC)MyEnumProcedure, (LPARAM)0);
-
-ICONINFO    IconInfo;
-BITMAP    	bm;
-HICON ic;
-
-for (int i = 0; i < 10000 && resources[i].set; ++i)
-{
-    if (resources[i].str)
-    {
-        ic = GetIconFromInstance(inst, resources[i].str);
-    }
-    else
-    {
-        ic = GetIconFromInstance(inst, (LPTSTR)resources[i].id);
-    }
-    
-    if (ic) {
-        tprint("%", i);
-    }
-}
-
-
-GetIconInfo( ic, &IconInfo );
-GetObject( IconInfo.hbmColor, sizeof(BITMAP), &bm );
-
-Simple_Bitmap bitmap = get_icon_bitmap(ic);
-draw_simple_bitmap(&global_screen_buffer, &bitmap, 0, 0);
-
-#endif
-
-
-
-
-
-
-
