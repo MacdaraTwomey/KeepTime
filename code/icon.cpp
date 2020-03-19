@@ -41,7 +41,7 @@ struct ICON_IMAGE
     // The biHeight member specifies the combined height of the XOR and AND masks.
     BITMAPINFOHEADER header;
     
-    // hiHeight is width*2
+    // biHeight is width*2
     
     // If biCompression equals BI_RGB and the bitmap uses 8 bpp or less, the bitmap has a color table immediately following the BITMAPINFOHEADER structure.
     // The array contains the maximum number of colors for the given bitdepth; which is, 2^biBitCount colors, as biClrUsed == 0, see notes.
@@ -78,8 +78,6 @@ typedef  enum
 // NOTE:
 // As biClrUsed is unsed for icons it is always zero, the array contains the maximum number of colors for the given bitdepth; that is, 2^biBitCount colors.
 
-// I think windows only supports 2, 16 and 256 colours, so only need a table for 16 bit colours.
-// 2 and 256 can just use the value directly I think.
 
 // Stride
 // For uncompressed RGB formats
@@ -136,7 +134,7 @@ struct ICONDIRENTRY
 {
     u8  width;     // Originally range was 1-255 originally but 0 is accepted to represent width of 256
     u8  height;    // Originally range was 1-255 originally but 0 is accepted to represent width of 256
-    u8  color_count; // should be equal to bColorCount = 1 << (wBitCount * wPlanes) ... but see notes
+    u8  colour_count; // should be equal to bColorCount = 1 << (wBitCount * wPlanes) ... but see notes
     u8  reserved;  // Must be 0
     u16 planes;    // typically not used and set to 0. PCMAG
     u16 bit_count; // typically not used and set to 0. PCMAG
@@ -182,7 +180,7 @@ struct ICONDIR
 // To use an alpha-blended image, just drop in a ARGB 32bpp bitmap. However, you must still provide a mask. Some people just provide a zeroed out mask, but this shouldn't be done. Because if the user calls GetIconInfo and to draw the bitmap will get an ugly result.
 
 // PNG images:
-// _NOT_ shown by BI_PNG in biCompression in BITMAPINFOHEADER, the PNG image just starts where the bitmap would.
+// _NOT_ shown by BI_PNG in biCompression in BITMAPINFOHEADER, instead the PNG image just starts where the bitmap would.
 // The format of a PNG-compressed image consists simply of a PNG image, starting with the PNG file signature. The image must be in 32bpp ARGB format (known to GDI+ as Pixel­Format­32bpp­ARGB). There is no BITMAP­INFO­HEADER prefix, and no monochrome mask is present.
 
 
@@ -238,6 +236,25 @@ win32_bitmap_has_alpha_component(BITMAP *bitmap)
     return false;
 }
 
+
+bool
+bitmap_has_alpha_component(u32 *pixels, int width, int height, int pitch)
+{
+    u8 *row = (u8 *)pixels;
+    for (int y = 0; y < height; ++y)
+    {
+        u32 *pixels = (u32 *)row;
+        for (int x = 0; x < width; ++x)
+        {
+            u32 pixel = *pixels++;
+            if (pixel & 0xFF000000) return true;
+        }
+        
+        row += pitch;
+    }
+    
+    return false;
+}
 
 
 Simple_Bitmap

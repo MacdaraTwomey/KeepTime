@@ -5,6 +5,8 @@
 #define RGB_COLOUR(r, g, b)\
 (0xFF << 24|(u32)roundf((r) * 255.0f) << 16)|((u32)roundf((g) * 255.0f) << 8)|((u32)roundf((b) * 255.0f))
 
+#define RGBA(r, g, b, a) (((u8)(a) << 24) + ((u8)(r) << 16) + ((u8)(g) << 8) + (u8)(b))
+
 typedef u32 Colour;
 
 void draw_text(Screen_Buffer *buffer, Font *font, char *text, int baseline_x, int baseline_y, r32 r, r32 g, r32 b)
@@ -29,7 +31,7 @@ void draw_text(Screen_Buffer *buffer, Font *font, char *text, int baseline_x, in
         
         if (x < 0) glyph.x0 += -x;
         if (x + w > buffer->width) glyph.x1 -= ((x + w) - buffer->width);
-        if (y < 0) glyph.y0 += -y; 
+        if (y < 0) glyph.y0 += -y;
         if (y + h > buffer->height) glyph.y1 -= (y + h) - buffer->height;
         
         x = rvl_clamp(x, 0, buffer->width);
@@ -95,15 +97,56 @@ void draw_rectangle(Screen_Buffer *buffer, Rect2i rect, Colour colour)
     }
 }
 
+Simple_Bitmap
+make_empty_bitmap(int width, int height)
+{
+    rvl_assert(width > 0 && height > 0);
+    Simple_Bitmap bitmap = {};
+    bitmap.width = width;
+    bitmap.height = height;
+    bitmap.pixels = (u32 *)xalloc(width * height * bitmap.BYTES_PER_PIXEL);
+    memset(bitmap.pixels, 0, width*height*bitmap.BYTES_PER_PIXEL);
+    
+    return bitmap;
+}
+
+
+Simple_Bitmap
+make_bitmap(int width, int height, u32 colour)
+{
+    rvl_assert(width > 0 && height > 0);
+    Simple_Bitmap bitmap = {};
+    bitmap.width = width;
+    bitmap.height = height;
+    bitmap.pixels = (u32 *)xalloc(width * height * bitmap.BYTES_PER_PIXEL);
+    u32 *dest = bitmap.pixels;
+    for (int y = 0; y < height; ++y)
+    {
+        for (int x = 0; x < width; ++x)
+        {
+            *dest++ = colour;
+        }
+    }
+    
+    return bitmap;
+}
+
+
 void
 draw_simple_bitmap(Screen_Buffer *buffer, Simple_Bitmap *bitmap, int buffer_x, int buffer_y)
 {
+    if (!bitmap->pixels || bitmap->width == 0 || bitmap->height == 0)
+    {
+        rvl_assert(0);
+        return;
+    }
+    
     int x0 = buffer_x;
     int y0 = buffer_y;
     int x1 = buffer_x + bitmap->width;
     int y1 = buffer_y + bitmap->height;
     
-    if (x0 < 0) 
+    if (x0 < 0)
     {
         x0 = 0;
     }
@@ -167,8 +210,8 @@ render_gui(Screen_Buffer *buffer, Database *database, Day_View *day_view, Font *
     
     int canvas_x = 200;
     int canvas_y = 0;
-    int canvas_width = 700; 
-    int canvas_height = 540; 
+    int canvas_width = 700;
+    int canvas_height = 540;
     
     Rect2i canvas = {{canvas_x, canvas_y}, {canvas_x + canvas_width, canvas_y + canvas_height}};
     draw_rectangle(buffer, canvas, RGB_COLOUR(0.9f, 0.9f, 0.9f));
@@ -263,7 +306,7 @@ render_gui(Screen_Buffer *buffer, Database *database, Day_View *day_view, Font *
         icon = get_icon_from_database(database, record.ID);
         if (icon)
         {
-            int icon_centre_x = canvas_x + (bar_origin.x - canvas_x) / 2; 
+            int icon_centre_x = canvas_x + (bar_origin.x - canvas_x) / 2;
             int icon_centre_y = bar.min.y + (bar.max.y - bar.min.y) / 2;
             
             V2i icon_top_left = {icon_centre_x - (icon->width/2), icon_centre_y - (icon->height/2)};
@@ -297,8 +340,8 @@ Font create_font(char *font_name, int pixel_height)
     char *liberation = "c:\\dev\\projects\\monitor\\build\\LiberationMono-Regular.ttf";
     FILE* font_file = fopen(font_name, "rb");
     fseek(font_file, 0, SEEK_END);
-    long size = ftell(font_file); 
-    fseek(font_file, 0, SEEK_SET); 
+    long size = ftell(font_file);
+    fseek(font_file, 0, SEEK_SET);
     
     u8 *font_data = (u8 *)xalloc(size);
     

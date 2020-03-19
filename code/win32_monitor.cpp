@@ -30,6 +30,9 @@
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
 using namespace date;
 
 static_assert(sizeof(date::sys_days) == sizeof(u32), "");
@@ -814,83 +817,17 @@ pump_messages()
     }
 }
 
-
-void
-network()
+struct Size_Data
 {
-    
-    https://docs.microsoft.com/en-us/windows/win32/winhttp/error-messages
-    
-    // many WinHTTP error codes not supported by FormatMessage
-    DWORD error = 0;
-    auto print_error = [&](){ error = GetLastError(); tprint("Error code: %", error); };
-    
-    HINTERNET session = WinHttpOpen(L"WinHttpPostSample",
-                                    WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
-                                    WINHTTP_NO_PROXY_NAME,
-                                    WINHTTP_NO_PROXY_BYPASS, 0);
-    if (session == NULL)
-    {
-        tprint("No open");
-        print_error();
-    }
-    
-    // WinHttp does not accept international host names without converting them first to Punycode
-    
-    // Don't want https:// at start or a slash '/' at end both will give error
-    HINTERNET connection = WinHttpConnect(session,
-                                          L"www.docs.microsoft.com",
-                                          INTERNET_DEFAULT_HTTPS_PORT, 0);
-    if (connection == NULL)
-    {
-        tprint("No connection");
-        print_error();
-    }
-    
-    // From Wikipedia:
-    // While the IANA-registered MIME type for ICO files is image/vnd.microsoft.icon,[8] it was submitted to IANA in 2003 by a third party and is not recognised by Microsoft software, which uses image/x-icon instead.[9] Erroneous types image/ico, image/icon, text/ico and application/ico have also been seen in use.[8]
-    
-    wchar_t target[] = L"favicon.ico"; // maybe need full path
-    wchar_t icon_type[] = L"vnd.microsoft.icon";
-    const wchar_t *media_types[] = {icon_type, NULL}; // maybe image/vnd.microsoft.icon
-    // can try HINTERNET hRequest = WinHttpOpenRequest( hConnect, L"GET", NULL, NULL, NULL, NULL, 0);
-    
-    // or this      hRequest = WinHttpOpenRequest( hConnect, L"GET", NULL, NULL, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE);
-    
-    
-    // WINHTTP_FLAG_SECURE translates to using Secure Sockets Layer (SSL)/Transport Layer Security (TLS).
-    HINTERNET request = WinHttpOpenRequest(connection,
-                                           L"GET",
-                                           target,
-                                           NULL,
-                                           WINHTTP_NO_REFERER,
-                                           media_types,
-                                           WINHTTP_FLAG_SECURE);
-    if (request == NULL)
-    {
-        tprint("No request");
-    }
-    
-    BOOL sent = WinHttpSendRequest(request,
-                                   WINHTTP_NO_ADDITIONAL_HEADERS, 0,
-                                   WINHTTP_NO_REQUEST_DATA, 0, 0, 0);
-    if (!sent)
-    {
-        tprint("No send");
-    }
-    
-    // when in synchronous mode can recieve response when sendrequest returns
-    
-    // When WinHttpReceiveResponse completes successfully, the status code and response headers have been received and are available for the application to inspect using WinHttpQueryHeaders. An application must call WinHttpReceiveResponse before it can use WinHttpQueryDataAvailable and WinHttpReadData to access the response entity body (if any).
-    BOOL recieved = WinHttpReceiveResponse(request, NULL);
-    if (!recieved)
-    {
-        tprint("No recieve");
-        print_error();
-    }
-    
-    u8 *recieved_data = (u8 *)xalloc(Megabytes(8));
-    i32 total_recieved = 0;
+    u8 *data;
+    size_t size;
+};
+
+bool
+read_data(HINTERNET request, u8 *read_data, size_t *read_bytes)
+{
+    u8 *recieved_data = read_data;
+    size_t total_recieved = 0;
     
     DWORD available_bytes = 0;
     do
@@ -904,6 +841,7 @@ network()
         
         if (available_bytes == 0) break;
         
+        // TODO: Read directly into read_data
         u8 *response_buffer = (u8 *)xalloc(available_bytes + 1);
         memset(response_buffer, 0, available_bytes + 1);
         
@@ -917,8 +855,6 @@ network()
             break;
         }
         
-        tprint("Read % bytes", bytes_read);
-        
         if (bytes_read == 0)
         {
             tprint("0 bytes read, not sure if this is an error because can try to read when nothing is there and are at EOF");
@@ -930,56 +866,596 @@ network()
         free(response_buffer);
     } while(available_bytes > 0);
     
+    tprint("Read % bytes", total_recieved);
     
-    if (request) WinHttpCloseHandle(request);
-    if (connection) WinHttpCloseHandle(connection);
-    if (session) WinHttpCloseHandle(session);
+    *read_bytes = total_recieved;
     
-    u8 *ico_file = recieved_data;
-    u32 file_size = total_recieved;
-    if (sizeof(ICONDIR) >= file_size)
+    if (total_recieved == 0)
     {
-        // error
-        return;
+        return false;
+    }
+    
+    return true;
+}
+
+
+bool
+get_icon_location(HINTERNET connection, char *location, size_t *length)
+{
+    wchar_t target[] = L"favicon.ico";
+    
+#if 1
+    HINTERNET request = WinHttpOpenRequest(connection, L"GET", NULL, NULL, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE);
+#else
+    HINTERNET request = WinHttpOpenRequest(connection,
+                                           L"GET",
+                                           target,
+                                           NULL,
+                                           WINHTTP_NO_REFERER,
+                                           WINHTTP_DEFAULT_ACCEPT_TYPES,
+                                           WINHTTP_FLAG_SECURE);
+#endif
+    
+    if (request == NULL)
+    {
+        tprint("No icon location request");
+        return false;
+    }
+    
+    defer(WinHttpCloseHandle(request));
+    
+    BOOL sent = WinHttpSendRequest(request,
+                                   WINHTTP_NO_ADDITIONAL_HEADERS, 0,
+                                   WINHTTP_NO_REQUEST_DATA, 0, 0, 0);
+    if (!sent)
+    {
+        tprint("No send");
+        return false;
+    }
+    
+    BOOL recieved = WinHttpReceiveResponse(request, NULL);
+    if (!recieved)
+    {
+        tprint("No recieve");
+        //print_error();
+        return false;
+    }
+    
+    DWORD dwStatusCode = 0;
+    DWORD dwSize = sizeof(dwStatusCode);
+    
+    WinHttpQueryHeaders(request,
+                        WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+                        WINHTTP_HEADER_NAME_BY_INDEX,
+                        &dwStatusCode, &dwSize, WINHTTP_NO_HEADER_INDEX);
+    
+    if (dwStatusCode != HTTP_STATUS_OK)
+    {
+        tprint("Not OK, status code: %", dwStatusCode);
+        return false;
+    }
+    
+    u8 *recieved_data = (u8 *)xalloc(Megabytes(8));
+    size_t total_recieved = 0;
+    bool read_success = read_data(request, recieved_data, &total_recieved);
+    if (!read_success)
+    {
+        tprint("Could not read icon location data");
+        return false;
+    }
+    
+    // TODO: also type=""
+    
+    // check encoding but should be UTF-8
+    char *match = strstr((char *)recieved_data, "rel=\"shortcut icon\"");
+    if (!match)
+    {
+        match = strstr((char *)recieved_data, "rel=\"icon\"");
+        if (!match)
+        {
+            return false;
+        }
+    }
+    
+    // TODO could also be behind, or absent if bad html, set upper limit on search
+    char *href = strstr(match, "href=");
+    if (!href)
+    {
+        return false;
+    }
+    
+    char *start = href;
+    size_t len = 0;
+    
+    for (char *at = href; *at; ++at)
+    {
+        if (*at == '"')
+        {
+            start = at + 1;
+            break;
+        }
+    }
+    
+    for (char *at = start; *at; ++at)
+    {
+        if (*at == '"') break;
+        len += 1;
+    }
+    
+    if (len == 0)
+    {
+        return false;
+    }
+    
+    memcpy(location, start, len);
+    *length = len;
+    return true;
+}
+
+
+bool
+request_icon_from_url(wchar_t *url, u8 **icon_data, size_t *size)
+{
+    // https://docs.microsoft.com/en-us/windows/win32/winhttp/error-messages
+    
+    // many WinHTTP error codes not supported by FormatMessage
+    DWORD error = 0;
+    auto print_error = [&](){ error = GetLastError(); tprint("Error code: %", error); };
+    
+    HINTERNET session = WinHttpOpen(L"WinHttpPostSample",
+                                    WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+                                    WINHTTP_NO_PROXY_NAME,
+                                    WINHTTP_NO_PROXY_BYPASS, 0);
+    if (session == NULL)
+    {
+        tprint("No open");
+        print_error();
+        return false;
+    }
+    
+    defer(WinHttpCloseHandle(session));
+    
+    // WinHttp does not accept international host names without converting them first to Punycode
+    
+    // Don't want https:// at start or a slash '/' at end both will give error
+    HINTERNET connection = WinHttpConnect(session,
+                                          url,
+                                          INTERNET_DEFAULT_HTTPS_PORT, 0);
+    if (connection == NULL)
+    {
+        tprint("No connection");
+        print_error();
+        return false;
+    }
+    defer(WinHttpCloseHandle(connection));
+    // From Wikipedia:
+    // While the IANA-registered MIME type for ICO files is image/vnd.microsoft.icon,[8] it was submitted to IANA in 2003 by a third party and is not recognised by Microsoft software, which uses image/x-icon instead.[9] Erroneous types image/ico, image/icon, text/ico and application/ico have also been seen in use.[8]
+    
+    
+    char location[400]; // utf8 because copied from html page // probably
+    size_t location_len = 0;
+    bool got_location = get_icon_location(connection, location, &location_len);
+    if (!got_location)
+    {
+        tprint("Could not get favicon location");
+        return false;
+    }
+    
+    // TODO: Look at type="" and use this as icon_type
+    // <link rel="icon" href="https://www.beginnerukuleles.com/wp-content/uploads/Beginner-Ukuleles-Blue-Favicon.png" type="image/png"/>
+    // request failed for a .png icon at beginnerukuleles.com, mayube change mime type
+    
+    wchar_t target[400]; //  = L"favicon.ico"; // maybe need full path
+    wchar_t icon_type[] = L"image/x-icon";//L"vnd.microsoft.icon";
+    const wchar_t *media_types[] = {icon_type, NULL}; // maybe image/vnd.microsoft.icon or image/x-icon
+    // can try HINTERNET hRequest = WinHttpOpenRequest( hConnect, L"GET", NULL, NULL, NULL, NULL, 0);
+    
+    // or this      hRequest = WinHttpOpenRequest( hConnect, L"GET", NULL, NULL, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE);
+    
+    MultiByteToWideChar(CP_UTF8, MB_PRECOMPOSED, location, location_len, target, array_count(target));
+    
+    // WINHTTP_FLAG_SECURE translates to using Secure Sockets Layer (SSL)/Transport Layer Security (TLS).
+    HINTERNET request = WinHttpOpenRequest(connection,
+                                           L"GET",
+                                           target,
+                                           NULL,
+                                           WINHTTP_NO_REFERER,
+                                           media_types,
+                                           WINHTTP_FLAG_SECURE);
+    if (request == NULL)
+    {
+        tprint("No request");
+        return false;
     }
     
     
-    ICONDIR *dir = (ICONDIR *)ico_file;
-    if (dir->entry_count > 0)
+    defer(WinHttpCloseHandle(request));
+    
+    BOOL sent = WinHttpSendRequest(request,
+                                   WINHTTP_NO_ADDITIONAL_HEADERS, 0,
+                                   WINHTTP_NO_REQUEST_DATA, 0, 0, 0);
+    if (!sent)
     {
-        if (sizeof(ICONDIR) + (sizeof(ICONDIRENTRY)*dir->entry_count) >= file_size)
+        tprint("No send");
+        return false;
+    }
+    
+    // when in synchronous mode can recieve response when sendrequest returns
+    
+    // When WinHttpReceiveResponse completes successfully, the status code and response headers have been received and are available for the application to inspect using WinHttpQueryHeaders. An application must call WinHttpReceiveResponse before it can use WinHttpQueryDataAvailable and WinHttpReadData to access the response entity body (if any).
+    BOOL recieved = WinHttpReceiveResponse(request, NULL);
+    if (!recieved)
+    {
+        tprint("No recieve");
+        print_error();
+        return false;
+    }
+    
+    DWORD dwStatusCode = 0;
+    DWORD dwSize = sizeof(dwStatusCode);
+    
+    WinHttpQueryHeaders(request,
+                        WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+                        WINHTTP_HEADER_NAME_BY_INDEX,
+                        &dwStatusCode, &dwSize, WINHTTP_NO_HEADER_INDEX);
+    
+    if (dwStatusCode != HTTP_STATUS_OK)
+    {
+        tprint("Not OK, status code: %", dwStatusCode);
+        return false;
+    }
+    
+    // WINHTTP_QUERY_CONTENT_LENGTH to see how much to allocate?
+    
+    u8 *recieved_data = (u8 *)xalloc(Megabytes(8));
+    size_t total_recieved = 0;
+    
+    read_data(request, recieved_data, &total_recieved);
+    
+    tprint("Read % bytes", total_recieved);
+    
+    if (total_recieved == 0)
+    {
+        return false;
+    }
+    
+    tprint("Success");
+    
+    //if (request) WinHttpCloseHandle(request);
+    //if (connection) WinHttpCloseHandle(connection);
+    //if (session) WinHttpCloseHandle(session);
+    
+    *icon_data = recieved_data, *size = total_recieved;
+    
+    return true;
+}
+
+void
+render_icon_to_bitmap_32(int width, int height, u8 *XOR, Simple_Bitmap *bitmap)
+{
+    int pitch = width * 4;
+    
+    u32 *dest = bitmap->pixels;
+    u8 *src_row = (u8 *)XOR + ((height-1) * pitch);
+    for (int y = 0; y < bitmap->height; ++y)
+    {
+        u32 *src = (u32 *)src_row;
+        for (int x = 0; x < bitmap->width; ++x)
         {
-            // error
-            return;
+            *dest++ = *src++;
         }
         
-        tprint(sizeof(BITMAPINFOHEADER));
-        
-        ICONDIRENTRY *entries = (ICONDIRENTRY *)(ico_file + sizeof(ICONDIR));
-        
-        // does size account for colours table and BITMAPINFOHEADER?
-        if (entries[dir->entry_count-1].offset + entries[dir->entry_count-1].size - 1 > file_size)
-        {
-            // error
-            return;
-        }
-        
-        // assume bitmap, not PNG
-        BITMAPINFOHEADER **headers = (BITMAPINFOHEADER **)xalloc(sizeof(*headers) * dir->entry_count);
-        for (int i = 0; i < 6; ++i)
-        {
-            headers[i] = (BITMAPINFOHEADER *)(ico_file + entries[i].offset);
-        }
-        
-        // Table looks right for microsoft example as 0 and 1st headers have identicle values
-        // It seems that XOR mask uses index 15 of table even though it (like many of the other slots is 0)
-        u32 *table = (u32 *)((u8 *)headers[1] + headers[1]->biSize);
-        u8 *XOR = (u8 *)table + 64;
-        u8 *AND = XOR + 128*128/2;
-        
-        u32 j = dir->entry_count;
+        src_row -= pitch;
     }
 }
+
+
+void
+render_icon_to_bitmap_32_no_alpha(int width, int height, u8 *XOR, u8 *AND, Simple_Bitmap *bitmap)
+{
+    int xor_pitch = width * 4;
+    int and_pitch = width / 8;
+    
+    u32 *dest = bitmap->pixels;
+    
+    u8 *xor_row = (u8 *)XOR + ((height-1) * xor_pitch);
+    u8 *and_row = (u8 *)AND + ((height-1) * and_pitch);
+    
+    int bit = 7;
+    for (int y = 0; y < bitmap->height; ++y)
+    {
+        u32 *src_xor = (u32 *)xor_row;
+        u8 *src_and = and_row;
+        for (int x = 0; x < bitmap->width; ++x)
+        {
+            u32 alpha = (*src_and & (1 << bit)) ? 0xFF : 0x00;
+            *dest++ = *src_xor++ | (alpha << 24);
+            bit -= 1;
+            if (bit == -1)
+            {
+                bit = 7;
+                ++src_and;
+            }
+        }
+        
+        xor_row -= xor_pitch;
+        and_row -= and_pitch;
+    }
+}
+
+void
+render_icon_to_bitmap_16(int width, int height, u8 *XOR, u8 *AND, MY_RGBQUAD *table, Simple_Bitmap *bitmap)
+{
+    u32 *dest = bitmap->pixels;
+    u16 *src_xor = (u16 *)XOR;
+    u8 *src_and = (u8 *)AND;
+    int bit = 7;
+    for (int y = 0; y < bitmap->height; ++y)
+    {
+        for (int x = 0; x < bitmap->width; ++x)
+        {
+            u32 alpha = (*src_and & (1 << bit)) ? 0xFF : 0x00;
+            MY_RGBQUAD col = table[*src_xor++];
+            u32 colour = RGBA(col.red, col.green, col.blue, alpha);
+            *dest++ = colour;
+            bit -= 1;
+            if (bit == -1)
+            {
+                bit = 7;
+                ++src_and;
+            }
+        }
+    }
+}
+
+
+void
+render_icon_to_bitmap_8(int width, int height,  u8 *XOR, u8 *AND, MY_RGBQUAD *table, Simple_Bitmap *bitmap)
+{
+    int xor_pitch = width;
+    int and_pitch = width / 8;
+    
+    u32 *dest = bitmap->pixels;
+    u8 *xor_row = (u8 *)XOR + ((height-1) * xor_pitch);
+    u8 *and_row = (u8 *)AND + ((height-1) * and_pitch);
+    
+    for (int y = 0; y < bitmap->height; ++y)
+    {
+        u8 *xor_src = xor_row;
+        u8 *and_src = and_row;
+        for (int x = 0; x < bitmap->width; ++x)
+        {
+            int bit = 7 - (x % 8);
+            u32 alpha = (*and_src & (1 << bit)) ? 0xFF : 0x00;
+            alpha = 0xff;
+            
+            MY_RGBQUAD col = table[*xor_src++];
+            u32 colour = RGBA(col.red, col.green, col.blue, alpha);
+            *dest++ = colour;
+            
+            if (bit == 0) ++and_src;
+        }
+        
+        xor_row -= xor_pitch;
+        and_row -= and_pitch;
+    }
+}
+
+
+void
+render_icon_to_bitmap_4(int width, int height, u8 *XOR, u8 *AND, MY_RGBQUAD *table, Simple_Bitmap *bitmap)
+{
+    u32 *dest = bitmap->pixels;
+    int xor_pitch = (width * 4) / 8;
+    int and_pitch = width / 8;
+    
+    u8 *xor_row = (u8 *)XOR + ((height-1) * xor_pitch);
+    u8 *and_row = (u8 *)AND + ((height-1) * and_pitch);
+    
+    for (int y = 0; y < bitmap->height; ++y)
+    {
+        u8 *src_xor = xor_row;
+        u8 *src_and = and_row;
+        for (int x = 0; x < bitmap->width; ++x)
+        {
+            int and_bit = 7 - (x % 8);
+            u32 alpha = (*src_and & (1 << and_bit)) ? 0x00 : 0xFf;
+            //alpha = 0xFF;
+            
+            bool high_part = x % 2;
+            u8 table_index = (high_part) ? *src_xor & 0x0F : *src_xor & 0xF0 >> 4;
+            
+            MY_RGBQUAD col = table[table_index];
+            u32 colour = RGBA(col.red, col.green, col.blue, alpha);
+            *dest++ = colour;
+            
+            
+            if (and_bit == 0) ++src_and;
+            if (high_part) ++src_xor;
+        }
+        
+        xor_row -= xor_pitch;
+        and_row -= and_pitch;
+    }
+}
+
+
+Simple_Bitmap
+get_bitmap_from_ico_file(u8 *file_data, u32 file_size, int max_icon_size)
+{
+    // We don't support varied file types or sophisticated searching for faviocn, just plain vanilla .ico
+    // found at /favicon.ico
+    
+    Simple_Bitmap bitmap = make_bitmap(32, 32, RGBA(193, 84, 193, 255));
+    
+    if (file_size < sizeof(ICONDIR) + sizeof(ICONDIRENTRY) + sizeof(BITMAPINFOHEADER))
+    {
+        tprint("File size too small");
+        return bitmap;
+    }
+    
+    // favicon.ico file can also be a png I think
+    u8 PNG_signature[] = {137, 80, 78, 71, 13, 10, 26, 10};
+    if (memcmp(file_data, PNG_signature, sizeof(PNG_signature) == 0))
+    {
+        tprint("PNG not supported");
+        return bitmap;
+    }
+    
+    ICONDIR *dir = (ICONDIR *)file_data;
+    if (!(dir->reserved == 0 && dir->type == 1 && dir->entry_count > 0))
+    {
+        tprint("Not icon file");
+        return bitmap;
+    }
+    
+    if (file_size < sizeof(ICONDIR) +
+        (sizeof(ICONDIRENTRY)*dir->entry_count) +
+        (sizeof(BITMAPINFOHEADER)*dir->entry_count))
+    {
+        tprint("File size too small for entries and headers");
+        return bitmap;
+    }
+    
+    ICONDIRENTRY *entries = (ICONDIRENTRY *)(file_data + sizeof(ICONDIR));
+    
+    // int closest_smaller_size_index = 0;
+    int closest_size_index = 0;
+    int min_diff = INT_MAX;
+    for (int i = 0; i < dir->entry_count; ++i)
+    {
+        int diff = abs(max_icon_size - (int)entries[i].width);
+        if (diff < min_diff)
+        {
+            closest_size_index = i;
+            min_diff = diff;
+        }
+    }
+    
+    ICONDIRENTRY *entry = entries + closest_size_index;
+    
+    // Make sure that we at least got data for our chosen bitmap
+    if (file_size < entry->offset + entry->size - 1)
+    {
+        tprint("File is incomplete");
+        return bitmap;
+    }
+    
+    tprint("Entry colour_count is %", entry->colour_count); // should be 0 if image doesn't use colour palette
+    tprint("Entry bit_count is %", entry->bit_count);       // should be zero but isn't always
+    tprint("Entry planes is %", entry->planes);             // should be zero but isn't always
+    
+    BITMAPINFOHEADER *header = (BITMAPINFOHEADER *)(file_data + entry->offset);
+    
+    // There can also be PNG embedded instead of bitmap I think
+    if (memcmp(header, PNG_signature, sizeof(PNG_signature) == 0))
+    {
+        tprint("embedded PNG not supported");
+        return bitmap;
+    }
+    
+    int width = header->biWidth;
+    int height = header->biHeight/2;
+    int bpp = header->biBitCount;
+    rvl_assert(height == entry->height && width == entry->width);
+    
+    // Firefox says this is right
+    // firefox says colour table is present only if bpp is >= 8
+    // can have non square icons
+    // 24bpp not supported in ico files
+    // BIBITFIELDS only valid with 16 and 32bpp (firefox)
+    
+    // biSizeImage can be 0 for uncompressed RGB images, but then the image size is just 4*width*height I guess
+    
+    // GIMP makes sure xor/and rows have 32 bit padding boundaries
+    
+    int table_size = 0;
+    if (bpp <= 8)
+    {
+        table_size = pow(2, bpp) * sizeof(MY_RGBQUAD);
+    }
+    tprint("Table size: %", table_size);
+    
+    
+    int image_data_size = entry->size - header->biSize - table_size;
+    
+    int xor_stride = ((((width * bpp) + 31) & ~31) >> 3);
+    
+    rvl_assert(xor_stride == width*bpp/8);
+    
+    // Is this padded?
+    int xor_size = (width * height * bpp) / 8;
+    int xor_size_2 = xor_stride * height;
+    
+    rvl_assert(xor_size == xor_size_2);
+    
+    // just assume there is an and mask
+    bool has_and_mask = image_data_size != xor_size;
+    tprint("Image data size: %", image_data_size);
+    tprint("XOR size: %", xor_size);
+    tprint("has_and_mask: %", has_and_mask);
+    
+    bool has_and_mask_2 = xor_size + table_size + header->biSize < entry->size;
+    tprint("has_and_mask_2: %", has_and_mask_2);
+    
+    // mask rows are padded to 32 bits
+    int and_mask_row_size = ((width + 31) / 32) * 4;
+    
+    // is this padded?
+    int apparent_and_mask_size = entry->size - (header->biSize + table_size + xor_size);
+    int and_mask_size = and_mask_row_size * height;
+    
+    MY_RGBQUAD *table = (MY_RGBQUAD *)((u8 *)header + header->biSize);
+    u8 *xor = (u8 *)table + table_size;
+    u8 *and = xor + xor_size;
+    
+    // Ignrore compression for now
+    
+    // maybe iterate and mask and if no set bits set all alpha to 0xFF.
+    
+    free(bitmap.pixels);
+    bitmap = make_bitmap(width, height, RGBA(193, 84, 193, 255));
+    
+    tprint("bpp = %", bpp);
+    switch (bpp)
+    {
+        case 1: {
+            
+        } break;
+        case 4: {
+            render_icon_to_bitmap_4(width, height, xor, and, table, &bitmap);
+        } break;
+        case 8: {
+            render_icon_to_bitmap_8(width, height, xor, and, table, &bitmap);
+        } break;
+        case 16: {
+            render_icon_to_bitmap_16(width, height, xor, and, table, &bitmap);
+        } break;
+        case 32: {
+            // TODO: Width == stride?
+            if (bitmap_has_alpha_component((u32 *)xor, width, height, width))
+            {
+                // ARGB format
+                tprint("With alpha");
+                render_icon_to_bitmap_32(width, height, xor, &bitmap);
+            }
+            else
+            {
+                // 0RGB format
+                tprint("Without alpha");
+                render_icon_to_bitmap_32_no_alpha(width, height, xor, and, &bitmap);
+            }
+        } break;
+        
+        default: {
+            rvl_assert(0);
+        } break;
+    }
+    
+    return bitmap;
+}
+
+
 
 int WINAPI
 WinMain(HINSTANCE instance,
@@ -1070,7 +1546,37 @@ WinMain(HINSTANCE instance,
     //remove(global_savefile_path);
     //remove(global_debug_savefile_path);
     
-    network();
+    // mit very screwed
+    // stack overflow, google has extra row on top?
+    // onesearch.library.uwa.edu.au is 8 bit
+    // teaching.csse.uwa.edu.au hangs forever, maybe because not SSL?
+    // scotthyoung.com 8 bit bitmap, seems fully transparent, maybe aren't using AND mask right?
+    // http://ukulelehunt.com/ not SSL, getting Success read 0 bytes
+    // forum.ukuleleunderground.com 15x16 icon, seemed to render fine though...
+    // onesearch has a biSizeImage = 0, and bitCount = 8, and did set the biClrUsed field to 256, when icons shouldn't
+    // voidtools.com
+    // getmusicbee.com
+    // mozilla.org   8bpp seems the and mask is empty the way i'm trying to read it
+    
+    // lots of smaller websites dont have an icon under /favicon.ico, e.g. ukulele sites
+    
+    // maths doesn't seem to work out calcing and_mask size ourmachinery.com
+    
+    
+    u8 *icon_file_data = nullptr;
+    size_t icon_file_size = 0;
+    bool request_success = request_icon_from_url(L"beginnerukuleles.com", &icon_file_data, &icon_file_size);
+    
+    Simple_Bitmap favicon = {};
+    if (request_success)
+    {
+        favicon = get_bitmap_from_ico_file(icon_file_data, icon_file_size, 128);
+    }
+    else
+    {
+        tprint("Request failure");
+        favicon = make_empty_bitmap(10, 10);
+    }
     
     Header header = {};
     
@@ -1198,6 +1704,10 @@ WinMain(HINSTANCE instance,
         }
         destroy_day_view(&day_view);
         
+        if (favicon.pixels)
+        {
+            draw_simple_bitmap(&global_screen_buffer, &favicon, 200, 200);
+        }
         
         // Don't sleep if GUI opened
         // Just wait for messages I guess
