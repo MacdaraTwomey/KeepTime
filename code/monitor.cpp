@@ -1,11 +1,10 @@
 #include "monitor.h"
 
-
-void 
+void
 start_new_day(Database *database, sys_days date)
 {
-    rvl_assert(database);
-    rvl_assert(database->days);
+    Assert(database);
+    Assert(database->days);
     
     Day *days = database->days;
     
@@ -22,11 +21,11 @@ start_new_day(Database *database, sys_days date)
 void
 init_day_view(Database *database, Day_View *day_view)
 {
-    rvl_assert(database);
-    rvl_assert(day_view);
+    Assert(database);
+    Assert(day_view);
     
     // Don't view the last day (it may still change)
-    rvl_assert(database->day_count > 0);
+    Assert(database->day_count > 0);
     i32 immutable_day_count = database->day_count-1;
     for (i32 i = 0; i < immutable_day_count; ++i)
     {
@@ -41,8 +40,8 @@ init_day_view(Database *database, Day_View *day_view)
     if (current_mutable_day.record_count > 0)
     {
         Program_Record *records = (Program_Record *)xalloc(sizeof(Program_Record) * current_mutable_day.record_count);
-        memcpy(records, 
-               current_mutable_day.records, 
+        memcpy(records,
+               current_mutable_day.records,
                sizeof(Program_Record) * current_mutable_day.record_count);
         day_view->last_day_.records = records;
     }
@@ -91,14 +90,14 @@ set_range(Day_View *day_view, i32 period, sys_days current_date)
     }
     else
     {
-        rvl_assert(0);
+        Assert(0);
     }
 }
 
-void 
+void
 destroy_day_view(Day_View *day_view)
 {
-    rvl_assert(day_view);
+    Assert(day_view);
     if (day_view->last_day_.records)
     {
         free(day_view->last_day_.records);
@@ -120,7 +119,7 @@ void init_database(Database *database)
 bool is_exe(u32 id)
 {
     return !(id & (1 << 31));
-} 
+}
 
 bool is_firefox(u32 id)
 {
@@ -129,7 +128,7 @@ bool is_firefox(u32 id)
 
 u32 make_id(Database *database, Record_Type type)
 {
-    rvl_assert(type != Record_Invalid);
+    Assert(type != Record_Invalid);
     u32 id = 0;
     
     if (type == Record_Exe)
@@ -144,21 +143,21 @@ u32 make_id(Database *database, Record_Type type)
         database->next_website_id += 1;
     }
     
-    rvl_assert(is_exe(id) || is_firefox(id));
+    Assert(is_exe(id) || is_firefox(id));
     
     return id;
 }
 
 void add_keyword(Database *database, char *str)
 {
-    rvl_assert(database->keyword_count < MaxKeywordCount);
+    Assert(database->keyword_count < MaxKeywordCount);
     if (database->keyword_count < MaxKeywordCount)
     {
         // TODO: Handle deletion of keywords
         u32 id = make_id(database, Record_Firefox);
         Keyword *keyword = &database->keywords[database->keyword_count];
         
-        rvl_assert(keyword->str == 0 && keyword->id == 0);
+        Assert(keyword->str == 0 && keyword->id == 0);
         keyword->id = id;
         keyword->str = clone_string(str);
         
@@ -175,7 +174,7 @@ find_keywords(char *url, Keyword *keywords, i32 keyword_count)
     {
         Keyword *keyword = &keywords[i];
         char *sub_str = strstr(url, keyword->str);
-        if (sub_str) 
+        if (sub_str)
         {
             return keyword;
         }
@@ -196,7 +195,7 @@ update_days_records(Day *day, u32 id, double dt)
         }
     }
     
-    rvl_assert(day->record_count < MaxDailyRecords);
+    Assert(day->record_count < MaxDailyRecords);
     day->records[day->record_count] = {id, dt};
     day->record_count += 1;
 }
@@ -205,15 +204,15 @@ update_days_records(Day *day, u32 id, double dt)
 Simple_Bitmap *
 get_icon_from_database(Database *database, u32 id)
 {
-    rvl_assert(database);
+    Assert(database);
     if (is_exe(id))
     {
         // TODO: Change this assert
-        rvl_assert(id < 200);
+        Assert(id < 200);
         
         if (database->icons[id].pixels)
         {
-            rvl_assert(database->icons[id].width > 0 && database->icons[id].pixels > 0);
+            Assert(database->icons[id].width > 0 && database->icons[id].pixels > 0);
             return &database->icons[id];
         }
         else
@@ -235,7 +234,7 @@ get_icon_from_database(Database *database, u32 id)
     {
 #if 1
         
-        u32 index = id & ((1 << 31) - 1);
+        u32 index = id & ((1u << 31) - 1);
         if (index >= array_count(global_ms_icons))
         {
             return &global_ms_icons[0];
@@ -254,13 +253,13 @@ get_icon_from_database(Database *database, u32 id)
         {
             // TODO: @Cleanup: This is debug
             u32 temp;
-            bool has_firefox = database->all_programs.search("firefox", &temp); 
+            bool has_firefox = database->all_programs.search("firefox", &temp);
             
             // should not have gotten firefox, else we would have saved its icon
-            rvl_assert(!has_firefox);
-            rvl_assert(database->website_count == 0);
+            Assert(!has_firefox);
+            Assert(database->website_count == 0);
             temp = 1; // too see which assert triggers more clearly.
-            rvl_assert(0);
+            Assert(0);
             return nullptr;
         }
 #endif

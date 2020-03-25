@@ -5,10 +5,10 @@
 
 void *xalloc(size_t size)
 {
-    rvl_assert(size > 0);
-    rvl_assert(size < Gigabytes(1)); // Just a guess of an upper bound on size
+    Assert(size > 0);
+    Assert(size < Gigabytes(1)); // Just a guess of an upper bound on size
     void *p = calloc(1, size);
-    rvl_assert(p);
+    Assert(p);
     return p;
 }
 
@@ -16,7 +16,7 @@ void *xalloc(size_t size)
 // len is string length including null terminator
 char *clone_string(char *str, size_t len)
 {
-    rvl_assert(len > 0);
+    Assert(len > 0);
     if (len == 0) return nullptr;
     
     char *clone = (char *)xalloc(len);
@@ -30,9 +30,9 @@ char *clone_string(char *str, size_t len)
 char *
 clone_string(char *string)
 {
-    rvl_assert(string);
+    Assert(string);
     size_t len = strlen(string);
-    rvl_assert(len > 0);
+    Assert(len > 0);
     
     if (len == 0) return nullptr;
     
@@ -44,7 +44,7 @@ concat_strings(char *dest, size_t dest_len,
                const char *str1, size_t len1,
                const char *str2, size_t len2)
 {
-    rvl_assert(dest && str1 && str2);
+    Assert(dest && str1 && str2);
     if ((len1 + len2 + 1) > dest_len) return;
     
     memcpy(dest, str1, len1);
@@ -108,8 +108,9 @@ operator*(r32 A, V2i B)
 {
     V2i Result;
     
-    Result.x = A*B.x;
-    Result.y = A*B.y;
+    // TODO: Should this take a float or an int?
+    Result.x = (int)A*B.x;
+    Result.y = (int)A*B.y;
     
     return(Result);
 }

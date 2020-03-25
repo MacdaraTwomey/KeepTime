@@ -1,15 +1,6 @@
 #pragma once
 
-// ver 0.12
-// added newline to print_assert_msg
-
-// Windows will always load kernel32.dll
-
-// Undef stuff??
-
-
-// TODO: TPRINT void * buffers are being pronted as a pointer rather than giving a compile error saying expected a char * array and recieved a void *.
-// also wchar_t need %ls i think.
+// ver 0.01
 
 #include <stdint.h>
 #include <limits.h>
@@ -47,83 +38,55 @@ static_assert(sizeof(u32) == 4, "");
 static_assert(sizeof(u64) == 8, "");
 
 #if defined(_WIN64) || defined(__x86_64__) || defined(__64BIT__) || defined(_M_X64)
-#ifndef RVL_ARCH_64
-#define RVL_ARCH_64 1
+#ifndef CIAN_ARCH_64
+#define CIAN_ARCH_64 1
 #endif
 #else
-#error ravel.h only supports 64-bit systems currently
-// #ifndef RVL_ARCH_32
-// #ndifdefine RVL_ARCH_32 1
-// #endif
+#error cian.h only supports 64-bit systems currently
 #endif
 
 #if defined(_WIN32)
-// Or use lean and mean, because windows defines lots of macros unconditionally
-// #define NOMINMAX
-#include <windows.h>
+//#include <windows.h>
 #elif defined (__linux__)
-#include <stdio.h>
-#include <unistd.h>
-
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-
 #else
 #error ravel.h only supports Windows and Linux
 #endif
 
-// IMPORTANT:
-// C's <assert.h> has function assert() which could get confused with my macro
-
-// NOTE: Must wrap macro parameters in parens e.g. BAD: if(!true | false), GOOD: if(!(true | false))
-// Wrapping in do {}while(0) allows you to use if (cond) assert(line < max);
-// No semicolon after while(0) is intentional
-
-// Useful article: http://cnicholson.net/2009/02/stupid-c-tricks-adventures-in-assert/
-
 #if defined(_MSC_VER)
 #include <intrin.h>
-#define RVL_DEBUG_TRAP() __debugbreak()
+#define CIAN_DEBUG_TRAP() __debugbreak()
 #elif defined(__GNUC__)
-#define RVL_DEBUG_TRAP() __builtin_trap()
+#define CIAN_DEBUG_TRAP() __builtin_trap()
 #else
-#define RVL_DEBUG_TRAP() (*(int *)0 = 0;)
+#define CIAN_DEBUG_TRAP() (*(int *)0 = 0;)
 #endif
 
-const char *
-strip_path(const char *filepath)
-{
-    const char *char_after_last_slash = filepath;
-    for (const char *c = filepath; c[0]; ++c)
-    {
-        if ((*c == '\\' || *c == '/') && c[1])
-        {
-            char_after_last_slash = c + 1;
-        }
-    }
-    
-    return char_after_last_slash;
-}
-
 void
-print_assert_msg(const char *assertion, const char *file, const char *func, int line)
+cian_print_assert_msg(const char *assertion, const char *file, const char *func, int line)
 {
-    file = strip_path(file);
-    fprintf(stderr, "Assertion: (%s), %s, %s():line %i\n", assertion, file, func, line);
+    auto strip_path = [](const char *filepath) -> const char *
+    {
+        const char *char_after_last_slash = filepath;
+        for (const char *c = filepath; c[0]; ++c)
+        {
+            if ((*c == '\\' || *c == '/') && c[1])
+            {
+                char_after_last_slash = c + 1;
+            }
+        }
+        
+        return char_after_last_slash;
+    };
+    
+    fprintf(stdout, "Assertion: (%s), %s, %s():line %i\n", assertion, strip_path(file), func, line);
+    fflush(stdout);
 }
 
-#define RVL_STRINGIFY1(expr) #expr
-#define RVL_STRINGIFY(expr) RVL_STRINGIFY1(expr)
+#define CIAN_STRINGIFY1(expr) #expr
+#define CIAN_STRINGIFY(expr) CIAN_STRINGIFY1(expr)
 
-#define RVL_ASSERT1(cond, file, func, line) do { if(!(cond)) { print_assert_msg(RVL_STRINGIFY(cond), file, func, line); RVL_DEBUG_TRAP(); } } while(0)
-#define rvl_assert(cond) RVL_ASSERT1(cond, __FILE__, __func__, __LINE__)
-
-
-// NOTE: Semicolon at end makes two semicolons after removing asserts (assert(cond); <- this stays).
-// This can orphan else in an unscoped if else statement.
-// This may be preferable as I can track these cases down. Alternatively could remove else on after while(0).
-// #define assert(cond) do {}while(0);
+#define CIAN_ASSERT1(cond, file, func, line) do { if(!(cond)) { cian_print_assert_msg(CIAN_STRINGIFY(cond), file, func, line); CIAN_DEBUG_TRAP(); } } while(0)
+#define Assert(cond) CIAN_ASSERT1(cond, __FILE__, __func__, __LINE__)
 
 #define KILOBYTES(Value) ((Value) * 1024LL)
 #define MEGABYTES(Value) (Kilobytes(Value) * 1024LL)
@@ -134,18 +97,9 @@ constexpr size_t array_count(T(&)[n])
     return n;
 }
 
-#define rvl_lerp(x, y, t) (((1.0f-(t))*(x)) + ((t)*(y)))
-
-template<class T>
-constexpr const T& rvl_clamp( const T& v, const T& lo, const T& hi )
-{
-    rvl_assert(!(hi < lo));
-    return (v < lo) ? lo : (hi < v) ? hi : v;
-}
-
-
 // ------------------------------------------------------------------------------------------------
 // This is suspect in lieu of bugs in term on linux
+// NOTE: If values passed to defered function change, this is reflected when the function is called.
 
 /*
  * Defer C++ implementation by Ginger Bill
@@ -187,164 +141,13 @@ template <typename F> gbprivDefer<F> gb_defer_func(F &&f) { return gbprivDefer<F
 // auto _defer_347 = gb__defer_func([&]() -> void { tprint("SCOPE EXIT"); });
 // -------------------------------------------------------------------------------------------------
 
-struct File_Data
-{
-    // Should this contain size?
-    // Should size include null terminator?
-    u8 *data;
-    u64 size;
-};
-
-File_Data
-read_entire_file_and_null_terminate(const char *filename)
-{
-    // Returns null terminated char array of data, with size of file (not including null terminator)
-    // If file is empty, result contains an array with a null character and size 0
-    
-    // NOTE:
-    // In text mode fread translates Windows \r\n to unix/C stlye \n,
-    // so doesn't fill allocated memory.
-    // On POSIX systems there is no difference between binary and text mode
-    
-    // TODO:
-    // Filename encoding for windows? Path length?
-    
-    // TODO:
-    // Use ReadFile (windows) and read (posix) to read in 32bit
-    // and make multiple read calls in 64 bit mode, to read >2Gb files and such
-    
-    File_Data result = {};
-    
-#if defined(_WIN32)
-    HANDLE file_handle = CreateFileA(filename, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
-    if (file_handle != INVALID_HANDLE_VALUE)
-    {
-        LARGE_INTEGER size;
-        if (GetFileSizeEx(file_handle, &size))
-        {
-            // Can't read more than a 4GB file
-            if (size.QuadPart <= UINT32_MAX)
-            {
-                u32 size32 = (u32)size.QuadPart;
-                result.data = (u8 *)malloc(size32 + 1);
-                if (result.data)
-                {
-                    DWORD bytes_read;
-                    if (ReadFile(file_handle, result.data, size32, &bytes_read, 0) &&
-                        size32 == bytes_read)
-                    {
-                        CloseHandle(file_handle);
-                        result.data[size32] = 0;
-                        result.size = size32;
-                        return result;
-                    }
-                }
-            }
-        }
-        
-        CloseHandle(file_handle);
-    }
-    
-#else
-    
-    // TODO: REWORK
-    // TODO: Most likely can't read large files (>2GB) on 32-bit systems,
-    // and maybe not on 64-bit systems (if the 64bit versions of functions don't replace 32-bit
-    // automatically.
-    int fd = open(filename, O_RDONLY);
-    if (fd != -1)
-    {
-        FILE *file = fdopen(fd, "r");
-        if (file != NULL)
-        {
-            // Ensure that the file is a regular file
-            struct stat st;
-            if ((fstat(fd, &st) == 0) && (S_ISREG(st.st_mode)))
-            {
-                // signed integer I think
-                off_t size = st.st_size;
-                if (size >= 0)
-                {
-                    result.data = (char *)malloc(size + 1);
-                    if (result.data)
-                    {
-                        size_t bytes_read = fread(result.data, 1, size, file);
-                        if (bytes_read == size)
-                        {
-                            fclose(file);
-                            result.data[size] = 0;
-                            result.size = size;
-                            return result;
-                        }
-                    }
-                }
-            }
-        }
-        
-        fclose(file); // Will also close fd
-    }
-    
-#endif
-    
-    free(result.data);
-    result.data = nullptr;
-    result.size = 0;
-    
-    return result;
-}
-
-File_Data
-read_entire_file(const char *filename)
-{
-    // TODO: Can't destinguish 0 size file from read error
-    // Returns char array of data, with size of file
-    // If file is empty, result contains null pointer and size 0
-    
-#if !defined(_WIN32)
-#error read_entire_file not implementedon linux
-#endif
-    
-    File_Data result = {};
-    
-    HANDLE file_handle = CreateFileA(filename, GENERIC_READ, FILE_SHARE_READ,
-                                     0, OPEN_EXISTING, 0, 0);
-    if (file_handle != INVALID_HANDLE_VALUE)
-    {
-        LARGE_INTEGER size;
-        if (GetFileSizeEx(file_handle, &size))
-        {
-            // Can't read more than a 4GB file
-            if (size.QuadPart <= UINT32_MAX && size.QuadPart > 0)
-            {
-                u32 size32 = (u32)size.QuadPart;
-                result.data = (u8 *)malloc(size32);
-                if (result.data)
-                {
-                    DWORD bytes_read;
-                    if (ReadFile(file_handle, result.data, size32, &bytes_read, 0) &&
-                        size32 == bytes_read)
-                    {
-                        CloseHandle(file_handle);
-                        result.size = size32;
-                        return result;
-                    }
-                }
-            }
-        }
-        
-        CloseHandle(file_handle);
-    }
-    
-    free(result.data);
-    result.data = nullptr;
-    result.size = 0;
-    
-    return result;
-}
-
 /* -----------------------------------------------------------------------------------------
   Debug printing code
   (warning: disgusting c++ template code)
+
+ BUGS:
+ TODO: TPRINT void * buffers are being pronted as a pointer rather than giving a compile error saying expected a char * array and recieved a void *.
+ also wchar_t need %ls i think.
 
 Usage:
 - NOTE: Debug code only (because of size restrictions, and possible bugs)
@@ -456,11 +259,11 @@ const char *_get_specifier(T *x) { return "%p"; }
 // DEFINE_GET_SPECIFIER(uint32_t           , "%u")
 // DEFINE_GET_SPECIFIER(uint64_t           , "%llu")
 
-struct rvl_false_type { static constexpr bool value = false; };
-struct rvl_true_type  { static constexpr bool value = true; };
+struct cian_false_type { static constexpr bool value = false; };
+struct cian_true_type  { static constexpr bool value = true; };
 
-template<typename T, typename U> struct same_type : rvl_false_type {};
-template<typename T> struct same_type<T,T> : rvl_true_type {}; //specialization
+template<typename T, typename U> struct same_type : cian_false_type {};
+template<typename T> struct same_type<T,T> : cian_true_type {}; //specialization
 
 template< class T > struct remove_const          { typedef T type; };
 template< class T > struct remove_const<const T> { typedef T type; };
@@ -472,11 +275,11 @@ struct remove_cv {
     typedef typename remove_volatile<typename remove_const<T>::type>::type type;
 };
 
-template< class T > struct is_pointer_helper     : rvl_false_type {};
-template< class T > struct is_pointer_helper<T*> : rvl_true_type {};
+template< class T > struct is_pointer_helper     : cian_false_type {};
+template< class T > struct is_pointer_helper<T*> : cian_true_type {};
 template< class T > struct is_pointer : is_pointer_helper<typename remove_cv<T>::type> {};
 
-#define RVL_VALID_TYPE(T) (same_type<T, const char *>::value   || same_type<T, char *>::value || \
+#define CIAN_VALID_TYPE(T) (same_type<T, const char *>::value   || same_type<T, char *>::value || \
 same_type<T, char>::value           || same_type<T, signed char>::value || \
 same_type<T, unsigned char >::value || same_type<T, long>::value || \
 same_type<T, unsigned long>::value  || same_type<T, float>::value || \
@@ -489,7 +292,7 @@ is_pointer<T>::value)
 template<typename T>
 void tprint(T var)
 {
-    static_assert(RVL_VALID_TYPE(T),
+    static_assert(CIAN_VALID_TYPE(T),
                   "static assert: invalid type passed to tprint()."
                   "Integer, floating point or a constant string is required");
     
@@ -504,7 +307,7 @@ void tprint(bool var)
 template<typename T>
 char *get_spec(T x)
 {
-    static_assert(RVL_VALID_TYPE(T) || same_type<T, bool>::value,
+    static_assert(CIAN_VALID_TYPE(T) || same_type<T, bool>::value,
                   "static assert: invalid type passed to tprint()."
                   "Integer, floating point or a constant string is required");
     return (char *)_get_specifier(x);
@@ -527,7 +330,7 @@ void tprint(const char *str, Targs... args)
     if (strlen(str) > 3900)
     {
         // Need extra room for specifiers
-        rvl_assert(0);
+        Assert(0);
         return;
     }
     
@@ -597,47 +400,8 @@ void tprint(const char *str, Targs... args)
 #endif
 }
 
-enum RVL_Colour
-{
-    Red,
-    Blue,
-    Green,
-    Yellow,
-    Purple,
-};
-
 template<typename... Targs>
-void tprint_col(RVL_Colour colour, const char *str, Targs... args)
-{
-    switch (colour)
-    {
-        case RVL_Colour::Red: printf("\033[31m"); break;
-        case RVL_Colour::Blue: printf("\033[34m"); break;
-        case RVL_Colour::Green: printf("\033[32m"); break;
-        case RVL_Colour::Yellow: printf("\033[33m"); break;
-        case RVL_Colour::Purple: printf("\033[35m"); break;
-    }
-    tprint(str, args...);
-    printf("\033[37m");
-}
-
-void tprint_col(RVL_Colour colour, const char *str)
-{
-    switch (colour)
-    {
-        case RVL_Colour::Red: printf("\033[31m"); break;
-        case RVL_Colour::Blue: printf("\033[34m"); break;
-        case RVL_Colour::Green: printf("\033[32m"); break;
-        case RVL_Colour::Yellow: printf("\033[33m"); break;
-        case RVL_Colour::Purple: printf("\033[35m"); break;
-    }
-    tprint(str);
-    printf("\033[37m");
-}
-
-
-template<typename... Targs>
-void rvl_snprintf(char *buf, size_t n, const char *str, Targs... args)
+void cian_snprintf(char *buf, size_t n, const char *str, Targs... args)
 {
     char *specifiers[1+sizeof...(args)] = { get_spec(args)... };
     
@@ -646,7 +410,7 @@ void rvl_snprintf(char *buf, size_t n, const char *str, Targs... args)
     
     if (n >= 3900)
     {
-        rvl_assert(0);
+        Assert(0);
         return;
     }
     
@@ -684,8 +448,5 @@ void rvl_snprintf(char *buf, size_t n, const char *str, Targs... args)
 }
 
 
-
-
-
-
 // ------------------------------------------------------------------------------------------
+

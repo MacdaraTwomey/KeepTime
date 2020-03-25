@@ -28,7 +28,7 @@ unsigned long djb2(unsigned char *str)
 
 bool init_hash_table(Hash_Table *table, s64 table_size)
 {
-    rvl_assert(table_size > 0);
+    Assert(table_size > 0);
     table->buckets = (Hash_Node *)xalloc(table_size * sizeof(Hash_Node));
     table->occupancy = (u8 *)xalloc(table_size * sizeof(u8));
     table->size = table_size;
@@ -40,7 +40,7 @@ bool init_hash_table(Hash_Table *table, s64 table_size)
 
 void free_table(Hash_Table *table)
 {
-    rvl_assert(table);
+    Assert(table);
     for (s64 i = 0; i < table->size; ++i)
     {
         if (table->occupancy[i] == Hash_Table::OCCUPIED)
@@ -56,11 +56,11 @@ void free_table(Hash_Table *table)
 // Returns -1 if already added, or if not, the index of the added node.
 s64 Hash_Table::add_item(char *key, u32 value)
 {
-    rvl_assert(key);
-    rvl_assert(key[0]);
+    Assert(key);
+    Assert(key[0]);
     
     // TODO: Remove or make into more specific class
-    rvl_assert(!(value & (1 << 31))); // is_exe
+    Assert(!(value & (1 << 31))); // is_exe
     
     if (count >= size*0.75)
     {
@@ -89,9 +89,9 @@ s64 Hash_Table::add_item(char *key, u32 value)
 
 bool Hash_Table::search(char *key, u32 *value)
 {
-    rvl_assert(key);
-    rvl_assert(key[0]);
-    rvl_assert(value);
+    Assert(key);
+    Assert(key[0]);
+    Assert(value);
     
     if (count == 0) return false;
     
@@ -110,13 +110,13 @@ bool Hash_Table::search(char *key, u32 *value)
         }
     }
     
-    return false; 
+    return false;
 }
 
 void Hash_Table::remove(char *key)
 {
-    rvl_assert(key);
-    rvl_assert(key[0]);
+    Assert(key);
+    Assert(key[0]);
     
     if (count == 0) return;
     s64 start = (s64) djb2((unsigned char *)key) % size;
@@ -143,8 +143,8 @@ void Hash_Table::grow_table()
     s64 new_size = size*2;
     Hash_Node *new_buckets = (Hash_Node *)xalloc(new_size * sizeof(Hash_Node));
     u8 *new_occupancy = (u8 *)xalloc(new_size * sizeof(u8));
-    rvl_assert(new_buckets);
-    rvl_assert(new_occupancy);
+    Assert(new_buckets);
+    Assert(new_occupancy);
     
     for (s64 i = 0; i < size; ++i)
     {
@@ -190,7 +190,7 @@ String_Builder create_string_builder()
     String_Builder sb = {};
     sb.capacity = 30;
     sb.str = (char *)xalloc(sb.capacity);
-    rvl_assert(sb.str);
+    Assert(sb.str);
     sb.len = 0;
     return sb;
 }
@@ -208,21 +208,21 @@ void free_string_builder(String_Builder *sb)
 
 void String_Builder::grow(size_t min_amount)
 {
-    size_t new_capacity  = std::max(capacity + min_amount, capacity*2);
+    size_t new_capacity  = (std::max)(capacity + min_amount, capacity*2);
     capacity = new_capacity;
     str = (char *)realloc(str, capacity);
-    rvl_assert(str);
+    Assert(str);
 }
 
 void String_Builder::append(char *new_str)
 {
-    rvl_assert(new_str);
+    Assert(new_str);
     add_bytes(new_str, strlen(new_str)); // We want to only add the characters and let add string add the null terminator
 }
 
 void String_Builder::appendf(char *new_str, ...)
 {
-    rvl_assert(new_str);
+    Assert(new_str);
     char buffer[512];
     va_list args;
     va_start (args, new_str);
@@ -237,7 +237,7 @@ void String_Builder::appendf(char *new_str, ...)
 void String_Builder::add_bytes(char *bytes, size_t added_bytes)
 {
     if (added_bytes == 0) return;
-    if (len + added_bytes + 1 > capacity) 
+    if (len + added_bytes + 1 > capacity)
     {
         grow(added_bytes);
     }
@@ -249,7 +249,7 @@ void String_Builder::add_bytes(char *bytes, size_t added_bytes)
 
 void String_Builder::clear()
 {
-    rvl_assert(capacity > 0);
+    Assert(capacity > 0);
     len = 0;
     str[0] = '\0';
 }
@@ -264,11 +264,11 @@ void init_queue(Queue<T> *queue, s64 initial_capacity)
     queue->rear = queue->capacity - 1;
     queue->count = 0;
     queue->data = (T *)malloc(sizeof(T) * queue->capacity);
-    rvl_assert(queue->data);
+    Assert(queue->data);
 }
 
 template<typename T>
-void 
+void
 Queue<T>::enqueue(T x) {
     if (count + 1 > capacity)
     {
@@ -281,9 +281,9 @@ Queue<T>::enqueue(T x) {
 }
 
 template<typename T>
-T 
+T
 Queue<T>::dequeue() {
-    rvl_assert(count > 0);
+    Assert(count > 0);
     T x = data[front_i];
     front_i = (front_i + 1) % capacity;
     --count;
@@ -291,25 +291,25 @@ Queue<T>::dequeue() {
 }
 
 template<typename T>
-T 
+T
 Queue<T>::front() {
-    rvl_assert(count > 0);
+    Assert(count > 0);
     T x = data[front_i];
     return x;
 }
 
 template<typename T>
-bool 
+bool
 Queue<T>::empty() {
     return count == 0;
 }
 
 template<typename T>
-void 
+void
 Queue<T>::grow()
 {
     T *new_data = (T *)malloc(sizeof(T) * (capacity * 2));
-    rvl_assert(new_data);
+    Assert(new_data);
     
     s64 n = count;
     for (s64 i = 0; i < n; ++i)

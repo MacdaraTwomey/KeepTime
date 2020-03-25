@@ -1,5 +1,4 @@
 
-#define ICON_SIZE 32
 
 // Some icons glitch out on some sizes, maybe getting the icon sizes up/down for icons without that specific size. // But maybe good ones like firefox are built in with lots of sizes.
 // NOTE: Can test this by looking at the colour of monitor.exe icon
@@ -38,19 +37,13 @@
 struct ICON_IMAGE
 {
     // only biSize, biWidth, biHeight, biPlanes, biBitCount, biSizeImage are used others must be 0.
-    // The biHeight member specifies the combined height of the XOR and AND masks.
+    // biSizeImage can be 0
     BITMAPINFOHEADER header;
-    
-    // biHeight is width*2
     
     // If biCompression equals BI_RGB and the bitmap uses 8 bpp or less, the bitmap has a color table immediately following the BITMAPINFOHEADER structure.
     // The array contains the maximum number of colors for the given bitdepth; which is, 2^biBitCount colors, as biClrUsed == 0, see notes.
-    RGB_QUAD colours[2^bitcount]; // (optional)
-    // u32 == RGB_QUAD
+    MY_RGBQUAD colours[2^bitcount]; // (optional)
     
-    // These have the same dimensions
-    // XOR is first in memory, then and (PC Mag 26 Jan 1993)
-    //https://books.google.com.au/books?id=LpkFEO2FG8sC&pg=PA320&lpg=PA320&dq=is+and+or+xor+mask+first+in+icon&source=bl&ots=2eFRPsG5No&sig=ACfU3U17mCL0Jt3INruonl4_MevZEPZiQA&hl=en&sa=X&ved=2ahUKEwi2rNSx6JfoAhVawTgGHT6wA8kQ6AEwDXoECAoQAQ#v=onepage&q=is%20and%20or%20xor%20mask%20first%20in%20icon&f=false
     u8 XOR[w * h/2 * bitcount/8]; // number of bytes in XOR mask, depends bpp in header
     u8 AND[w * h/2 * 1/8];        // 1bpp, number of bytes depends on member in header
 };
@@ -78,13 +71,12 @@ typedef  enum
 // NOTE:
 // As biClrUsed is unsed for icons it is always zero, the array contains the maximum number of colors for the given bitdepth; that is, 2^biBitCount colors.
 
-
 // Stride
 // For uncompressed RGB formats
 // stride = ((((biWidth * biBitCount) + 31) & ~31) >> 3)
 
 // --------------------------------------
-// Example case www.docs.windows.com icon:
+// Example case docs.windows.com icon:
 // ICONDIR
 // 6 ICONDIRENTRYs
 
@@ -119,36 +111,9 @@ typedef  enum
 
 // ----------------------------------------
 
-struct MY_RGBQUAD
-{
-    u8 blue;
-    u8 green;
-    u8 red;
-    u8 reserved;
-};
-
 // Wikipedia: The bits per pixel might be set to zero, but can be inferred from the other data; specifically, if the bitmap is not PNG compressed, then the bits per pixel can be calculated based on the length of the bitmap data relative to the size of the image.
 
 // These are structures for ICO file format, which differs slightly from format of windows icon resources
-struct ICONDIRENTRY
-{
-    u8  width;     // Originally range was 1-255 originally but 0 is accepted to represent width of 256
-    u8  height;    // Originally range was 1-255 originally but 0 is accepted to represent width of 256
-    u8  colour_count; // should be equal to bColorCount = 1 << (wBitCount * wPlanes) ... but see notes
-    u8  reserved;  // Must be 0
-    u16 planes;    // typically not used and set to 0. PCMAG
-    u16 bit_count; // typically not used and set to 0. PCMAG
-    u32 size;      // in bytes of the image data
-    u32 offset;    // from start of ICO file
-};
-
-struct ICONDIR
-{
-    u16 reserved;       // Reserved. Must always be 0.
-    u16 type;           // Specifies image type: 1 for icon (.ICO) image, 2 for cursor (.CUR) image.
-    u16 entry_count;    // Specifies number of images in the file.
-    // ICONDIRENTRY entries[count]; folled by count entries in file
-};
 
 // ICO file format:
 
@@ -188,11 +153,11 @@ struct ICONDIR
 Simple_Bitmap
 win32_bitmap_to_simple_bitmap(BITMAP *win32_bitmap)
 {
-    rvl_assert(win32_bitmap->bmType == 0);
-    rvl_assert(win32_bitmap->bmHeight > 0);
-    rvl_assert(win32_bitmap->bmHeight > 0);
-    rvl_assert(win32_bitmap->bmBitsPixel == 32);
-    rvl_assert(win32_bitmap->bmBits);
+    Assert(win32_bitmap->bmType == 0);
+    Assert(win32_bitmap->bmHeight > 0);
+    Assert(win32_bitmap->bmHeight > 0);
+    Assert(win32_bitmap->bmBitsPixel == 32);
+    Assert(win32_bitmap->bmBits);
     
     Simple_Bitmap simple_bitmap = {};
     simple_bitmap.width = win32_bitmap->bmWidth;
@@ -363,9 +328,9 @@ get_icon_bitmap(HICON icon)
 bool
 get_icon_from_executable(char *path, u32 size, Simple_Bitmap *icon_bitmap, bool load_default_on_failure = true)
 {
-    rvl_assert(path);
-    rvl_assert(icon_bitmap);
-    rvl_assert(size > 0);
+    Assert(path);
+    Assert(icon_bitmap);
+    Assert(size > 0);
     
     HICON small_icon = 0;
     HICON icon = 0;
@@ -377,7 +342,7 @@ get_icon_from_executable(char *path, u32 size, Simple_Bitmap *icon_bitmap, bool 
     {
         // NOTE: Show me that path was actually wrong and it wasn't just failed icon extraction.
         // If we can load the executable, it means we probably should be able to get the icon
-        //rvl_assert(!LoadLibraryA(path)); // TODO: Enable this when we support UWP icons
+        //Assert(!LoadLibraryA(path)); // TODO: Enable this when we support UWP icons
         
         if (load_default_on_failure)
         {
@@ -413,4 +378,174 @@ get_icon_from_executable(char *path, u32 size, Simple_Bitmap *icon_bitmap, bool 
         if (bitmap.pixels) free(bitmap.pixels);
         return false;
     }
+}
+
+
+Simple_Bitmap
+get_bitmap_from_ico_file(u8 *file_data, u32 file_size, int max_icon_size)
+{
+    // We don't support varied file types or sophisticated searching for faviocn, just plain vanilla .ico
+    // found at /favicon.ico
+    
+    Simple_Bitmap bitmap = make_bitmap(32, 32, RGBA(193, 84, 193, 255));
+    
+    if (file_size < sizeof(ICONDIR) + sizeof(ICONDIRENTRY) + sizeof(BITMAPINFOHEADER))
+    {
+        tprint("File size too small");
+        return bitmap;
+    }
+    
+    ICONDIR *dir = (ICONDIR *)file_data;
+    if (!(dir->reserved == 0 && dir->type == 1 && dir->entry_count > 0))
+    {
+        tprint("Not icon file");
+        return bitmap;
+    }
+    
+    if (file_size < sizeof(ICONDIR) +
+        (sizeof(ICONDIRENTRY)*dir->entry_count) +
+        (sizeof(BITMAPINFOHEADER)*dir->entry_count))
+    {
+        tprint("File size too small for entries and headers");
+        return bitmap;
+    }
+    
+    ICONDIRENTRY *entries = (ICONDIRENTRY *)(file_data + sizeof(ICONDIR));
+    
+    // int closest_smaller_size_index = 0;
+    int closest_size_index = 0;
+    int min_diff = INT_MAX;
+    for (int i = 0; i < dir->entry_count; ++i)
+    {
+        int diff = abs(max_icon_size - (int)entries[i].width);
+        if (diff < min_diff)
+        {
+            closest_size_index = i;
+            min_diff = diff;
+        }
+    }
+    
+    ICONDIRENTRY *entry = entries + closest_size_index;
+    
+    // Make sure that we at least got data for our chosen bitmap
+    if (file_size < entry->offset + entry->size - 1)
+    {
+        tprint("File is incomplete");
+        return bitmap;
+    }
+    
+    tprint("Entry colour_count is %", entry->colour_count); // should be 0 if image doesn't use colour palette
+    tprint("Entry bit_count is %", entry->bit_count);       // should be zero but isn't always
+    tprint("Entry planes is %", entry->planes);             // should be zero but isn't always
+    
+    BITMAPINFOHEADER *header = (BITMAPINFOHEADER *)(file_data + entry->offset);
+    
+    // There can also be PNG embedded instead of bitmap I think
+    
+    // TODO: are embedded pngs actually entry->size?
+    if (file_is_png((u8 *)header, entry->size))
+    {
+        tprint("embedded PNG not supported");
+        return bitmap;
+    }
+    
+    int width = header->biWidth;
+    int height = header->biHeight/2;
+    int bpp = header->biBitCount;
+    Assert(height == entry->height && width == entry->width);
+    
+    // Firefox says this is right
+    // firefox says colour table is present only if bpp is >= 8
+    // can have non square icons
+    // 24bpp not supported in ico files
+    // BIBITFIELDS only valid with 16 and 32bpp (firefox)
+    
+    // biSizeImage can be 0 for uncompressed RGB images, but then the image size is just 4*width*height I guess
+    
+    // GIMP makes sure xor/and rows have 32 bit padding boundaries
+    
+    int table_size = 0;
+    if (bpp <= 8)
+    {
+        table_size = (int)pow(2, bpp) * sizeof(MY_RGBQUAD);
+    }
+    tprint("Table size: %", table_size);
+    
+    
+    int image_data_size = entry->size - header->biSize - table_size;
+    
+    int xor_stride = ((((width * bpp) + 31) & ~31) >> 3);
+    
+    Assert(xor_stride == width*bpp/8);
+    
+    // Is this padded?
+    int xor_size = (width * height * bpp) / 8;
+    int xor_size_2 = xor_stride * height;
+    
+    Assert(xor_size == xor_size_2);
+    
+    // just assume there is an and mask
+    bool has_and_mask = image_data_size != xor_size;
+    tprint("Image data size: %", image_data_size);
+    tprint("XOR size: %", xor_size);
+    tprint("has_and_mask: %", has_and_mask);
+    
+    bool has_and_mask_2 = xor_size + table_size + header->biSize < entry->size;
+    tprint("has_and_mask_2: %", has_and_mask_2);
+    
+    // mask rows are padded to 32 bits
+    int and_mask_row_size = ((width + 31) / 32) * 4;
+    
+    // is this padded?
+    int apparent_and_mask_size = entry->size - (header->biSize + table_size + xor_size);
+    int and_mask_size = and_mask_row_size * height;
+    
+    MY_RGBQUAD *table = (MY_RGBQUAD *)((u8 *)header + header->biSize);
+    u8 *xor = (u8 *)table + table_size;
+    u8 *and = xor + xor_size;
+    
+    // Ignrore compression for now
+    
+    // maybe iterate and mask and if no set bits set all alpha to 0xFF.
+    
+    free(bitmap.pixels);
+    bitmap = make_bitmap(width, height, RGBA(193, 84, 193, 255));
+    
+    tprint("bpp = %", bpp);
+    switch (bpp)
+    {
+        case 1: {
+            
+        } break;
+        case 4: {
+            render_icon_to_bitmap_4(width, height, xor, and, table, &bitmap);
+        } break;
+        case 8: {
+            render_icon_to_bitmap_8(width, height, xor, and, table, &bitmap);
+        } break;
+        case 16: {
+            render_icon_to_bitmap_16(width, height, xor, and, table, &bitmap);
+        } break;
+        case 32: {
+            // TODO: Width == stride?
+            if (bitmap_has_alpha_component((u32 *)xor, width, height, width))
+            {
+                // ARGB format
+                tprint("With alpha");
+                render_icon_to_bitmap_32(width, height, xor, &bitmap);
+            }
+            else
+            {
+                // 0RGB format
+                tprint("Without alpha");
+                render_icon_to_bitmap_32_no_alpha(width, height, xor, and, &bitmap);
+            }
+        } break;
+        
+        default: {
+            Assert(0);
+        } break;
+    }
+    
+    return bitmap;
 }

@@ -1,5 +1,8 @@
 #pragma once
 
+#include <windows.h>
+#undef min
+#undef max
 
 #define ID_DAY_BUTTON 200
 #define ID_WEEK_BUTTON 201
@@ -9,14 +12,15 @@
 #define ID_TRAY_APP_ICON 1001
 #define CUSTOM_WM_TRAY_ICON (WM_USER + 1)
 
-struct Process_Ids 
+struct Process_Ids
 {
     DWORD parent;
     DWORD child;
 };
 
-// TODO: Do we want to make this the same as a Bitmap to simplify, but how do we handle 
+// TODO: Do we want to make this the same as a Bitmap to simplify, but how do we handle
 // need for BITMAPINFO?
+// Could just make BITMAPINFO inside of every stretchdibitscall
 struct Screen_Buffer
 {
     static constexpr int BYTES_PER_PIXEL = 4;

@@ -25,7 +25,7 @@ typedef double time_type;
 // static constexpr u32 DefaultPollFrequencyMilliseconds = 1000;
 
 
-// Steady clock typically uses system startup time as epoch, and system clock uses systems epoch like 1970-1-1 00:00 
+// Steady clock typically uses system startup time as epoch, and system clock uses systems epoch like 1970-1-1 00:00
 // Clocks have a starting point (epoch) and tick rate (e.g. 1 tick per second)
 // A Time Point is a duration of time that has passed since a clocks epoch
 // A Duration consists of a span of time, defined as a number of ticks of some time unit (e.g. 12 ticks in millisecond unit)
@@ -90,7 +90,7 @@ struct NOT_SURE
     u32 day_count;
 };
 
-enum Button : u8 
+enum Button : u8
 {
     Button_Invalid,
     Button_Day,
@@ -98,7 +98,7 @@ enum Button : u8
     Button_Month,
 };
 
-enum Event_Type 
+enum Event_Type
 {
     Event_Invalid,
     Event_Button_Click,
@@ -115,17 +115,6 @@ struct Event
     Event_Type type;
 };
 
-struct Simple_Bitmap
-{
-    // Top Down bitmap with a positive height
-    // Don't use outside of this program. Usually top down bitmaps have a negative height I think.
-    static constexpr int BYTES_PER_PIXEL = 4;
-    i32 width;
-    i32 height;
-    u32 *pixels;
-    // No pitch for now, pitch == width
-};
-
 struct Font
 {
     i32 atlas_width;
@@ -137,7 +126,7 @@ struct Font
 
 struct Day_View
 {
-    // Must pass by reference because of pointer to last day 
+    // Must pass by reference because of pointer to last day
     Day *days[MaxDays];
     Day last_day_;
     i32 day_count;

@@ -94,8 +94,8 @@ read_programs_from_savefile(FILE *savefile, Header header, Hash_Table *programs)
 void
 read_all_days_from_savefile(FILE *savefile, Header header, Day *days)
 {
-    rvl_assert(savefile);
-    rvl_assert(days);
+    Assert(savefile);
+    Assert(days);
     
     if (header.day_count > 0)
     {
@@ -107,7 +107,7 @@ read_all_days_from_savefile(FILE *savefile, Header header, Day *days)
             Header test_header = {};
             fread(&test_header, sizeof(Header), 1, savefile);
             fseek(savefile, 0, SEEK_SET);
-            rvl_assert(test_header.program_names_block_size == header.program_names_block_size &&
+            Assert(test_header.program_names_block_size == header.program_names_block_size &&
                        test_header.total_program_count == header.total_program_count &&
                        test_header.day_count == header.day_count &&
                        test_header.total_record_count == header.total_record_count);
@@ -410,8 +410,8 @@ void update_savefile(char *filepath,
         }
     }
     
-    rvl_assert(test == sb.len);
-    rvl_assert(program_ids.size() == all_programs.count);
+    Assert(test == sb.len);
+    Assert(program_ids.size() == all_programs.count);
     
     // TODO: Not sure whether to keep days as AOS or SOA
     // SOA wouldn't need to do this kind of thing when saving to file
@@ -500,7 +500,7 @@ if (!file_exists(global_savefile_path))
 {
     // Create database
     make_empty_savefile(global_savefile_path);
-    rvl_assert(valid_savefile(global_savefile_path));
+    Assert(valid_savefile(global_savefile_path));
 }
 else
 {

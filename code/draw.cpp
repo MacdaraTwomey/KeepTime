@@ -1,21 +1,22 @@
 
 #include "monitor.h"
+#include "graphics.h"
+#include <algorithm>
 
-// TODO: This is debug only
-#define RGB_COLOUR(r, g, b)\
-(0xFF << 24|(u32)roundf((r) * 255.0f) << 16)|((u32)roundf((g) * 255.0f) << 8)|((u32)roundf((b) * 255.0f))
-
-#define RGBA(r, g, b, a) (((u8)(a) << 24) + ((u8)(r) << 16) + ((u8)(g) << 8) + (u8)(b))
-
-typedef u32 Colour;
+template<class T>
+constexpr const T& clamp( const T& v, const T& lo, const T& hi )
+{
+    Assert(!(hi < lo));
+    return (v < lo) ? lo : (hi < v) ? hi : v;
+}
 
 void draw_text(Screen_Buffer *buffer, Font *font, char *text, int baseline_x, int baseline_y, r32 r, r32 g, r32 b)
 {
     // TODO: make pen_x and y float and accululate and round advance widths
     // TODO: font licensing
     // TODO: Maybe separate bitmap for each character
-    int pen_x = rvl_clamp(baseline_x, 0, buffer->width);
-    int pen_y = rvl_clamp(baseline_y, 0, buffer->height);
+    int pen_x = clamp(baseline_x, 0, buffer->width);
+    int pen_y = clamp(baseline_y, 0, buffer->height);
     
     for (char *c = text; *c; ++c)
     {
@@ -23,8 +24,8 @@ void draw_text(Screen_Buffer *buffer, Font *font, char *text, int baseline_x, in
         
         stbtt_bakedchar glyph = font->glyphs[*c - 32];
         
-        int x = pen_x + roundf(glyph.xoff);
-        int y = pen_y + roundf(glyph.yoff);
+        int x = pen_x + (int)roundf(glyph.xoff);
+        int y = pen_y + (int)roundf(glyph.yoff);
         
         int w = glyph.x1 - glyph.x0;
         int h = glyph.y1 - glyph.y0;
@@ -34,12 +35,12 @@ void draw_text(Screen_Buffer *buffer, Font *font, char *text, int baseline_x, in
         if (y < 0) glyph.y0 += -y;
         if (y + h > buffer->height) glyph.y1 -= (y + h) - buffer->height;
         
-        x = rvl_clamp(x, 0, buffer->width);
-        y = rvl_clamp(y, 0, buffer->height);
-        glyph.x0 = rvl_clamp((int)glyph.x0, 0, buffer->width);
-        glyph.y0 = rvl_clamp((int)glyph.y0, 0, buffer->height);
-        glyph.x1 = rvl_clamp((int)glyph.x1, 0, buffer->width);
-        glyph.y1 = rvl_clamp((int)glyph.y1, 0, buffer->height);
+        x = clamp(x, 0, buffer->width);
+        y = clamp(y, 0, buffer->height);
+        glyph.x0 = clamp((int)glyph.x0, 0, buffer->width);
+        glyph.y0 = clamp((int)glyph.y0, 0, buffer->height);
+        glyph.x1 = clamp((int)glyph.x1, 0, buffer->width);
+        glyph.y1 = clamp((int)glyph.y1, 0, buffer->height);
         
         //draw_rectangle(buffer, Rect2i{{pen_x, pen_y}, {pen_x+2, pen_y+50}}, 0, 0, 1); // draw start of pen
         //draw_rectangle(buffer, Rect2i{{pen_x, pen_y}, {pen_x+100, pen_y+1}}, 1, 1, 0.7f); // draw_baseline
@@ -58,9 +59,9 @@ void draw_text(Screen_Buffer *buffer, Font *font, char *text, int baseline_x, in
                 r32 dest_g = (r32)((*dest >> 8) & 0xFF);
                 r32 dest_b = (r32)((*dest >> 0) & 0xFF);
                 
-                u32 result_r = (u32)roundf(rvl_lerp(dest_r, r, a));
-                u32 result_g = (u32)roundf(rvl_lerp(dest_g, g, a));
-                u32 result_b = (u32)roundf(rvl_lerp(dest_b, b, a));
+                u32 result_r = (u32)roundf(lerp(dest_r, r, a));
+                u32 result_g = (u32)roundf(lerp(dest_g, g, a));
+                u32 result_b = (u32)roundf(lerp(dest_b, b, a));
                 
                 *dest = (result_r << 16) | (result_g << 8) | (result_b << 0);
                 
@@ -72,17 +73,17 @@ void draw_text(Screen_Buffer *buffer, Font *font, char *text, int baseline_x, in
             src_row += font->atlas_width;
         }
         
-        pen_x += roundf(glyph.xadvance);
+        // TODO: Use floating point and just truncate to int when we need
+        pen_x += (int)roundf(glyph.xadvance);
     }
 }
 
-
 void draw_rectangle(Screen_Buffer *buffer, Rect2i rect, Colour colour)
 {
-    int x0 = rvl_clamp(rect.min.x, 0, buffer->width);
-    int y0 = rvl_clamp(rect.min.y, 0, buffer->height);
-    int x1 = rvl_clamp(rect.max.x, 0, buffer->width);
-    int y1 = rvl_clamp(rect.max.y, 0, buffer->height);
+    int x0 = clamp(rect.min.x, 0, buffer->width);
+    int y0 = clamp(rect.min.y, 0, buffer->height);
+    int x1 = clamp(rect.max.x, 0, buffer->width);
+    int y1 = clamp(rect.max.y, 0, buffer->height);
     
     u8 *row = (u8 *)buffer->data + x0*Screen_Buffer::BYTES_PER_PIXEL + y0*buffer->pitch;
     for (int y = y0; y < y1; ++y)
@@ -97,47 +98,13 @@ void draw_rectangle(Screen_Buffer *buffer, Rect2i rect, Colour colour)
     }
 }
 
-Simple_Bitmap
-make_empty_bitmap(int width, int height)
-{
-    rvl_assert(width > 0 && height > 0);
-    Simple_Bitmap bitmap = {};
-    bitmap.width = width;
-    bitmap.height = height;
-    bitmap.pixels = (u32 *)xalloc(width * height * bitmap.BYTES_PER_PIXEL);
-    memset(bitmap.pixels, 0, width*height*bitmap.BYTES_PER_PIXEL);
-    
-    return bitmap;
-}
-
-
-Simple_Bitmap
-make_bitmap(int width, int height, u32 colour)
-{
-    rvl_assert(width > 0 && height > 0);
-    Simple_Bitmap bitmap = {};
-    bitmap.width = width;
-    bitmap.height = height;
-    bitmap.pixels = (u32 *)xalloc(width * height * bitmap.BYTES_PER_PIXEL);
-    u32 *dest = bitmap.pixels;
-    for (int y = 0; y < height; ++y)
-    {
-        for (int x = 0; x < width; ++x)
-        {
-            *dest++ = colour;
-        }
-    }
-    
-    return bitmap;
-}
-
 
 void
 draw_simple_bitmap(Screen_Buffer *buffer, Simple_Bitmap *bitmap, int buffer_x, int buffer_y)
 {
     if (!bitmap->pixels || bitmap->width == 0 || bitmap->height == 0)
     {
-        rvl_assert(0);
+        Assert(0);
         return;
     }
     
@@ -200,13 +167,13 @@ draw_simple_bitmap(Screen_Buffer *buffer, Simple_Bitmap *bitmap, int buffer_x, i
 void
 render_gui(Screen_Buffer *buffer, Database *database, Day_View *day_view, Font *font)
 {
-    rvl_assert(day_view);
-    rvl_assert(buffer);
-    rvl_assert(database);
-    rvl_assert(font);
+    Assert(day_view);
+    Assert(buffer);
+    Assert(database);
+    Assert(font);
     
     // Fill Background
-    draw_rectangle(buffer, Rect2i{{0, 0}, {buffer->width, buffer->height}}, RGB_COLOUR(1.0f, 1.0f, 1.0f));
+    draw_rectangle(buffer, Rect2i{{0, 0}, {buffer->width, buffer->height}}, RGB_NORMAL(1.0f, 1.0f, 1.0f));
     
     int canvas_x = 200;
     int canvas_y = 0;
@@ -214,7 +181,7 @@ render_gui(Screen_Buffer *buffer, Database *database, Day_View *day_view, Font *
     int canvas_height = 540;
     
     Rect2i canvas = {{canvas_x, canvas_y}, {canvas_x + canvas_width, canvas_y + canvas_height}};
-    draw_rectangle(buffer, canvas, RGB_COLOUR(0.9f, 0.9f, 0.9f));
+    draw_rectangle(buffer, canvas, RGB_NORMAL(0.9f, 0.9f, 0.9f));
     
     int bar_thickness = 30;
     int bar_spacing = 10;
@@ -242,7 +209,7 @@ render_gui(Screen_Buffer *buffer, Database *database, Day_View *day_view, Font *
     draw_rectangle(buffer, y_axis, 0.0f, 0.0f, 0.0f);
 #endif
     
-    rvl_assert(day_view->day_count > 0);
+    Assert(day_view->day_count > 0);
     Day *today = day_view->days[day_view->day_count-1];
     
     if (today->record_count == 0) return;
@@ -263,7 +230,7 @@ render_gui(Screen_Buffer *buffer, Database *database, Day_View *day_view, Font *
         Program_Record &record = sorted_records[i];
         
         double scale = (record.duration / max_duration);
-        int bar_length = max_bar_length * scale;
+        int bar_length = (int)(max_bar_length * scale);
         Rect2i bar = {{0, 0}, {bar_length, bar_thickness}};
         
         bar.min += bar_origin;
@@ -275,9 +242,9 @@ render_gui(Screen_Buffer *buffer, Database *database, Day_View *day_view, Font *
         
         {
             r32 t = (r32)i/bar_count;
-            r32 red = rvl_lerp(0.0f, 1.0f, t);
+            r32 red = lerp(0.0f, 1.0f, t);
             
-            draw_rectangle(buffer, bar, RGB_COLOUR(red, 0.0f, 0.0f));
+            draw_rectangle(buffer, bar, RGB_NORMAL(red, 0.0f, 0.0f));
             
             char text[512];
             if (record.duration < 60.0f)
@@ -309,9 +276,10 @@ render_gui(Screen_Buffer *buffer, Database *database, Day_View *day_view, Font *
             int icon_centre_x = canvas_x + (bar_origin.x - canvas_x) / 2;
             int icon_centre_y = bar.min.y + (bar.max.y - bar.min.y) / 2;
             
-            V2i icon_top_left = {icon_centre_x - (icon->width/2), icon_centre_y - (icon->height/2)};
+            int icon_top_left_x = icon_centre_x - (icon->width/2);
+            int icon_top_left_y = icon_centre_y - (icon->height/2);
             
-            draw_simple_bitmap(buffer, icon, icon_top_left.x, icon_top_left.y);
+            draw_simple_bitmap(buffer, icon, icon_top_left_x, icon_top_left_y);
         }
     }
 }
@@ -397,7 +365,7 @@ Font create_font(char *font_name, int pixel_height)
         {
             pen_x = 0;
             pen_y = max_y;
-            rvl_assert(is_space_in_atlas(atlas_width, atlas_height, width, height, pen_x, pen_y));
+            Assert(is_space_in_atlas(atlas_width, atlas_height, width, height, pen_x, pen_y));
         }
         
         u8 *src = glyph_bitmap;
