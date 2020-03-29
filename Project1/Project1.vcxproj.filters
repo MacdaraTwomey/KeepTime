@@ -36,6 +36,15 @@
     <ClInclude Include="..\code\cian.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\code\stb_image.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\code\graphics.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\code\icon.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\code\win32_monitor.cpp">
@@ -63,9 +72,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\code\file.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\code\network2.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

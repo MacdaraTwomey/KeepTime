@@ -6,7 +6,7 @@
 #include "monitor.h"
 #include "resource.h"
 #include "win32_monitor.h"
-
+#include "ui.h"
 
 #include <chrono>
 #include <vector>
@@ -23,8 +23,6 @@
 
 #include <shellapi.h>
 #include <shlobj_core.h> // SHDefExtractIconA
-
-#include <winhttp.h>
 
 #include <windows.h>
 #undef min
@@ -44,7 +42,7 @@ static_assert(sizeof(date::sys_days) == sizeof(u32), "");
 static_assert(sizeof(date::year_month_day) == sizeof(u32), "");
 
 // NOTE: Debug use only
-Simple_Bitmap global_ms_icons[5];
+Bitmap global_ms_icons[5];
 
 #include "monitor_string.cpp"
 #include "utilities.cpp" // General programming and graphics necessaries
@@ -54,21 +52,19 @@ Simple_Bitmap global_ms_icons[5];
 #include "file.cpp"    // Deals with savefile and file operations
 #include "monitor.cpp" // This deals with id, days, databases, websites, bitmap icons
 #include "draw.cpp"  // Rendering code
-
-#include "network2.cpp"
+#include "gui.cpp"
+#include "network.cpp"
 
 #define CONSOLE_ON 1
 
-static Screen_Buffer global_screen_buffer;
+static Bitmap global_screen_buffer;
 static char *global_savefile_path;
 static char *global_debug_savefile_path;
 static bool global_running = false;
-static Queue<Event> global_event_queue;
 
 // NOTE: This is only used for toggling with the tray icon.
 // Use pump messages result to check if visible to avoid the issues with value unexpectly changing.
 // Still counts as visible if minimised to the task bar.
-
 static NOTIFYICONDATA global_nid = {};
 
 static constexpr int WindowWidth = 960;
@@ -84,7 +80,6 @@ static constexpr int WindowHeight = 540;
 // * Dynamic window, button layout with resizing
 // * OpenGL graphing?
 // * Stop repeating work getting the firefox URL, maybe use UIAutomation cache?
-// * Get favicon from webpages, maybe use libcurl and a GET request for favicon.ico. Seems possible to use win32 api for this.
 
 // * Finalise GUI design (look at task manager and nothings imgui for inspiration)
 // * Make api better/clearer, especially graphics api
@@ -113,7 +108,86 @@ create_console()
     return GetStdHandle(STD_INPUT_HANDLE);
 }
 
-bool get_firefox_url(HWND window, char *URL, size_t *URL_len)
+// Ways to handle app getting the urls and path names it needs are:
+//   1. app calls platform_get_active_window() and get_names()
+//   2. app just calls get_names() but then platform has to do work of seeing if browser is part of the program path etc.
+//   3. Pass Poll_Window_Result with all necessary names/urls to app on avery update, only cantain valid names
+//      when timer has elapsed (similar to previous just app doesn't call just recieves when it needs it).
+
+struct Platform_Window
+{
+    HWND handle;
+    bool is_valid;
+};
+
+Platform_Window
+platform_get_active_window()
+{
+    // TODO: Use GetShellWindow GetShellWindow to detect when not doing anything on desktop, if foreground == desktop etc
+    
+    HWND foreground_win = GetForegroundWindow();
+    Platform_Window window = {};
+    window.handle = foreground_win;
+    window.is_valid = (foreground_win != 0);
+    return window;
+}
+
+BOOL CALLBACK
+MyEnumChildWindowsCallback(HWND hwnd, LPARAM lParam)
+{
+    // From // https://stackoverflow.com/questions/32360149/name-of-process-for-active-window-in-windows-8-10
+    Process_Ids *process_ids = (Process_Ids *)lParam;
+    DWORD pid  = 0;
+    GetWindowThreadProcessId(hwnd, &pid);
+    if (pid != process_ids->parent)
+    {
+        process_ids->child = pid;
+    }
+    
+    return TRUE; // Continue enumeration
+}
+
+bool
+platform_get_active_program(Platform_Window window, char *buf, size_t *length)
+{
+    // Must have room for program name
+    Process_Ids process_ids = {0, 0};
+    GetWindowThreadProcessId(window.handle, &process_ids.parent);
+    process_ids.child = process_ids.parent; // In case it is a normal process
+    
+    // Modern universal windows apps in 8 and 10 have the process we want inside a parent process called
+    // WWAHost.exe on Windows 8 and ApplicationFrameHost.exe on Windows 10.
+    // So we search for a child pid that is different to its parent's pid, to get the process we want.
+    // https://stackoverflow.com/questions/32360149/name-of-process-for-active-window-in-windows-8-10
+    
+    EnumChildWindows(window.handle, MyEnumChildWindowsCallback, (LPARAM)&process_ids);
+    HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, process_ids.child);
+    if (process)
+    {
+        // TODO: Try resizing full_path buffer if too small, and retrying.
+        // filename_len is overwritten with number of characters written to full_path
+        Assert(buf_size <= UINT32_MAX);
+        DWORD filename_len = (DWORD)buf_size;
+        if (QueryFullProcessImageNameA(process, 0, buffer, &filename_len))
+        {
+            CloseHandle(process);
+            *length = filename_len;
+            return true;
+        }
+        else
+        {
+            tprint("Couldn't get executable path");
+        }
+        
+        CloseHandle(process);
+    }
+    
+    *length = 0;
+    return false;
+}
+
+bool
+platform_get_firefox_url(Platform_Window window, char *URL, size_t *URL_len)
 {
     // TODO: Firefox can have multiple windows and therefore a unique active tab for each, so caching
     // needs to account for possibility of different windows.
@@ -122,6 +196,8 @@ bool get_firefox_url(HWND window, char *URL, size_t *URL_len)
     // mincore\com\oleaut32\dispatch\ups.cpp(2125)\OLEAUT32.dll!00007FFCC7DC1D33: (caller: 00007FFCC7DC1EAA) ReturnHrx(1) tid(1198) 8002801D Library not registered.
     // This error can be caused by the application requesting a newer version of oleaut32.dll than you have.
     // To fix I think you can just download newer version of oleaut32.dll.
+    
+    *URL_len = 0;
     
     // Need to create a  CUIAutomation object and retrieve an IUIAutomation interface pointer to to to access UIAutomation functionality...
     CComQIPtr<IUIAutomation> uia;
@@ -138,7 +214,7 @@ bool get_firefox_url(HWND window, char *URL, size_t *URL_len)
     
     // Clients use methods exposed by the IUIAutomation interface to retrieve IUIAutomationElement interfaces for UI elements in the tree
     CComPtr<IUIAutomationElement> element;
-    if(FAILED(uia->ElementFromHandle(window, &element)) || !element)
+    if(FAILED(uia->ElementFromHandle(window.handle, &element)) || !element)
         return false;
     
     // NOTE:
@@ -157,9 +233,6 @@ bool get_firefox_url(HWND window, char *URL, size_t *URL_len)
     CComPtr<IUIAutomationCondition> editbox_cond;
     uia->CreatePropertyCondition(UIA_ControlTypePropertyId,
                                  CComVariant(UIA_EditControlTypeId), &editbox_cond);
-    
-    
-    
     
     // TODO:
     // This AND condition finds the navigation toolbar straight away, rather than other one looping
@@ -255,6 +328,7 @@ bool get_firefox_url(HWND window, char *URL, size_t *URL_len)
             // From MSVC: To convert from a BSTR, use COLE2[C]DestinationType[EX], such as COLE2T.
             // An OLE character is a Wide (W) character, a TCHAR is a Wide char if _UNICODE defined, elsewise it is an ANSI char
             
+            // TODO: USe MultibyteToWideChar
             // BSTR is a pointer to a wide character, with a byte count before the pointer and a (2 byte?) null terminator
             if (bstr.bstrVal)
             {
@@ -268,11 +342,7 @@ bool get_firefox_url(HWND window, char *URL, size_t *URL_len)
                     Assert(len == strlen(URL));
                 }
                 
-                *URL_len = len;
-            }
-            else
-            {
-                *URL_len = 0;
+                *length = len;
             }
             
             // need to call SysFreeString?
@@ -280,267 +350,45 @@ bool get_firefox_url(HWND window, char *URL, size_t *URL_len)
             return true;
         }
     }
+    
     return false;
 }
 
-
 void
-resize_screen_buffer(Screen_Buffer *buffer, int new_width, int new_height)
+win32_resize_screen_buffer(Bitmap *buffer, int new_width, int new_height)
 {
-    if (buffer->data)
-    {
-        free(buffer->data);
-    }
+    if (buffer->pixels) free(buffer->pixels);
     
     buffer->width = new_width;
     buffer->height = new_height;
-    
-    buffer->bitmap_info = {};
-    buffer->bitmap_info.bmiHeader.biSize = sizeof(buffer->bitmap_info.bmiHeader);
-    buffer->bitmap_info.bmiHeader.biWidth = buffer->width;
-    buffer->bitmap_info.bmiHeader.biHeight = -buffer->height; // Negative height to tell Windows this is a top-down bitmap
-    buffer->bitmap_info.bmiHeader.biPlanes = 1;
-    buffer->bitmap_info.bmiHeader.biBitCount = 32;
-    buffer->bitmap_info.bmiHeader.biCompression = BI_RGB;
-    
-    buffer->pitch = buffer->width * Screen_Buffer::BYTES_PER_PIXEL;
-    buffer->data = xalloc((buffer->width * buffer->height) * Screen_Buffer::BYTES_PER_PIXEL);
+    buffer->pitch = buffer->width * Bitmap::BYTES_PER_PIXEL;
+    buffer->pixels = (u32 *)xalloc(buffer->pitch * buffer->height);
 }
 
-
-
 void
-paint_window(Screen_Buffer *buffer, HDC device_context, int window_width, int window_height)
+win32_paint_window(Bitmap *buffer, HDC device_context)
 {
-    // Causing window flickering
-#if 0
-    PatBlt(device_context,
-           0, 0,
-           buffer->width, buffer->height,
-           BLACKNESS);
-#endif
-    // GetClientRect gets slightly smaller dimensions
-    //Assert(window_width == buffer->width && window_height == buffer->height);
+    // TODO: GetClientRect gets slightly smaller dimensions, why??
     
-    // TODO: finitialise BITMAPINFO struct in here everytime called, or make it a static struct??
+    BITMAPINFO bitmap_info = {};
+    bitmap_info.bmiHeader.biSize = sizeof(bitmap_info.bmiHeader);
+    bitmap_info.bmiHeader.biWidth = buffer->width;
+    bitmap_info.bmiHeader.biHeight = -buffer->height; // Negative height to tell Windows this is a top-down bitmap
+    bitmap_info.bmiHeader.biPlanes = 1;
+    bitmap_info.bmiHeader.biBitCount = 32;
+    bitmap_info.bmiHeader.biCompression = BI_RGB;
     
-    // Don't stretch for now, just to keep things simple
+    // Could use this instead
+    // SetDIBitsToDevice
     StretchDIBits(device_context,
                   0, 0,                          // dest rect upper left coordinates
                   buffer->width, buffer->height, // dest rect width height
                   0, 0,                          // src upper left coordinates
                   buffer->width, buffer->height, // src rect width height
-                  buffer->data,
-                  &buffer->bitmap_info,
+                  buffer->pixels,
+                  &bitmap_info,
                   DIB_RGB_COLORS,
                   SRCCOPY);
-}
-
-
-BOOL CALLBACK
-MyEnumChildWindowsCallback(HWND hwnd, LPARAM lParam)
-{
-    // From // https://stackoverflow.com/questions/32360149/name-of-process-for-active-window-in-windows-8-10
-    Process_Ids *process_ids = (Process_Ids *)lParam;
-    DWORD pid  = 0;
-    GetWindowThreadProcessId(hwnd, &pid);
-    if (pid != process_ids->parent)
-    {
-        process_ids->child = pid;
-    }
-    
-    return TRUE; // Continue enumeration
-}
-
-size_t
-get_forground_window_path(HWND foreground_win, char *buffer, size_t buf_size)
-{
-    // TODO: Use GetShellWindow GetShellWindow to detect when not doing anything on desktop, if foreground == desktop etc
-    
-    // Must have room for program name
-    size_t len = 0;
-    if (foreground_win)
-    {
-        Process_Ids process_ids = {0, 0};
-        GetWindowThreadProcessId(foreground_win, &process_ids.parent);
-        process_ids.child = process_ids.parent; // In case it is a normal process
-        
-        // Modern universal windows apps in 8 and 10 have the process we want inside a parent process called
-        // WWAHost.exe on Windows 8 and ApplicationFrameHost.exe on Windows 10.
-        // So we search for a child pid that is different to its parent's pid, to get the process we want.
-        // https://stackoverflow.com/questions/32360149/name-of-process-for-active-window-in-windows-8-10
-        
-        EnumChildWindows(foreground_win, MyEnumChildWindowsCallback, (LPARAM)&process_ids);
-        HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, process_ids.child);
-        if (process)
-        {
-            // TODO: Try resizing full_path buffer if too small, and retrying.
-            // filename_len is overwritten with number of characters written to full_path
-            Assert(buf_size <= UINT32_MAX);
-            DWORD filename_len = (DWORD)buf_size;
-            if (QueryFullProcessImageNameA(process, 0, buffer, &filename_len))
-            {
-                CloseHandle(process);
-                return (size_t)filename_len;
-            }
-            else
-            {
-                tprint("Couldn't get executable path");
-            }
-            
-            CloseHandle(process);
-        }
-    }
-    
-    strcpy(buffer, "fairyland/No Window.exe");
-    len = strlen("fairyland/No Window.exe");
-    
-    return len;
-}
-
-struct Window_Info
-{
-    char   full_path[MaxPathLen + 1];
-    char   program_name[MaxPathLen + 1];
-    size_t full_path_len;
-    size_t program_name_len;
-};
-
-void
-get_window_info(HWND window, Window_Info *info)
-{
-    size_t full_path_len     = get_forground_window_path(window, info->full_path, array_count(info->full_path));
-    char *name_start         = get_filename_from_path(info->full_path);
-    size_t  program_name_len = strlen(name_start);
-    
-    for (int i = 0; i < full_path_len; ++i)
-    {
-        info->full_path[i] = tolower(info->full_path[i]);
-    }
-    
-    Assert(program_name_len > 4 && strcmp(name_start + (program_name_len - 4), ".exe") == 0);
-    
-    program_name_len -= 4;
-    memcpy(info->program_name, name_start, program_name_len); // Don't copy '.exe' from end
-    info->program_name[program_name_len] = '\0';
-    
-    info->program_name_len = program_name_len;
-    info->full_path_len = full_path_len;
-}
-
-void
-poll_windows(Database *database, double dt)
-{
-    Assert(database);
-    
-    HWND foreground_win = GetForegroundWindow();
-    if (!foreground_win) return;
-    
-    Window_Info window_info = {};
-    get_window_info(foreground_win, &window_info);
-    
-    // If this is a good feature then just pass in created HWND and test
-    // if (strcmp(winndow_info->full_path, "c:\\dev\\projects\\monitor\\build\\monitor.exe") == 0) return;
-    
-    u32 record_id = 0;
-    
-    bool program_is_firefox = (strcmp(window_info.program_name, "firefox") == 0);
-    bool add_to_executables = !program_is_firefox;
-    
-    if (program_is_firefox)
-    {
-        // TODO: Maybe cache last url to quickly get record without comparing with keywords, retrieving record etc
-        
-        // TODO: If we get a URL but it has no url features like www. or https:// etc
-        // it is probably someone just writing into the url bar, and we don't want to save these
-        // as urls.
-        char url[2100];
-        size_t url_len = 0;
-        bool success = get_firefox_url(foreground_win, url, &url_len);
-        
-        bool keyword_match = false;
-        Keyword *keyword = find_keywords(url, database->keywords, database->keyword_count);
-        if (keyword)
-        {
-            bool website_is_stored = false;
-            for (i32 website_index = 0; website_index < database->website_count; ++website_index)
-            {
-                if (database->websites[website_index].id == keyword->id)
-                {
-                    website_is_stored = true;
-                    break;
-                }
-            }
-            
-            if (!website_is_stored)
-            {
-                Assert(database->website_count < MaxWebsiteCount);
-                
-                Website *website = &database->websites[database->website_count];
-                website->id = keyword->id;
-                website->website_name = clone_string(keyword->str);
-                
-                database->website_count += 1;
-            }
-            
-            record_id = keyword->id;
-            
-            // HACK: We would like to treat websites and programs the same and just index their icons
-            // in a smarter way maybe.
-            if (!database->firefox_path.updated_recently)
-            {
-                if (database->firefox_path.path) free(database->firefox_path.path);
-                
-                database->firefox_path.path = clone_string(window_info.full_path, window_info.full_path_len);
-                database->firefox_path.updated_recently = true;
-                database->firefox_id = keyword->id;
-                
-            }
-        }
-        else
-        {
-            add_to_executables = true;
-        }
-        
-        if (!database->firefox_icon.pixels)
-        {
-            char *firefox_path = window_info.full_path;
-            database->firefox_icon = {};
-            bool success = get_icon_from_executable(firefox_path, ICON_SIZE, &database->firefox_icon, true);
-            Assert(success);
-        }
-    }
-    
-    if (add_to_executables)
-    {
-        u32 temp_id = 0;
-        bool in_table = database->all_programs.search(window_info.program_name, &temp_id);
-        if (!in_table)
-        {
-            temp_id = make_id(database, Record_Exe);
-            database->all_programs.add_item(window_info.program_name, temp_id);
-        }
-        
-        record_id = temp_id;
-        
-        // TODO: This is similar to what happens to firefox path and icon, needs collapsing.
-        Assert(!(temp_id & (1 << 31)));
-        if (!in_table || (in_table && !database->paths[temp_id].updated_recently))
-        {
-            
-            if (in_table && database->paths[temp_id].path)
-            {
-                free(database->paths[temp_id].path);
-            }
-            database->paths[temp_id].path = clone_string(window_info.full_path);
-            database->paths[temp_id].updated_recently = true;
-        }
-    }
-    
-    Assert(database->day_count > 0);
-    Day *current_day = &database->days[database->day_count-1];
-    
-    update_days_records(current_day, record_id, dt);
 }
 
 LRESULT CALLBACK
@@ -549,11 +397,11 @@ WinProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
     LRESULT result = 0;
     switch (msg)
     {
+        // We use windows timer so we can wake up waiting on input events
         case WM_TIMER:
         {
-            Event e = {};
-            e.type = Event_Poll_Programs;
-            global_event_queue.enqueue(e);
+            // TODO: Not sure if this is the best way
+            ui_set_timer_elapsed();
         } break;
         
         
@@ -572,7 +420,6 @@ WinProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
         
         // If you want to destroy the window you can call DestroyWindow when WM_CLOSE recieved
         // or can return 0 from case statement and the OS will ignore message
-        
         
         case WM_CLOSE:
         {
@@ -615,129 +462,32 @@ WinProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
         
         case WM_CREATE:
         {
-            // TODO: This may not be true in final version
-            Event e = {};
-            e.type = Event_GUI_Open;
-            global_event_queue.enqueue(e);
-            
             SetWindowText(window, "This is the Title Bar");
-            
-            // TODO: Should I prefix strings with an L?   L"string here"
-            
-            // Alse creating a static control to allow printing text
-            // This needs its own message loop
-            
-            V2i button_pos = {30, 30};
-            int button_width = 100;
-            int button_height = 100;
-            HINSTANCE instance = GetModuleHandle(NULL);
-            HWND day_button = CreateWindow("BUTTON",
-                                           "DAY",
-                                           WS_VISIBLE|WS_CHILD|BS_PUSHBUTTON,
-                                           button_pos.x, button_pos.y,
-                                           button_width, button_height,
-                                           window,
-                                           (HMENU)ID_DAY_BUTTON,
-                                           instance, NULL);
-            button_pos.y += button_height + 30;
-            HWND week_button = CreateWindow("BUTTON",
-                                            "WEEK",
-                                            WS_VISIBLE|WS_CHILD|BS_PUSHBUTTON,
-                                            button_pos.x, button_pos.y,
-                                            button_width, button_height,
-                                            window,
-                                            (HMENU)ID_WEEK_BUTTON,
-                                            instance, NULL);
-            button_pos.y += button_height + 30;
-            HWND month_button = CreateWindow("BUTTON",
-                                             "MONTH",
-                                             WS_VISIBLE|WS_CHILD|BS_PUSHBUTTON,
-                                             button_pos.x, button_pos.y,
-                                             button_width, button_height,
-                                             window,
-                                             (HMENU)ID_MONTH_BUTTON,
-                                             instance, NULL);
             
             // TODO: To maintain compatibility with older and newer versions of shell32.dll while using
             // current header files may need to check which version of shell32.dll is installed so the
             // cbSize of NOTIFYICONDATA can be initialised correctly.
             // https://docs.microsoft.com/en-us/windows/win32/api/shellapi/ns-shellapi-notifyicondataa
             
+            global_nid = {};
             global_nid.cbSize = sizeof(NOTIFYICONDATA);
             global_nid.hWnd = window;
-            // Not sure why we need this
-            global_nid.uID = ID_TRAY_APP_ICON;
+            global_nid.uID = ID_TRAY_APP_ICON; // // Not sure why we need this
             global_nid.uFlags = NIF_ICON|NIF_MESSAGE|NIF_TIP;
-            // This user invented message is sent when mouse event occurs or hovers over tray icon, or when icon selected or activated from keyboard
             global_nid.uCallbackMessage = CUSTOM_WM_TRAY_ICON;
             // Recommented you provide 32x32 icon for higher DPI systems
             // Can use LoadIconMetric to specify correct one with correct settings is used
-            global_nid.hIcon = (HICON)LoadIcon(instance, MAKEINTRESOURCE(MAIN_ICON_ID));
+            global_nid.hIcon = (HICON)LoadIcon(GetModuleHandle(NULL), MAKEINTRESOURCE(MAIN_ICON_ID));
             
-            // Maybe this should say "running"?
+            // TODO: This should say "running"
             TCHAR tooltip[] = {"Tooltip dinosaur"}; // Use max 64 chars
             strncpy(global_nid.szTip, tooltip, sizeof(tooltip));
             
-            
-            // Adds icon to status area (I think)
-            // TODO: Should this be in WM_ACTIVATE?
-            BOOL success = Shell_NotifyIconA(NIM_ADD, &global_nid);
-            if (!success)
-            {
-                tprint("Error: Couldn't create notify icon\n");;
-            }
-            
-            
-            // Only available on Windows 2000 and up. Allows you to recieve WM_CONTEXTMENU, NIN_KEYSELECT and NIN_SELECT etc message from icon instead of WM LEFT/RIGHT BUTTON UP/DOWN.
-            // Prefer version 4
-            //nid.uVersion = NOTIFYICON_VERSION_4;
-            //Shell_NotifyIconA(NIM_SETVERSION, &nid);
+            Shell_NotifyIconA(NIM_ADD, &global_nid);
         } break;
         
-        
-        // It seems that pressing a button gives it the keyboard focus (shown by grey dotted border) and takes away the main windows keyboard focus.
-        // These are sent directly to WinProc can't PeekMessage them.
-        case WM_COMMAND:
-        {
-            switch (HIWORD(wParam))
-            {
-                case BN_CLICKED:
-                {
-                    
-                    Event e = {};
-                    e.type = Event_Button_Click;
-                    if (ID_DAY_BUTTON == LOWORD(wParam))
-                    {
-                        e.button = Button_Day;
-                    }
-                    else if (ID_WEEK_BUTTON == LOWORD(wParam))
-                    {
-                        e.button = Button_Week;
-                    }
-                    else if (ID_MONTH_BUTTON == LOWORD(wParam))
-                    {
-                        e.button = Button_Month;
-                    }
-                    else
-                    {
-                        Assert(0);
-                    }
-                    
-                    global_event_queue.enqueue(e);
-                    
-                    // Return keyboard focus to parent
-                    SetFocus(window);
-                    
-                } break;
-            }
-        } break;
-        
-        
-        // Much copied from:
-        //https://github.com/microsoft/Windows-classic-samples/blob/master/Samples/Win7Samples/winui/shell/appshellintegration/NotificationIcon/NotificationIcon.cpp
         case CUSTOM_WM_TRAY_ICON:
         {
-            //print_tray_icon_message(lParam);
             switch (LOWORD(lParam))
             {
                 case WM_RBUTTONUP:
@@ -749,17 +499,13 @@ WinProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
                     // NOTE: For now we just toggle with tray icon but, we will in future toggle with X button
                     if (IsWindowVisible(window))
                     {
-                        Event e = {};
-                        e.type = Event_GUI_Close;
-                        global_event_queue.enqueue(e);
+                        gui_set_visibility_changed(Window_Hidden);
                         
                         ShowWindow(window, SW_HIDE);
                     }
                     else
                     {
-                        Event e = {};
-                        e.type = Event_GUI_Open;
-                        global_event_queue.enqueue(e);
+                        gui_set_visibility_changed(Window_Shown);
                         
                         // TODO: This doesn't seem to 'fully activate' the window. The title bar is in focus but cant input escape key. So seem to need to call SetForegroundWindow
                         ShowWindow(window, SW_SHOW);
@@ -779,29 +525,53 @@ WinProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
             }
         } break;
         
+        case WM_MOUSEMOVE:
+        set_mouse_button_state(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), Mouse_Move);
+        break;
+        
+        case WM_LBUTTONUP:
+        set_mouse_button_state(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), Mouse_Left_Up);
+        break;
+        
+        case WM_LBUTTONDOWN:
+        set_mouse_button_state(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), Mouse_Left_Down);
+        break;
+        
+        case WM_RBUTTONUP:
+        set_mouse_button_state(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), Mouse_Right_Up);
+        break;
+        
+        case WM_RBUTTONDOWN:
+        set_mouse_button_state(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), Mouse_Right_Down);
+        break;
+        
+        case WM_MOUSEWHEEL:
+        set_mouse_wheel_state(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), GET_WHEEL_DELTA_WPARAM(wParam));
+        break;
         
         // WM_SIZE and WM_PAINT messages recieved when window resized,
+        // WM_SIZE can be sent directly to WndProc
         case WM_PAINT:
         {
             // Sometimes your program will initiate painting, sometimes will get sent WM_PAINT
             // Only responsible for repainting client area
-            
             PAINTSTRUCT ps;
             HDC device_context = BeginPaint(window, &ps);
-            
-            RECT rect;
-            GetClientRect(window, &rect);
-            int width = rect.right - rect.left;
-            int height = rect.bottom - rect.top;
-            
             // When window is resized, the process is suspended and recieves WM_PAINT
-            paint_window(&global_screen_buffer, device_context, width, height);
-            
+            win32_paint_window(&global_screen_buffer, device_context);
             EndPaint(window, &ps);
         } break;
         
-        
-        
+#if 0
+        case WM_SIZE:
+        {
+            // Is invalidate rect even needed/
+            InvalidateRect();
+            
+            // NOTE: Very dangerous that this could be resized 'while' we're writing to it in the app layer.
+            win32_resize_screen_buffer();
+        } break;
+#endif
         default:
         result = DefWindowProcA(window, msg, wParam, lParam);
         break;
@@ -809,26 +579,6 @@ WinProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
     
     return result;
 }
-
-// TODO: Do we even need a pump messages or just handle everying in def window proc with GetMessage loop
-void
-pump_messages()
-{
-    MSG msg;
-    while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
-    {
-        switch (msg.message)
-        {
-            default:
-            {
-                TranslateMessage(&msg);
-                DispatchMessageA(&msg);
-            } break;
-        }
-    }
-}
-
-
 
 int WINAPI
 WinMain(HINSTANCE instance,
@@ -867,35 +617,23 @@ WinMain(HINSTANCE instance,
     // If already running just open/show GUI, or if already open do nothing.
     // FindWindowA();
     
-    // On icons and resources from Forger's tutorial
-    // The icon shown on executable file in explorer is the icon with lowest numerical ID in the program's resources. Not necessarily the one we load while running.
-    
-    // You can create menus by specifying them in the .rc file or by specifying them at runtime, with AppendMenu etc
-    
-    // Better to init this before we even can recieve messages
-    
     for (int i = 0; i < array_count(global_ms_icons); ++i)
     {
         HICON ico = LoadIconA(NULL, MAKEINTRESOURCE(32513 + i));
         global_ms_icons[i] = get_icon_bitmap(ico);
     }
     
-    resize_screen_buffer(&global_screen_buffer, WindowWidth, WindowHeight);
-    
-    init_queue(&global_event_queue, 100);
-    
-    Font font = create_font("c:\\windows\\fonts\\times.ttf", 28);
+    win32_resize_screen_buffer(&global_screen_buffer, WindowWidth, WindowHeight);
     
     WNDCLASS window_class = {};
-    window_class.style = CS_HREDRAW|CS_VREDRAW;
-    window_class.lpfnWndProc = WinProc;
-    window_class.hInstance = instance;
-    window_class.hIcon =  LoadIcon(instance, MAKEINTRESOURCE(MAIN_ICON_ID)); // Function looks for resource with this ID,
-    window_class.hCursor = LoadCursor(NULL, IDC_ARROW);
-    // window_class_ex.hIconsm = ; OS may still look in ico file for small icon anyway
-    // window_class.hbrBackground;
-    // window_class.lpszMenuName
+    window_class.style         = CS_HREDRAW|CS_VREDRAW;
+    window_class.lpfnWndProc   = WinProc;
+    window_class.hInstance     = instance;
+    window_class.hIcon         =  LoadIcon(instance, MAKEINTRESOURCE(MAIN_ICON_ID));
+    window_class.hCursor       = LoadCursor(NULL, IDC_ARROW);
+    window_class.lpszMenuName  = "Monitor";
     window_class.lpszClassName = "MonitorWindowClassName";
+    //window_classex.hIconsm   = LoadIcon(instance, MAKEINTRESOURCE(MAIN_ICON_ID)); // OS may still look in ico file for small icon anyway
     
     if (!RegisterClassA(&window_class))
     {
@@ -916,222 +654,53 @@ WinMain(HINSTANCE instance,
     ShowWindow(window, cmd_show);
     UpdateWindow(window); // This sends WM_PAINT message so make sure screen buffer is initialised
     
-    //remove(global_savefile_path);
-    //remove(global_debug_savefile_path);
-    
-    // mit very screwed
-    // stack overflow, google has extra row on top?
-    // onesearch.library.uwa.edu.au is 8 bit
-    // teaching.csse.uwa.edu.au hangs forever, maybe because not SSL?
-    // scotthyoung.com 8 bit bitmap, seems fully transparent, maybe aren't using AND mask right?
-    // http://ukulelehunt.com/ not SSL, getting Success read 0 bytes
-    // forum.ukuleleunderground.com 15x16 icon, seemed to render fine though...
-    // onesearch has a biSizeImage = 0, and bitCount = 8, and did set the biClrUsed field to 256, when icons shouldn't
-    // voidtools.com
-    // getmusicbee.com
-    // mozilla.org   8bpp seems the and mask is empty the way i'm trying to read it
-    
-    // lots of smaller websites dont have an icon under /favicon.ico, e.g. ukulele sites
-    
-    // maths doesn't seem to work out calcing and_mask size ourmachinery.com
-    
-    // craftinginterpreters.com colour channels messed up?
-    
-    // TODO: Validate url and differentiate from user just typing in address bar
-    
-    
-    String url = make_string_from_literal("https://www.youtube.com");
-    
-    Size_Data icon_file = {};
-    bool request_success = request_icon_from_url(url, &icon_file);
-    
-    Simple_Bitmap favicon = {};
-    if (request_success)
-    {
-        // TODO: Can also decode jpeg, gif, bmp etc
-        if (file_is_png(icon_file.data, icon_file.size))
-        {
-            // stbi_uc
-            int x = 0;
-            int y = 0;
-            int channels_in_file = 0;
-            int desired_channels = STBI_rgb_alpha;
-            u8 * png_icon = stbi_load_from_memory(icon_file.data, icon_file.size, &x, &y, &channels_in_file, desired_channels);
-            if (png_icon)
-            {
-                favicon.width = x;
-                favicon.height = y;
-                favicon.pixels = (u32 *)png_icon;
-            }
-        }
-        else
-        {
-            favicon = get_bitmap_from_ico_file(icon_file.data, icon_file.size, 128);
-        }
-    }
-    else
-    {
-        tprint("Request failure");
-        favicon = make_bitmap(10, 10, RGBA(0, 0, 255, 255));
-    }
-    
-    Header header = {};
-    
-    Database database;
-    init_database(&database);
-    add_keyword(&database, "CITS3003");
-    add_keyword(&database, "youtube");
-    add_keyword(&database, "docs.microsoft");
-    add_keyword(&database, "eso-community");
-    
-    start_new_day(&database, floor<date::days>(System_Clock::now()));
-    
-    // Strings:
-    // name of program
-    // full path of program
-    // full URL of browser tab
-    // keywords specified by user
-    
-    time_type added_times = 0;
-    time_type duration_accumulator = 0;
-    
-    auto old_time = Steady_Clock::now();
-    auto loop_start = Steady_Clock::now();
-    
-    DWORD sleep_milliseconds = 60;
+    if (IsWindowVisible(window)) ui_set_visibility_changed(Window_Shown);
     
     // Can't set lower than 10ms, not that you'd want to.
     // Can specify callback to call instead of posting message.
-    SetTimer(window, 0, (UINT)sleep_milliseconds, NULL);
+    DWORD poll_milliseconds = 10;
+    SetTimer(window, 0, (UINT)poll_milliseconds, NULL);
     
-    Day_View day_view = {};
-    bool gui_visible = (bool)IsWindowVisible(window);
+    auto old_time = Steady_Clock::now();
+    
+    // THis may just be temporary.
+    Monitor_State monitor_state = {};
+    monitor_state.is_initialised = false;
     
     global_running = true;
-    while (global_running) // main loop
+    while (global_running)
     {
         WaitMessage();
-        pump_messages(); // Need this to translate and dispatch messages.
-        
-        Button button = Button_Invalid;
-        bool button_clicked = false;
-        bool gui_opened = false;
-        bool gui_closed = false;
-        bool poll_programs = false;
-        
-        while (!global_event_queue.empty())
+        MSG msg;
+        while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
         {
-            Event e = global_event_queue.dequeue();
-            if (e.type == Event_Button_Click)
-            {
-                button_clicked = true;
-                button = e.button;
-            }
-            else if (e.type == Event_GUI_Open)
-            {
-                gui_opened = true;
-                gui_closed = false;
-                gui_visible = true;
-            }
-            else if (e.type == Event_GUI_Close)
-            {
-                gui_opened = false;
-                gui_closed = true;
-                gui_visible = false;
-            }
-            else if (e.type == Event_Poll_Programs)
-            {
-                poll_programs = true;
-            }
+            TranslateMessage(&msg);
+            DispatchMessageA(&msg);
         }
         
+        // Steady clock also accounts for time paused in debugger etc, so can introduce bugs that aren't there normally when debugging.
         auto new_time = Steady_Clock::now();
         std::chrono::duration<time_type> diff = new_time - old_time;
         old_time = new_time;
-        time_type dt = diff.count();
+        float dt = diff.count();
         
-        // Steady clock also accounts for time paused in debugger etc, so can introduce bugs that aren't there
-        // normally when debugging.
-        duration_accumulator += dt;
+        // Maybe pass in poll stuff here which would allow us to avoid timer stuff in app layer,
+        // or could call poll windows from app layer, when we recieve a timer elapsed flag.
+        update_and_render(&monitor_state, &global_screen_buffer, dt);
         
-        // speed up time!!!
-        // int seconds_per_day = 5;
-        //sys_days current_date = floor<date::days>(System_Clock::now()) + date::days{(int)duration_accumulator / seconds_per_day};
-        
-        sys_days current_date = floor<date::days>(System_Clock::now());
-        if (current_date != database.days[database.day_count-1].date)
-        {
-            start_new_day(&database, current_date);
-        }
-        if (poll_programs)
-        {
-            poll_windows(&database, dt);
-        }
-        
-#if 0
-        if (gui_opened)
-        {
-            // Save a freeze frame of the currently saved days.
-            init_day_view(&database, &day_view);
-        }
-        if (gui_closed)
-        {
-            destroy_day_view(&day_view);
-        }
-#endif
-        init_day_view(&database, &day_view);
-        
-        if (button_clicked)
-        {
-            Button button_clicked = Button_Day;
-            
-            i32 period =
-                (button_clicked == Button_Day) ? 1 :
-            (button_clicked == Button_Week) ? 7 : 30;
-            
-            set_range(&day_view, period, current_date);
-        }
-        
-        
-        if (gui_visible)
-        {
-            // TODO: Move to system where we more tell renderer what to draw
-            // this would also stop needing to get_icon__from_database in render
-            
-            render_gui(&global_screen_buffer, &database, &day_view, &font);
-        }
-        
-        destroy_day_view(&day_view);
-        
-        if (favicon.pixels)
-        {
-            draw_simple_bitmap(&global_screen_buffer, &favicon, 200, 200);
-        }
-        
-        // Don't sleep if GUI opened
-        // Just wait for messages I guess
+        // Maybe we want to call this from in the app layer because we might not always wan't to update on an event
         {
             HDC device_context = GetDC(window);
-            
-            RECT rect;
-            GetClientRect(window, &rect);
-            int width = rect.right - rect.left;
-            int height = rect.bottom - rect.top;
-            paint_window(&global_screen_buffer, device_context, width, height);
-            
+            win32_paint_window(&global_screen_buffer, device_context);
             ReleaseDC(window, device_context);
         }
-    } // END LOOP
-    
-    auto loop_end = Steady_Clock::now();
-    std::chrono::duration<time_type> loop_time = loop_end - loop_start;
+    }
     
     // Save to file TODO: (implement when file structure is not changing)
     
-    free_table(&database.all_programs);
-    
-    free(font.atlas);
-    free(font.glyphs);
+    //free_table(&database.all_programs);
+    //free(font.atlas);
+    //free(font.glyphs);
     
     // Just in case we exit using ESCAPE
     Shell_NotifyIconA(NIM_DELETE, &global_nid);
@@ -1236,7 +805,7 @@ for (int i = 0; i < array_count(names); ++i, ++col)
         col = 0;
     }
     
-    Simple_Bitmap icon_bitmap = get_icon_from_executable(names[i], size);
+    Bitmap icon_bitmap = get_icon_from_executable(names[i], size);
     
     
     

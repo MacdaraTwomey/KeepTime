@@ -11,7 +11,7 @@ file_is_png(u8 *file_data, size_t length)
 }
 
 void
-render_icon_to_bitmap_32(int width, int height, u8 *XOR, Simple_Bitmap *bitmap)
+render_icon_to_bitmap_32(int width, int height, u8 *XOR, Bitmap *bitmap)
 {
     int pitch = width * 4;
     
@@ -31,7 +31,7 @@ render_icon_to_bitmap_32(int width, int height, u8 *XOR, Simple_Bitmap *bitmap)
 
 
 void
-render_icon_to_bitmap_32_no_alpha(int width, int height, u8 *XOR, u8 *AND, Simple_Bitmap *bitmap)
+render_icon_to_bitmap_32_no_alpha(int width, int height, u8 *XOR, u8 *AND, Bitmap *bitmap)
 {
     int xor_pitch = width * 4;
     int and_pitch = width / 8;
@@ -64,7 +64,7 @@ render_icon_to_bitmap_32_no_alpha(int width, int height, u8 *XOR, u8 *AND, Simpl
 }
 
 void
-render_icon_to_bitmap_16(int width, int height, u8 *XOR, u8 *AND, MY_RGBQUAD *table, Simple_Bitmap *bitmap)
+render_icon_to_bitmap_16(int width, int height, u8 *XOR, u8 *AND, MY_RGBQUAD *table, Bitmap *bitmap)
 {
     u32 *dest = bitmap->pixels;
     u16 *src_xor = (u16 *)XOR;
@@ -90,7 +90,7 @@ render_icon_to_bitmap_16(int width, int height, u8 *XOR, u8 *AND, MY_RGBQUAD *ta
 
 
 void
-render_icon_to_bitmap_8(int width, int height,  u8 *XOR, u8 *AND, MY_RGBQUAD *table, Simple_Bitmap *bitmap)
+render_icon_to_bitmap_8(int width, int height,  u8 *XOR, u8 *AND, MY_RGBQUAD *table, Bitmap *bitmap)
 {
     int xor_pitch = width;
     int and_pitch = width / 8;
@@ -123,7 +123,7 @@ render_icon_to_bitmap_8(int width, int height,  u8 *XOR, u8 *AND, MY_RGBQUAD *ta
 
 
 void
-render_icon_to_bitmap_4(int width, int height, u8 *XOR, u8 *AND, MY_RGBQUAD *table, Simple_Bitmap *bitmap)
+render_icon_to_bitmap_4(int width, int height, u8 *XOR, u8 *AND, MY_RGBQUAD *table, Bitmap *bitmap)
 {
     u32 *dest = bitmap->pixels;
     int xor_pitch = (width * 4) / 8;
@@ -160,13 +160,14 @@ render_icon_to_bitmap_4(int width, int height, u8 *XOR, u8 *AND, MY_RGBQUAD *tab
 }
 
 
-Simple_Bitmap
+Bitmap
 make_empty_bitmap(int width, int height)
 {
     Assert(width > 0 && height > 0);
-    Simple_Bitmap bitmap = {};
+    Bitmap bitmap = {};
     bitmap.width = width;
     bitmap.height = height;
+    bitmap.pitch = bitmap.width * Bitmap::BYTES_PER_PIXEL;
     bitmap.pixels = (u32 *)xalloc(width * height * bitmap.BYTES_PER_PIXEL);
     memset(bitmap.pixels, 0, width*height*bitmap.BYTES_PER_PIXEL);
     
@@ -174,13 +175,14 @@ make_empty_bitmap(int width, int height)
 }
 
 
-Simple_Bitmap
+Bitmap
 make_bitmap(int width, int height, u32 colour)
 {
     Assert(width > 0 && height > 0);
-    Simple_Bitmap bitmap = {};
+    Bitmap bitmap = {};
     bitmap.width = width;
     bitmap.height = height;
+    bitmap.pitch = bitmap.width * Bitmap::BYTES_PER_PIXEL;
     bitmap.pixels = (u32 *)xalloc(width * height * bitmap.BYTES_PER_PIXEL);
     u32 *dest = bitmap.pixels;
     for (int y = 0; y < height; ++y)

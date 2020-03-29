@@ -10,7 +10,7 @@ constexpr const T& clamp( const T& v, const T& lo, const T& hi )
     return (v < lo) ? lo : (hi < v) ? hi : v;
 }
 
-void draw_text(Screen_Buffer *buffer, Font *font, char *text, int baseline_x, int baseline_y, r32 r, r32 g, r32 b)
+void draw_text(Bitmap *buffer, Font *font, char *text, int baseline_x, int baseline_y, r32 r, r32 g, r32 b)
 {
     // TODO: make pen_x and y float and accululate and round advance widths
     // TODO: font licensing
@@ -46,7 +46,7 @@ void draw_text(Screen_Buffer *buffer, Font *font, char *text, int baseline_x, in
         //draw_rectangle(buffer, Rect2i{{pen_x, pen_y}, {pen_x+100, pen_y+1}}, 1, 1, 0.7f); // draw_baseline
         
         u8 *src_row = font->atlas + glyph.x0 + (glyph.y0 * font->atlas_width);
-        u8 *dest_row = (u8 *)buffer->data + (x * buffer->BYTES_PER_PIXEL) + (y * buffer->pitch);
+        u8 *dest_row = (u8 *)buffer->pixels + (x * buffer->BYTES_PER_PIXEL) + (y * buffer->pitch);
         for (int min_y = glyph.y0; min_y < glyph.y1; ++min_y)
         {
             u32 *dest = (u32 *)dest_row;
@@ -78,14 +78,14 @@ void draw_text(Screen_Buffer *buffer, Font *font, char *text, int baseline_x, in
     }
 }
 
-void draw_rectangle(Screen_Buffer *buffer, Rect2i rect, Colour colour)
+void draw_rectangle(Bitmap *buffer, Rect2i rect, Colour colour)
 {
     int x0 = clamp(rect.min.x, 0, buffer->width);
     int y0 = clamp(rect.min.y, 0, buffer->height);
     int x1 = clamp(rect.max.x, 0, buffer->width);
     int y1 = clamp(rect.max.y, 0, buffer->height);
     
-    u8 *row = (u8 *)buffer->data + x0*Screen_Buffer::BYTES_PER_PIXEL + y0*buffer->pitch;
+    u8 *row = (u8 *)buffer->pixels + x0*Bitmap::BYTES_PER_PIXEL + y0*buffer->pitch;
     for (int y = y0; y < y1; ++y)
     {
         u32 *dest = (u32 *)row;
@@ -100,7 +100,7 @@ void draw_rectangle(Screen_Buffer *buffer, Rect2i rect, Colour colour)
 
 
 void
-draw_simple_bitmap(Screen_Buffer *buffer, Simple_Bitmap *bitmap, int buffer_x, int buffer_y)
+draw_simple_bitmap(Bitmap *buffer, Bitmap *bitmap, int buffer_x, int buffer_y)
 {
     if (!bitmap->pixels || bitmap->width == 0 || bitmap->height == 0)
     {
@@ -131,7 +131,7 @@ draw_simple_bitmap(Screen_Buffer *buffer, Simple_Bitmap *bitmap, int buffer_x, i
     }
     
     u32 *src = bitmap->pixels;
-    u8 *dest_row = (u8 *)buffer->data + (x0 * buffer->BYTES_PER_PIXEL) + (y0 * buffer->pitch);
+    u8 *dest_row = (u8 *)buffer->pixels + (x0 * buffer->BYTES_PER_PIXEL) + (y0 * buffer->pitch);
     for (int y = y0; y < y1; ++y)
     {
         u32 *dest = (u32 *)dest_row;
@@ -165,7 +165,7 @@ draw_simple_bitmap(Screen_Buffer *buffer, Simple_Bitmap *bitmap, int buffer_x, i
 }
 
 void
-render_gui(Screen_Buffer *buffer, Database *database, Day_View *day_view, Font *font)
+render_gui(Bitmap *buffer, Database *database, Day_View *day_view, Font *font)
 {
     Assert(day_view);
     Assert(buffer);
@@ -173,7 +173,9 @@ render_gui(Screen_Buffer *buffer, Database *database, Day_View *day_view, Font *
     Assert(font);
     
     // Fill Background
-    draw_rectangle(buffer, Rect2i{{0, 0}, {buffer->width, buffer->height}}, RGB_NORMAL(1.0f, 1.0f, 1.0f));
+    
+    // TODO: This is bad api, remove the rect etc
+    draw_rectangle(buffer, Rect2i{{0, 0}, {buffer->width, buffer->height}}, RGB(255, 255, 255));
     
     int canvas_x = 200;
     int canvas_y = 0;
@@ -269,7 +271,7 @@ render_gui(Screen_Buffer *buffer, Database *database, Day_View *day_view, Font *
         
         // TODO: line between icon and bar?
         
-        Simple_Bitmap *icon = 0;
+        Bitmap *icon = 0;
         icon = get_icon_from_database(database, record.ID);
         if (icon)
         {

@@ -117,9 +117,12 @@
   <ItemGroup>
     <ClInclude Include="..\code\cian.h" />
     <ClInclude Include="..\code\date.h" />
+    <ClInclude Include="..\code\graphics.h" />
     <ClInclude Include="..\code\helper.h" />
+    <ClInclude Include="..\code\icon.h" />
     <ClInclude Include="..\code\monitor.h" />
     <ClInclude Include="..\code\resource.h" />
+    <ClInclude Include="..\code\stb_image.h" />
     <ClInclude Include="..\code\stb_truetype.h" />
     <ClInclude Include="..\code\win32_monitor.h" />
   </ItemGroup>
@@ -131,7 +134,6 @@
     <ClCompile Include="..\code\icon.cpp" />
     <ClCompile Include="..\code\monitor.cpp" />
     <ClCompile Include="..\code\network.cpp" />
-    <ClCompile Include="..\code\network2.cpp" />
     <ClCompile Include="..\code\utilities.cpp" />
     <ClCompile Include="..\code\win32_monitor.cpp" />
   </ItemGroup>

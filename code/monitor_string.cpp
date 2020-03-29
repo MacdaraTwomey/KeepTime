@@ -1,4 +1,7 @@
 
+// NOTE: Most of this inspired/created by Allen Webster in the 4coder_string.h string library.
+// https://4coder.handmade.network/
+
 #include <string.h> // just for strlen, could just implement
 
 // Const string class
@@ -39,9 +42,10 @@ constexpr String make_const_string(const char (&a)[N])
 // Encode null terminated with type system?
 // Must be a actual string literal not a char *array_of_str[] reference
 #define make_string_from_literal(lit) make_string((lit), sizeof(lit)-1)
+#define make_fixed_length_string(buf) make_string_size_cap((buf), 0, sizeof((buf)))
 
 String
-make_string_from_buf(void *str, i32 size, i32 capacity)
+make_string_size_cap(void *str, i32 size, i32 capacity)
 {
     String s;
     s.str      = (char *)str;
@@ -55,7 +59,7 @@ String
 make_empty_string(const char (&a)[N])
 {
     String s;
-    s.str      = (char *)str;
+    s.str      = (char *)a;
     s.length   = 0;
     s.capacity = N;
     return s;
@@ -105,20 +109,6 @@ substr_range(String parent, i32 start, i32 end)
     return substr_len(parent, start, len);
 }
 
-bool
-copy_string(String *a, String b)
-{
-    // Capacity of dest string remains the same.
-    if (a->capacity < b.length) return false;
-    for (i32 i = 0; i < b.length; ++i)
-    {
-        a->str[i] = b.str[i];
-    }
-    
-    a->length = b.length;
-    return true;
-}
-
 i32
 search_for_substr(String str, i32 offset, String substr)
 {
@@ -146,6 +136,38 @@ search_for_substr(String str, i32 offset, String substr)
     
     return match;
 }
+
+// Could template on size of substr, to allow length of string literals to be deduced.
+// Or maybe compilers just optimise this anyway (I think so).
+i32
+search_for_substr(String str, i32 offset, char *substr)
+{
+    size_t substr_length = strlen(substr);
+    if (substr_length == 0) return -1;
+    i32 match = -1;
+    
+    i32 last_possible_char = str.length - substr_length;
+    for (i32 i = offset; i <= last_possible_char; ++i)
+    {
+        if (str.str[i] == substr[0])
+        {
+            match = i;
+            for (i32 j = 1; j < substr_length; ++j)
+            {
+                if (str.str[i + j] != substr[j])
+                {
+                    match = -1;
+                    break;
+                }
+            }
+            
+            if (match != -1) break;
+        }
+    }
+    
+    return match;
+}
+
 
 // Maybe shoudl return new string because might need to keep track of previous position,
 // e.g. to free memory, to make other strings with spaces.
@@ -194,35 +216,6 @@ string_equals(String a, String b)
     return true;
 }
 
-
-i32
-search_for_substr(String str, i32 offset, char *substr)
-{
-    size_t substr_length = strlen(substr);
-    if (substr_length == 0) return -1;
-    i32 match = -1;
-    
-    i32 last_possible_char = str.length - substr_length;
-    for (i32 i = offset; i <= last_possible_char; ++i)
-    {
-        if (str.str[i] == substr[0])
-        {
-            match = i;
-            for (i32 j = 1; j < substr_length; ++j)
-            {
-                if (str.str[i + j] != substr[j])
-                {
-                    match = -1;
-                    break;
-                }
-            }
-            
-            if (match != -1) break;
-        }
-    }
-    
-    return match;
-}
 
 
 i32
@@ -284,21 +277,93 @@ prefix_match_case_insensitive(String str, String prefix)
     return true;
 }
 
+
+bool
+prefix_match_case_insensitive(String str, char *prefix)
+{
+    size_t prefix_length = strlen(prefix);
+    if (str.length < prefix_length) return false;
+    for (i32 i = 0; i < prefix_length; ++i)
+    {
+        if (to_upper(str.str[i]) != to_upper(prefix[i])) return false;
+    }
+    
+    return true;
+}
+
+
+// String to String copy only copies if there is enough room
+// char * to String copy does a partial copy if there is not enough room and returns false.
+// The same with appends.
+
+bool
+copy_string(String *dest, String source)
+{
+    // If dest capacity is too small the string is not truncated.
+    if (dest->capacity < source.length) return false;
+    
+    for (i32 i = 0; i < source.length; ++i)
+    {
+        dest->str[i] = source.str[i];
+    }
+    
+    dest->length = source.length;
+    return true;
+}
+
+
+bool
+copy_string(String *dest, char *source)
+{
+    // If dest capacity is too small the string is truncated to dest capacity, and false returned.
+    i32 i = 0;
+    for (; source[i]; ++i)
+    {
+        if (i >= dest->capacity) return false;
+        dest->str[i] = source[i];
+    }
+    
+    dest->length = i;
+    return true;
+}
+
+String
+tailstr(String str)
+{
+    String result;
+    result.str = str.str + str.length;
+    result.capacity = str.capacity - str.length;
+    result.length = 0;
+    return result;
+}
+
+bool
+append_string(String *dest, String source)
+{
+    String end = tailstr(*dest);
+    bool result = copy_string(&end, source);
+    // NOTE: This depends on end.size still being 0 if the check failed and no copy occurred.
+    dest->length += end.length;
+    return result;
+}
+
+bool
+append_string(String *dest, char *source)
+{
+    String end = tailstr(*dest);
+    bool result = copy_string(&end, source);
+    dest->length += end.length;
+    return result;
+}
+
 bool
 null_terminate(String *str)
 {
+    bool result = false;
     if (str->length < str->capacity)
     {
         str->str[str->length] = '\0';
-        return true;
+        result = true;
     }
-    
-    return false;
+    return result;
 }
-
-// append
-
-// bool null_terminate_string(String *s)
-
-// Arena
-// temp_memory or temp_arena

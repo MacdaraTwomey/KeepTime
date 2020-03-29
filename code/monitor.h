@@ -83,6 +83,8 @@ struct Day
     date::sys_days date;
 };
 
+// Might want a linked list of fixed size blocks for the records, and a dynamic array for days
+
 struct NOT_SURE
 {
     Day *days;
@@ -174,13 +176,13 @@ struct Database
     
     // Set these when possible
     Exe_Path firefox_path;
-    Simple_Bitmap firefox_icon;
+    Bitmap firefox_icon;
     u32 firefox_id;
     
     // Can have:
     // - a path (updated or not) with no corresponding bitmap (either not loaded or unable to be loaded)
     // - a path (updated or not) with a bitmap
-    Simple_Bitmap icons[200]; // Loaded on demand
+    Bitmap icons[200]; // Loaded on demand
     Exe_Path paths[200];      // Updated when possible at most once a session.
     
     Day days[MaxDays];

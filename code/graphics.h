@@ -21,7 +21,7 @@ struct MY_RGBQUAD
     u8 reserved;
 };
 
-struct Simple_Bitmap
+struct Bitmap
 {
     // Top Down bitmap with a positive height
     // Don't use outside of this program. Usually top down bitmaps have a negative height I think.
@@ -29,7 +29,7 @@ struct Simple_Bitmap
     i32 width;
     i32 height;
     u32 *pixels;
-    // No pitch for now, pitch == width
+    i32 pitch;
 };
 
 

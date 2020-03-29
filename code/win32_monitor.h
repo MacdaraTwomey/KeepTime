@@ -17,16 +17,3 @@ struct Process_Ids
     DWORD parent;
     DWORD child;
 };
-
-// TODO: Do we want to make this the same as a Bitmap to simplify, but how do we handle
-// need for BITMAPINFO?
-// Could just make BITMAPINFO inside of every stretchdibitscall
-struct Screen_Buffer
-{
-    static constexpr int BYTES_PER_PIXEL = 4;
-    void *data;
-    BITMAPINFO bitmap_info;
-    int width;
-    int height;
-    int pitch;
-};

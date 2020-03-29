@@ -150,8 +150,8 @@ typedef  enum
 
 
 
-Simple_Bitmap
-win32_bitmap_to_simple_bitmap(BITMAP *win32_bitmap)
+Bitmap
+win32_bitmap_to_bitmap(BITMAP *win32_bitmap)
 {
     Assert(win32_bitmap->bmType == 0);
     Assert(win32_bitmap->bmHeight > 0);
@@ -159,7 +159,7 @@ win32_bitmap_to_simple_bitmap(BITMAP *win32_bitmap)
     Assert(win32_bitmap->bmBitsPixel == 32);
     Assert(win32_bitmap->bmBits);
     
-    Simple_Bitmap simple_bitmap = {};
+    Bitmap simple_bitmap = {};
     simple_bitmap.width = win32_bitmap->bmWidth;
     simple_bitmap.height = win32_bitmap->bmHeight;
     simple_bitmap.pixels = (u32 *)xalloc(simple_bitmap.width * simple_bitmap.height * simple_bitmap.BYTES_PER_PIXEL);
@@ -182,6 +182,7 @@ win32_bitmap_to_simple_bitmap(BITMAP *win32_bitmap)
 }
 
 
+// TODO just use bitmap_has_alpha_component instead
 bool
 win32_bitmap_has_alpha_component(BITMAP *bitmap)
 {
@@ -222,7 +223,7 @@ bitmap_has_alpha_component(u32 *pixels, int width, int height, int pitch)
 }
 
 
-Simple_Bitmap
+Bitmap
 get_icon_bitmap(HICON icon)
 {
     // TODO: Get icon from UWP:
@@ -242,7 +243,7 @@ get_icon_bitmap(HICON icon)
     
     //GetIconInfoEx creates bitmaps for the hbmMask and hbmCol or members of ICONINFOEX. The calling application must manage these bitmaps and delete them when they are no longer necessary.
     
-    Simple_Bitmap simple_bitmap = {};
+    Bitmap simple_bitmap = {};
     
     // If this structure defines a color icon, this mask only defines the AND bitmask of the icon.
     ICONINFO ii;
@@ -307,7 +308,7 @@ get_icon_bitmap(HICON icon)
                     }
                 }
                 
-                simple_bitmap = win32_bitmap_to_simple_bitmap(&bitmap);
+                simple_bitmap = win32_bitmap_to_bitmap(&bitmap);
             }
         }
         
@@ -326,7 +327,7 @@ get_icon_bitmap(HICON icon)
 
 
 bool
-get_icon_from_executable(char *path, u32 size, Simple_Bitmap *icon_bitmap, bool load_default_on_failure = true)
+get_icon_from_executable(char *path, u32 size, Bitmap *icon_bitmap, bool load_default_on_failure = true)
 {
     Assert(path);
     Assert(icon_bitmap);
@@ -338,6 +339,8 @@ get_icon_from_executable(char *path, u32 size, Simple_Bitmap *icon_bitmap, bool 
     //icon = ExtractIconA(instance, path, 0);
     //if (icon == NULL || icon == (HICON)1) printf("ERROR");
     
+    // TODO: May just be able to manually extract icon from executable's resource section, and
+    // convert to Bitmap similar to the how we get bitmap from .ico file.
     if(SHDefExtractIconA(path, 0, 0, &icon, &small_icon, size) != S_OK)
     {
         // NOTE: Show me that path was actually wrong and it wasn't just failed icon extraction.
@@ -354,7 +357,7 @@ get_icon_from_executable(char *path, u32 size, Simple_Bitmap *icon_bitmap, bool 
         }
     }
     
-    Simple_Bitmap bitmap;
+    Bitmap bitmap;
     if (icon)
     {
         bitmap = get_icon_bitmap(icon);
@@ -381,13 +384,13 @@ get_icon_from_executable(char *path, u32 size, Simple_Bitmap *icon_bitmap, bool 
 }
 
 
-Simple_Bitmap
+Bitmap
 get_bitmap_from_ico_file(u8 *file_data, u32 file_size, int max_icon_size)
 {
     // We don't support varied file types or sophisticated searching for faviocn, just plain vanilla .ico
     // found at /favicon.ico
     
-    Simple_Bitmap bitmap = make_bitmap(32, 32, RGBA(193, 84, 193, 255));
+    Bitmap bitmap = make_bitmap(32, 32, RGBA(193, 84, 193, 255));
     
     if (file_size < sizeof(ICONDIR) + sizeof(ICONDIRENTRY) + sizeof(BITMAPINFOHEADER))
     {
@@ -548,4 +551,53 @@ get_bitmap_from_ico_file(u8 *file_data, u32 file_size, int max_icon_size)
     }
     
     return bitmap;
+}
+
+
+Bitmap
+decode_favicon_file(Size_Data icon_file)
+{
+    Bitmap favicon = {};
+    
+    // TODO: Can also decode jpeg, gif, bmp etc
+    if (file_is_png(icon_file.data, icon_file.size))
+    {
+        tprint("Icon is .png");
+        // Convert BGR iphone pngs to RGB
+        // Doesn't always seem to detect these (e.g. youtube first rel="icon" link)
+        // These are iphone optimised pngs that use a Cgbi chunk not in the png spec, stb_image detects this chunk and if stbi_convert_iphone_png_to_rgb is enables converts the BGR to RGB, however it seems some BGR pngs like craftinginterpreters and youtube don't have this chunk (maybe they were converted).
+        
+        // Actually I probably got windows rgb wrong
+        stbi_convert_iphone_png_to_rgb(1);
+        
+        // stbi_uc
+        int x = 0;
+        int y = 0;
+        int channels_in_file = 0;
+        int desired_channels = STBI_rgb_alpha;
+        u8 * png_icon = stbi_load_from_memory(icon_file.data, icon_file.size, &x, &y, &channels_in_file, desired_channels);
+        if (png_icon)
+        {
+            favicon.width = x;
+            favicon.height = y;
+            favicon.pixels = (u32 *)png_icon;
+            
+            // For now just convert all stb RGB images into format windows expects, (I think BGR)
+            u8 *p = (u8 *)favicon.pixels;
+            for (int i = 0; i < x*y; ++i)
+            {
+                u8 t = p[0];
+                p[0] = p[2];
+                p[2] = t;
+                p += 4;
+            }
+        }
+    }
+    else
+    {
+        tprint("Icon is .ico");
+        favicon = get_bitmap_from_ico_file(icon_file.data, icon_file.size, 128);
+    }
+    
+    return favicon;
 }
