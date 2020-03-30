@@ -7,6 +7,9 @@
 #define Megabytes(Value) (Kilobytes((Value)) * 1024LL)
 #define Gigabytes(Value) (Megabytes((Value)) * 1024LL)
 
+// Need to declare these, so hash and equals specialisations can see them
+unsigned long djb2(unsigned char *str);
+unsigned long djb2(unsigned char *str, size_t len);
 
 struct Hash_Node
 {
@@ -65,5 +68,12 @@ struct Queue {
     void grow();
     
     static_assert(std::is_pod<T>::value, "");
+};
+
+
+struct Size_Mem
+{
+    u8 *memory;
+    size_t size;
 };
 

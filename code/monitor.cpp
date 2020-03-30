@@ -1,4 +1,7 @@
 #include "monitor.h"
+#include "platform.h"
+
+#include <unordered_map>
 
 void
 start_new_day(Database *database, sys_days date)
@@ -109,9 +112,11 @@ destroy_day_view(Day_View *day_view)
 void init_database(Database *database)
 {
     *database = {};
-    init_hash_table(&database->all_programs, 30);
+    database->programs = std::unordered_map<String, Program>(30);
+    database->websites = std::unordered_map<Program_Id, String>(50);
     
-    database->next_exe_id = 0;
+    // TODO: Maybe disallow 0
+    database->next_program_id = 0;
     database->next_website_id = 1 << 31;
 }
 
@@ -134,8 +139,8 @@ u32 make_id(Database *database, Record_Type type)
     if (type == Record_Exe)
     {
         // No high bit set
-        id = database->next_exe_id;
-        database->next_exe_id += 1;
+        id = database->next_program_id;
+        database->next_program_id += 1;
     }
     else if (type == Record_Firefox)
     {
@@ -148,33 +153,35 @@ u32 make_id(Database *database, Record_Type type)
     return id;
 }
 
-void add_keyword(Database *database, char *str)
+void add_keyword(Database *database, String keyword_str)
 {
     Assert(database->keyword_count < MaxKeywordCount);
     if (database->keyword_count < MaxKeywordCount)
     {
         // TODO: Handle deletion of keywords
-        u32 id = make_id(database, Record_Firefox);
+        Program_Id id = make_id(database, Record_Firefox);
         Keyword *keyword = &database->keywords[database->keyword_count];
         
-        Assert(keyword->str == 0 && keyword->id == 0);
+        Assert(keyword->str.str == 0 && keyword->id == 0);
         keyword->id = id;
-        keyword->str = clone_string(str);
+        
+        // TODO Give database/tables their own allocator
+        // For now this string just owns it's own memory
+        keyword->str = copy_alloc_string(keyword_str);
         
         database->keyword_count += 1;
     }
 }
 
 Keyword *
-find_keywords(char *url, Keyword *keywords, i32 keyword_count)
+search_url_for_keywords(String url, Keyword *keywords, i32 keyword_count)
 {
     // TODO: Keep looking through keywords for one that fits better (i.e docs.microsoft vs docs.microsoft/buttons).
     // TODO: Sort based on common substrings so we don't have to look further.
     for (i32 i = 0; i < keyword_count; ++i)
     {
         Keyword *keyword = &keywords[i];
-        char *sub_str = strstr(url, keyword->str);
-        if (sub_str)
+        if (search_for_substr(url, 0, keyword->str) != -1)
         {
             return keyword;
         }
@@ -184,7 +191,7 @@ find_keywords(char *url, Keyword *keywords, i32 keyword_count)
 }
 
 Bitmap
-get_icon_from_website(String url)
+get_favicon_from_website(String url)
 {
     // Url must be null terminated
     
@@ -215,13 +222,13 @@ get_icon_from_website(String url)
     //String url = make_string_from_literal("https://craftinginterpreters.com/");
     
     Bitmap favicon = {};
-    Size_Data icon_file = {};
-    bool request_success = request_icon_from_url(url, &icon_file);
+    Size_Mem icon_file = {};
+    bool request_success = request_favicon_from_website(url, &icon_file);
     if (request_success)
     {
         tprint("Request success");
         favicon = decode_favicon_file(icon_file);
-        free(icon_file.data);
+        free(icon_file.memory);
     }
     else
     {
@@ -241,7 +248,7 @@ update_days_records(Day *day, u32 id, double dt)
 {
     for (u32 i = 0; i < day->record_count; ++i)
     {
-        if (id == day->records[i].ID)
+        if (id == day->records[i].id)
         {
             day->records[i].duration += dt;
             return;
@@ -257,6 +264,7 @@ update_days_records(Day *day, u32 id, double dt)
 Bitmap *
 get_icon_from_database(Database *database, u32 id)
 {
+#if 0
     Assert(database);
     if (is_exe(id))
     {
@@ -271,15 +279,19 @@ get_icon_from_database(Database *database, u32 id)
         else
         {
             // Load bitmap on demand
-            if (database->paths[id].path)
+            if (database->paths[id].is_initialised)
             {
                 Bitmap *destination_icon = &database->icons[id];
-                bool success = get_icon_from_executable(database->paths[id].path, ICON_SIZE, destination_icon, true);
+                bool success = get_icon_from_executable(database->paths[id].str, ICON_SIZE, destination_icon, true);
                 if (success)
                 {
                     // TODO: Maybe mark old paths that couldn't get correct icon for deletion.
                     return destination_icon;
                 }
+            }
+            else
+            {
+                tprint("Could not get icon from exe, path not initialised");
             }
         }
     }
@@ -318,134 +330,96 @@ get_icon_from_database(Database *database, u32 id)
 #endif
     }
     
+#endif
     return nullptr;
 }
-
-
 
 // TODO: Do we need/want dt here
 void
 poll_windows(Database *database, double dt)
 {
-    Assert(database);
-    
     char buf[2000];
     size_t len = 0;
+    
     Platform_Window window = platform_get_active_window();
     if (!window.is_valid) return;
     
-    bool success = platform_get_active_program(window, buf, &len);
-    if (!success) return;
+    // If this failed it might be a desktop or other things like alt-tab screen or something
+    bool got_path = platform_get_program_from_window(window, buf, &len);
+    if (!got_path) return;
     
-    char *name_start         = get_filename_from_path(info->full_path);
-    size_t  program_name_len = strlen(name_start);
+    String full_path = make_string_size_cap(buf, len, array_count(buf));
+    String program_name   = get_filename_from_path(full_path);
+    if (program_name.length == 0) return;
     
-    for (int i = 0; i < full_path_len; ++i)
-    {
-        info->full_path[i] = tolower(info->full_path[i]);
-    }
+    remove_extension(&program_name);
+    if (program_name.length == 0) return;
     
-    Assert(program_name_len > 4 && strcmp(name_start + (program_name_len - 4), ".exe") == 0);
+    string_to_lower(&program_name);
     
-    program_name_len -= 4;
-    memcpy(info->program_name, name_start, program_name_len); // Don't copy '.exe' from end
-    info->program_name[program_name_len] = '\0';
+    // Maybe disallow 0 as a valid id so this initialisation makes more sense
+    Program_Id record_id = 0;
     
-    
-    // If this is a good feature then just pass in created HWND and test
-    // if (strcmp(winndow_info->full_path, "c:\\dev\\projects\\monitor\\build\\monitor.exe") == 0) return;
-    
-    u32 record_id = 0;
-    
-    bool program_is_firefox = (strcmp(window_info.program_name, "firefox") == 0);
-    bool add_to_executables = !program_is_firefox;
+    bool program_is_firefox = string_equals(program_name, "firefox");
+    bool add_to_executables = true;
     
     if (program_is_firefox)
     {
+        // Get url
+        // match against keywords
+        // add to website if match, else add to programs as 'firefox' program
+        
         // TODO: Maybe cache last url to quickly get record without comparing with keywords, retrieving record etc
-        
-        // TODO: If we get a URL but it has no url features like www. or https:// etc
-        // it is probably someone just writing into the url bar, and we don't want to save these
-        // as urls.
-        char url[2100];
+        // We wan't to detect, incomplete urls and people just typing garbage into url bar, but
+        // urls can validly have no www. or https:// and still be valid.
+        char url_buf[2000];
         size_t url_len = 0;
-        
-        bool keyword_match = false;
-        Keyword *keyword = find_keywords(url, database->keywords, database->keyword_count);
-        if (keyword)
+        bool got_url = platform_get_firefox_url(window, url_buf, &url_len);
+        if (got_url)
         {
-            bool website_is_stored = false;
-            for (i32 website_index = 0; website_index < database->website_count; ++website_index)
+            String url = make_string_size_cap(buf, url_len, array_count(url_buf));
+            if (url.length > 0)
             {
-                if (database->websites[website_index].id == keyword->id)
+                Keyword *keyword = search_url_for_keywords(url, database->keywords, database->keyword_count);
+                if (keyword)
                 {
-                    website_is_stored = true;
-                    break;
+                    if (!database->websites.count(keyword->id))
+                    {
+                        Assert(database->websites.size() < MaxWebsiteCount);
+                        String s = copy_alloc_string(url);
+                        database->websites.insert({keyword->id, s});
+                    }
+                    else
+                    {
+                        // get record id
+                    }
+                    
+                    
+                    record_id = keyword->id;
+                    add_to_executables = false;
                 }
             }
-            
-            if (!website_is_stored)
-            {
-                Assert(database->website_count < MaxWebsiteCount);
-                
-                Website *website = &database->websites[database->website_count];
-                website->id = keyword->id;
-                website->website_name = clone_string(keyword->str);
-                
-                database->website_count += 1;
-            }
-            
-            record_id = keyword->id;
-            
-            // HACK: We would like to treat websites and programs the same and just index their icons
-            // in a smarter way maybe.
-            if (!database->firefox_path.updated_recently)
-            {
-                if (database->firefox_path.path) free(database->firefox_path.path);
-                
-                database->firefox_path.path = clone_string(window_info.full_path, window_info.full_path_len);
-                database->firefox_path.updated_recently = true;
-                database->firefox_id = keyword->id;
-                
-            }
-        }
-        else
-        {
-            add_to_executables = true;
-        }
-        
-        if (!database->firefox_icon.pixels)
-        {
-            char *firefox_path = window_info.full_path;
-            database->firefox_icon = {};
-            bool success = get_icon_from_executable(firefox_path, ICON_SIZE, &database->firefox_icon, true);
-            Assert(success);
         }
     }
     
     if (add_to_executables)
     {
-        u32 temp_id = 0;
-        bool in_table = database->all_programs.search(window_info.program_name, &temp_id);
-        if (!in_table)
+        if (database->programs.count(program_name) == 0)
         {
-            temp_id = make_id(database, Record_Exe);
-            database->all_programs.add_item(window_info.program_name, temp_id);
-        }
-        
-        record_id = temp_id;
-        
-        // TODO: This is similar to what happens to firefox path and icon, needs collapsing.
-        Assert(!(temp_id & (1 << 31)));
-        if (!in_table || (in_table && !database->paths[temp_id].updated_recently))
-        {
+            // These are null terminated
+            String key         = copy_alloc_string(program_name);
+            String s           = copy_alloc_string(full_path);
+            Program_Id temp_id = make_id(database, Record_Exe);
             
-            if (in_table && database->paths[temp_id].path)
-            {
-                free(database->paths[temp_id].path);
-            }
-            database->paths[temp_id].path = clone_string(window_info.full_path);
-            database->paths[temp_id].updated_recently = true;
+            Program program = {s, temp_id};
+            
+            database->programs.insert({key, program});
+            
+            record_id = temp_id;
+        }
+        else
+        {
+            // get record id
         }
     }
     
@@ -464,12 +438,13 @@ Monitor_State
     Database database;
     Day_View day_view;
     Font font;
-    Favicon favicon;
-}
+    Bitmap favicon;
+    time_type accumulated_time;
+};
 
 
 void
-update_and_render(Monitor_State *state, Bitmap *screen_buffer, float dt)
+update(Monitor_State *state, Bitmap *screen_buffer, time_type dt)
 {
     if (!state->is_initialised)
     {
@@ -480,10 +455,10 @@ update_and_render(Monitor_State *state, Bitmap *screen_buffer, float dt)
         
         state->database = {};
         init_database(&state->database);
-        add_keyword(&state->database, "CITS3003");
-        add_keyword(&state->database, "youtube");
-        add_keyword(&state->database, "docs.microsoft");
-        add_keyword(&state->database, "eso-community");
+        add_keyword(&state->database, make_string_from_literal("CITS3003"));
+        add_keyword(&state->database, make_string_from_literal("youtube"));
+        add_keyword(&state->database, make_string_from_literal("docs.microsoft"));
+        add_keyword(&state->database, make_string_from_literal("eso-community"));
         
         start_new_day(&state->database, floor<date::days>(System_Clock::now()));
         
@@ -493,12 +468,10 @@ update_and_render(Monitor_State *state, Bitmap *screen_buffer, float dt)
         //state->favicon = get_icon_from_website();
         
         state->is_initialised = true;
+        
+        state->accumulated_time = dt;
     }
     
-    
-    // speed up time!!!
-    // int seconds_per_day = 5;
-    //sys_days current_date = floor<date::days>(System_Clock::now()) + date::days{(int)duration_accumulator / seconds_per_day};
     
     sys_days current_date = floor<date::days>(System_Clock::now());
     if (current_date != state->database.days[state->database.day_count-1].date)
@@ -506,10 +479,22 @@ update_and_render(Monitor_State *state, Bitmap *screen_buffer, float dt)
         start_new_day(&state->database, current_date);
     }
     
-    if (ui_timer_elapsed())
+    
+    // Maybe better if this is all integer arithmetic
+    float poll_window_freq = 100; // ms
+    state->accumulated_time = dt;
+    if (state->accumulated_time >= poll_window_freq)
     {
+        state->accumulated_time -= poll_window_freq;
+        
         poll_windows(&state->database, dt);
     }
+    
+    // speed up time!!!
+    // int seconds_per_day = 5;
+    //sys_days current_date = floor<date::days>(System_Clock::now()) + date::days{(int)duration_accumulator / seconds_per_day};
+    draw_rectangle(screen_buffer, Rect2i{{0, 0}, {screen_buffer->width, screen_buffer->height}}, RGB(255, 255, 255));
+    
     
 #if 0
     if (gui_opened)
@@ -521,8 +506,7 @@ update_and_render(Monitor_State *state, Bitmap *screen_buffer, float dt)
     {
         destroy_day_view(&state->day_view);
     }
-#endif
-    init_day_view(&database, &state->day_view);
+    init_day_view(&state->database, &state->day_view);
     
     if (button_clicked)
     {
@@ -550,4 +534,6 @@ update_and_render(Monitor_State *state, Bitmap *screen_buffer, float dt)
     {
         draw_simple_bitmap(global_screen_buffer, state->favicon, 200, 200);
     }
+#endif
+    
 }

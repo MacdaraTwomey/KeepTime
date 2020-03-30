@@ -327,9 +327,12 @@ get_icon_bitmap(HICON icon)
 
 
 bool
-get_icon_from_executable(char *path, u32 size, Bitmap *icon_bitmap, bool load_default_on_failure = true)
+get_icon_from_executable(String path, u32 size, Bitmap *icon_bitmap, bool load_default_on_failure = true)
 {
-    Assert(path);
+    // path must be null terminated
+    Assert(path.str);
+    Assert(path.length < path.capacity);
+    Assert(path.str[path.length] == '\0');
     Assert(icon_bitmap);
     Assert(size > 0);
     
@@ -341,7 +344,7 @@ get_icon_from_executable(char *path, u32 size, Bitmap *icon_bitmap, bool load_de
     
     // TODO: May just be able to manually extract icon from executable's resource section, and
     // convert to Bitmap similar to the how we get bitmap from .ico file.
-    if(SHDefExtractIconA(path, 0, 0, &icon, &small_icon, size) != S_OK)
+    if(SHDefExtractIconA(path.str, 0, 0, &icon, &small_icon, size) != S_OK)
     {
         // NOTE: Show me that path was actually wrong and it wasn't just failed icon extraction.
         // If we can load the executable, it means we probably should be able to get the icon
@@ -555,12 +558,12 @@ get_bitmap_from_ico_file(u8 *file_data, u32 file_size, int max_icon_size)
 
 
 Bitmap
-decode_favicon_file(Size_Data icon_file)
+decode_favicon_file(Size_Mem icon_file)
 {
     Bitmap favicon = {};
     
     // TODO: Can also decode jpeg, gif, bmp etc
-    if (file_is_png(icon_file.data, icon_file.size))
+    if (file_is_png(icon_file.memory, icon_file.size))
     {
         tprint("Icon is .png");
         // Convert BGR iphone pngs to RGB
@@ -575,7 +578,7 @@ decode_favicon_file(Size_Data icon_file)
         int y = 0;
         int channels_in_file = 0;
         int desired_channels = STBI_rgb_alpha;
-        u8 * png_icon = stbi_load_from_memory(icon_file.data, icon_file.size, &x, &y, &channels_in_file, desired_channels);
+        u8 * png_icon = stbi_load_from_memory(icon_file.memory, icon_file.size, &x, &y, &channels_in_file, desired_channels);
         if (png_icon)
         {
             favicon.width = x;
@@ -596,7 +599,7 @@ decode_favicon_file(Size_Data icon_file)
     else
     {
         tprint("Icon is .ico");
-        favicon = get_bitmap_from_ico_file(icon_file.data, icon_file.size, 128);
+        favicon = get_bitmap_from_ico_file(icon_file.memory, icon_file.size, 128);
     }
     
     return favicon;

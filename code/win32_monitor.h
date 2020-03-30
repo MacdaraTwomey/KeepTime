@@ -8,7 +8,6 @@
 #define ID_WEEK_BUTTON 201
 #define ID_MONTH_BUTTON 202
 
-
 #define ID_TRAY_APP_ICON 1001
 #define CUSTOM_WM_TRAY_ICON (WM_USER + 1)
 

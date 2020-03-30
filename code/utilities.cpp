@@ -12,7 +12,6 @@ void *xalloc(size_t size)
     return p;
 }
 
-
 // len is string length including null terminator
 char *clone_string(char *str, size_t len)
 {
@@ -22,6 +21,7 @@ char *clone_string(char *str, size_t len)
     char *clone = (char *)xalloc(len);
     if (clone)
     {
+        // Copy all chars, len can be > number chars so dont use that.
         strcpy(clone, str);
     }
     return clone;

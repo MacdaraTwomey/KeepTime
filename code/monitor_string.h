@@ -2,9 +2,10 @@
 // NOTE: Most of this inspired/created by Allen Webster in the 4coder_string.h string library.
 // https://4coder.handmade.network/
 
+// TODO: Pre/post condition tests for all calls in this library
+
 #include <string.h> // just for strlen, could just implement
 
-// Const string class
 struct String
 {
     char *str;
@@ -12,27 +13,7 @@ struct String
     i32 capacity;
 };
 
-struct Const_String
-{
-    char *str;
-    i32 length;
-    i32 capacity;
-    
-    // Isn't POD
-    template<std::size_t N>
-        constexpr Const_String(const char (&a)[N]) :
-    str(const_cast<char *>(a)), length(N-1), capacity(N-1) {  }
-};
-
-constexpr Const_String arr[] = {
-    "hi",
-    "BE"
-};
-
-constexpr Const_String cs = "icon";
-static_assert(arr[0].length == 2, "not right length");
-
-template<std::size_t N>
+template<size_t N>
 constexpr String make_const_string(const char (&a)[N])
 {
     return String{const_cast<char *>(a), N-1, N-1};
@@ -42,7 +23,7 @@ constexpr String make_const_string(const char (&a)[N])
 // Encode null terminated with type system?
 // Must be a actual string literal not a char *array_of_str[] reference
 #define make_string_from_literal(lit) make_string((lit), sizeof(lit)-1)
-#define make_fixed_length_string(buf) make_string_size_cap((buf), 0, sizeof((buf)))
+#define make_fixed_size_string(buf) make_string_size_cap((buf), 0, sizeof((buf)))
 
 String
 make_string_size_cap(void *str, i32 size, i32 capacity)
@@ -54,6 +35,7 @@ make_string_size_cap(void *str, i32 size, i32 capacity)
     return s;
 }
 
+// Same as make_fixed_sized_string
 template<size_t N>
 String
 make_empty_string(const char (&a)[N])
@@ -254,6 +236,12 @@ search_for_char(String str, i32 offset, char c)
 }
 
 bool
+is_upper(char c)
+{
+    return (c >= 'A' && c <= 'Z');
+}
+
+bool
 is_lower(char c)
 {
     return (c >= 'a' && c <= 'z');
@@ -263,6 +251,12 @@ char
 to_upper(char c)
 {
     return (is_lower(c)) ? c - 32 : c;
+}
+
+char
+to_lower(char c)
+{
+    return (is_upper(c)) ? c + 32 : c;
 }
 
 bool
@@ -291,6 +285,14 @@ prefix_match_case_insensitive(String str, char *prefix)
     return true;
 }
 
+void
+string_to_lower(String *str)
+{
+    for (i32 i = 0; i < str->length; ++i)
+    {
+        to_lower(str->str[i]);
+    }
+}
 
 // String to String copy only copies if there is enough room
 // char * to String copy does a partial copy if there is not enough room and returns false.
@@ -366,4 +368,51 @@ null_terminate(String *str)
         result = true;
     }
     return result;
+}
+
+i32
+last_slash_pos(String path)
+{
+    for (i32 i = path.length-1; i >= 0; --i)
+    {
+        if (path.str[i] == '\\' || path.str[i] == '/')
+        {
+            return i;
+        }
+    }
+    
+    return -1;
+}
+
+
+String
+get_filename_from_path(String path)
+{
+    // Not sure that i love what we do when the path ends with a slash
+    String result;
+    i32 slash_pos = last_slash_pos(path);
+    if (slash_pos == -1)            result = substr(path, 0);
+    if (slash_pos == path.length-1) result = {nullptr, 0, 0};
+    else                            result = substr(path, slash_pos+1);
+    
+    return result;
+}
+
+void
+remove_extension(String *file)
+{
+    // Do reverse find because files can have multiple dots, and only last is the real extension I think.
+    i32 dot_pos = file->length;
+    for (i32 i = file->length-1; i >= 0; --i)
+    {
+        if (file->str[i] == '.')
+        {
+            dot_pos = i;
+            break;
+        }
+    }
+    // If file is only ".exe" with nothing before extension size == 0
+    // If no dots length stays the same
+    // If there is a dot, the string is clipped to before the dot
+    file->length = dot_pos;
 }

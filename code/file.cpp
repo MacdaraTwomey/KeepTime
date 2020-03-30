@@ -100,7 +100,7 @@ read_all_days_from_savefile(FILE *savefile, Header header, Day *days)
     if (header.day_count > 0)
     {
         sys_days         *dates = (sys_days *)xalloc(header.day_count * sizeof(sys_days));
-        u32             *counts = (u32 *)xalloc(header.day_count * sizeof(u32)); 
+        u32             *counts = (u32 *)xalloc(header.day_count * sizeof(u32));
         Program_Record *records = (Program_Record *)xalloc(header.total_record_count * sizeof(Program_Record));
         
         {
@@ -108,9 +108,9 @@ read_all_days_from_savefile(FILE *savefile, Header header, Day *days)
             fread(&test_header, sizeof(Header), 1, savefile);
             fseek(savefile, 0, SEEK_SET);
             Assert(test_header.program_names_block_size == header.program_names_block_size &&
-                       test_header.total_program_count == header.total_program_count &&
-                       test_header.day_count == header.day_count &&
-                       test_header.total_record_count == header.total_record_count);
+                   test_header.total_program_count == header.total_program_count &&
+                   test_header.day_count == header.day_count &&
+                   test_header.total_record_count == header.total_record_count);
         }
         
         fseek(savefile, file_dates_offset(header), SEEK_SET);
@@ -218,7 +218,7 @@ void convert_savefile_to_text_file(char *savefile_path, char *text_file_path)
         u32 sum = 0;
         for (u32 i = 0; i < header.total_record_count; ++i)
         {
-            sb.appendf("[%lu:  %lf]   Day %lu \n", records[i].ID, records[i].duration, day);
+            sb.appendf("[%lu:  %lf]   Day %lu \n", records[i].id, records[i].duration, day);
             ++sum;
             if (sum == counts[day])
             {
@@ -299,7 +299,7 @@ bool valid_savefile(char *filepath)
         }
     }
     
-    // TODO: check values of saved data (e.g. ID must be smaller than program count)
+    // TODO: check values of saved data (e.g. id must be smaller than program count)
     
     fclose(savefile);
     
@@ -432,10 +432,10 @@ void update_savefile(char *filepath,
         }
     }
     
-    update_savefile(global_savefile_path, 
-                    &new_header, 
-                    sb.str, sb.len, 
-                    program_ids.data(), program_ids.size(), 
+    update_savefile(global_savefile_path,
+                    &new_header,
+                    sb.str, sb.len,
+                    program_ids.data(), program_ids.size(),
                     dates.data(), dates.size(),
                     counts.data(), counts.size(),
                     records.data(), records.size());
@@ -472,7 +472,7 @@ read_from_file()
         if (now == days[day_count-1].date)
         {
             cur_day = day_count-1;
-            days[day_count-1].records = (Program_Record *)realloc(days[day_count-1].records, sizeof(Program_Record) * MaxDailyRecords); 
+            days[day_count-1].records = (Program_Record *)realloc(days[day_count-1].records, sizeof(Program_Record) * MaxDailyRecords);
         }
         else
         {

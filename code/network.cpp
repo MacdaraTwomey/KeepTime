@@ -77,12 +77,6 @@ search_html_for_icon_url(String html_page)
 }
 
 
-struct Size_Data
-{
-    u8 *data;
-    size_t size;
-};
-
 void
 curl_print_err(CURLcode code, char *errbuf)
 {
@@ -98,14 +92,14 @@ curl_print_err(CURLcode code, char *errbuf)
 size_t
 recieve_data_callback(void *buffer, size_t size, size_t nmemb, void *userp)
 {
-    Size_Data *recieved_data = (Size_Data *)userp;
-    memcpy(recieved_data->data + recieved_data->size, buffer, nmemb);
+    Size_Mem *recieved_data = (Size_Mem *)userp;
+    memcpy(recieved_data->memory + recieved_data->size, buffer, nmemb);
     recieved_data->size += nmemb;
     return nmemb;
 }
 
 bool
-request_icon_from_url(String url, Size_Data *icon_file)
+request_favicon_from_website(String url, Size_Mem *icon_file)
 {
     // url must be null terminted
     // url must have no path
@@ -124,8 +118,8 @@ request_icon_from_url(String url, Size_Data *icon_file)
     curl_easy_setopt(handle, CURLOPT_URL, url.str);
     
     // TODO: Realloc and grow if size > initial alloc + make first alloc smaller
-    Size_Data response = {};
-    response.data = (u8 *)xalloc(MEGABYTES(8));
+    Size_Mem response = {};
+    response.memory = (u8 *)xalloc(MEGABYTES(8));
     
     // Usually called by libcurl multiple times
     curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, recieve_data_callback);
@@ -144,8 +138,8 @@ request_icon_from_url(String url, Size_Data *icon_file)
         tprint("HTML GET SUCCESS");
     }
     
-    response.data[response.size] = '\0';
-    String html_page = make_string(response.data, response.size);
+    response.memory[response.size] = '\0';
+    String html_page = make_string(response.memory, response.size);
     
     String linked_icon_url = search_html_for_icon_url(html_page);
     
@@ -218,14 +212,14 @@ request_icon_from_url(String url, Size_Data *icon_file)
     
     // Write to icon file memory
     // TODO: Realloc in writeback callback
-    icon_file->data = (u8 *)xalloc(Megabytes(8));
+    icon_file->memory = (u8 *)xalloc(Megabytes(8));
     curl_easy_setopt(handle, CURLOPT_WRITEDATA, (void *)icon_file);
     
     bool success = (curl_easy_perform(handle) == CURLE_OK);
     
     curl_easy_cleanup(handle);
     
-    free(response.data);
+    free(response.memory);
     
     curl_global_cleanup(); // global_init and global_cleanup should only really be called once by program.
     

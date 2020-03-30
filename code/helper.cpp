@@ -25,6 +25,30 @@ unsigned long djb2(unsigned char *str)
     
     return hash;
 }
+unsigned long djb2(unsigned char *str, size_t len)
+{
+    unsigned long hash = 5381;
+    int c;
+    for (int i = 0; i < len; ++i) {
+        c = str[i];
+        hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
+    }
+    return hash;
+}
+
+// TODO: Don't use this in finished version
+// Also null terminates
+String
+copy_alloc_string(String str)
+{
+    String result;
+    result.str = clone_string(str.str, str.length+1);
+    result.length = str.length;
+    result.capacity = str.length;
+    null_terminate(&result);
+    return result;
+}
+
 
 bool init_hash_table(Hash_Table *table, s64 table_size)
 {

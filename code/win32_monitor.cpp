@@ -1,12 +1,16 @@
 #include "cian.h"
+#include "monitor_string.h" // more of a library file
 
+// TODO: Make each file only include what it needs
 #include "helper.h"
 #include "graphics.h"
 #include "icon.h"
 #include "monitor.h"
 #include "resource.h"
 #include "win32_monitor.h"
+#include "platform.h"
 #include "ui.h"
+
 
 #include <chrono>
 #include <vector>
@@ -44,16 +48,15 @@ static_assert(sizeof(date::year_month_day) == sizeof(u32), "");
 // NOTE: Debug use only
 Bitmap global_ms_icons[5];
 
-#include "monitor_string.cpp"
 #include "utilities.cpp" // General programming and graphics necessaries
 #include "helper.cpp"  // General ADTs and useful classes
 #include "bitmap.cpp"
 #include "icon.cpp"    // Deals with win32 icon interface
 #include "file.cpp"    // Deals with savefile and file operations
-#include "monitor.cpp" // This deals with id, days, databases, websites, bitmap icons
-#include "draw.cpp"  // Rendering code
-#include "gui.cpp"
 #include "network.cpp"
+#include "draw.cpp"  // Rendering code
+#include "monitor.cpp" // This deals with id, days, databases, websites, bitmap icons
+#include "ui.cpp"
 
 #define CONSOLE_ON 1
 
@@ -114,17 +117,10 @@ create_console()
 //   3. Pass Poll_Window_Result with all necessary names/urls to app on avery update, only cantain valid names
 //      when timer has elapsed (similar to previous just app doesn't call just recieves when it needs it).
 
-struct Platform_Window
-{
-    HWND handle;
-    bool is_valid;
-};
-
 Platform_Window
 platform_get_active_window()
 {
     // TODO: Use GetShellWindow GetShellWindow to detect when not doing anything on desktop, if foreground == desktop etc
-    
     HWND foreground_win = GetForegroundWindow();
     Platform_Window window = {};
     window.handle = foreground_win;
@@ -148,9 +144,10 @@ MyEnumChildWindowsCallback(HWND hwnd, LPARAM lParam)
 }
 
 bool
-platform_get_active_program(Platform_Window window, char *buf, size_t *length)
+platform_get_program_from_window(Platform_Window window, char *buf, size_t *length)
 {
-    // Must have room for program name
+    // On success fills buf will null terminated string, and sets length to string length (not including null terminator)
+    
     Process_Ids process_ids = {0, 0};
     GetWindowThreadProcessId(window.handle, &process_ids.parent);
     process_ids.child = process_ids.parent; // In case it is a normal process
@@ -164,11 +161,10 @@ platform_get_active_program(Platform_Window window, char *buf, size_t *length)
     HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, process_ids.child);
     if (process)
     {
-        // TODO: Try resizing full_path buffer if too small, and retrying.
         // filename_len is overwritten with number of characters written to full_path
-        Assert(buf_size <= UINT32_MAX);
-        DWORD filename_len = (DWORD)buf_size;
-        if (QueryFullProcessImageNameA(process, 0, buffer, &filename_len))
+        // Null terminates
+        DWORD filename_len = (DWORD)PLATFORM_MAX_PATH_LEN-1;
+        if (QueryFullProcessImageNameA(process, 0, buf, &filename_len))
         {
             CloseHandle(process);
             *length = filename_len;
@@ -187,8 +183,11 @@ platform_get_active_program(Platform_Window window, char *buf, size_t *length)
 }
 
 bool
-platform_get_firefox_url(Platform_Window window, char *URL, size_t *URL_len)
+platform_get_firefox_url(Platform_Window window, char *buf, size_t *length)
 {
+    // On success fills buf will null terminated string, and sets length to string length (not including null terminator)
+    // NOTE: buf must have room to fit entire string or returns false.
+    
     // TODO: Firefox can have multiple windows and therefore a unique active tab for each, so caching
     // needs to account for possibility of different windows.
     
@@ -197,7 +196,7 @@ platform_get_firefox_url(Platform_Window window, char *URL, size_t *URL_len)
     // This error can be caused by the application requesting a newer version of oleaut32.dll than you have.
     // To fix I think you can just download newer version of oleaut32.dll.
     
-    *URL_len = 0;
+    *length = 0;
     
     // Need to create a  CUIAutomation object and retrieve an IUIAutomation interface pointer to to to access UIAutomation functionality...
     CComQIPtr<IUIAutomation> uia;
@@ -330,16 +329,17 @@ platform_get_firefox_url(Platform_Window window, char *URL, size_t *URL_len)
             
             // TODO: USe MultibyteToWideChar
             // BSTR is a pointer to a wide character, with a byte count before the pointer and a (2 byte?) null terminator
+            size_t len = 0;
             if (bstr.bstrVal)
             {
-                size_t len = wcslen(bstr.bstrVal);
+                len = wcslen(bstr.bstrVal);
                 // Probably just use stack, but maybe not on ATL 7.0 (on my PC calls alloca)
                 // On my PC internally uses WideCharToMultiByte
                 USES_CONVERSION; // disable warnings for conversion macro
                 if (len > 0)
                 {
-                    strcpy(URL, OLE2CA(bstr.bstrVal));
-                    Assert(len == strlen(URL));
+                    strcpy(buf, OLE2CA(bstr.bstrVal));
+                    Assert(len == strlen(buf));
                 }
                 
                 *length = len;
@@ -347,11 +347,18 @@ platform_get_firefox_url(Platform_Window window, char *URL, size_t *URL_len)
             
             // need to call SysFreeString?
             
+            buf[len] = '\0';
             return true;
         }
     }
     
     return false;
+}
+
+void
+platform_change_wakeup_frequency(int wakeup_milliseconds)
+{
+    
 }
 
 void
@@ -400,8 +407,6 @@ WinProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
         // We use windows timer so we can wake up waiting on input events
         case WM_TIMER:
         {
-            // TODO: Not sure if this is the best way
-            ui_set_timer_elapsed();
         } break;
         
         
@@ -499,13 +504,13 @@ WinProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
                     // NOTE: For now we just toggle with tray icon but, we will in future toggle with X button
                     if (IsWindowVisible(window))
                     {
-                        gui_set_visibility_changed(Window_Hidden);
+                        ui_set_visibility_changed(Window_Hidden);
                         
                         ShowWindow(window, SW_HIDE);
                     }
                     else
                     {
-                        gui_set_visibility_changed(Window_Shown);
+                        ui_set_visibility_changed(Window_Shown);
                         
                         // TODO: This doesn't seem to 'fully activate' the window. The title bar is in focus but cant input escape key. So seem to need to call SetForegroundWindow
                         ShowWindow(window, SW_SHOW);
@@ -525,28 +530,31 @@ WinProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
             }
         } break;
         
+        // Windows says use GET_X_LPARAM/GET_Y_LPARAM instead of HIWORD LOWORD because these ignore signedness
+        // that the lo and hi parts actually are, but internally the macros use HIWORD and LOWORD anyway, but cast from a (unsigned short) to a (short) then to a (int).
+        // The problem is that these returned values can be negative when there are multiple monitors (not sure how to handle this issue).
         case WM_MOUSEMOVE:
-        set_mouse_button_state(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), Mouse_Move);
+        ui_set_mouse_button_state((short)LOWORD(lParam), (short)HIWORD(lParam), Mouse_Move);
         break;
         
         case WM_LBUTTONUP:
-        set_mouse_button_state(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), Mouse_Left_Up);
+        ui_set_mouse_button_state((short)LOWORD(lParam), (short)HIWORD(lParam), Mouse_Left_Up);
         break;
         
         case WM_LBUTTONDOWN:
-        set_mouse_button_state(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), Mouse_Left_Down);
+        ui_set_mouse_button_state((short)LOWORD(lParam), (short)HIWORD(lParam), Mouse_Left_Down);
         break;
         
         case WM_RBUTTONUP:
-        set_mouse_button_state(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), Mouse_Right_Up);
+        ui_set_mouse_button_state((short)LOWORD(lParam), (short)HIWORD(lParam), Mouse_Right_Up);
         break;
         
         case WM_RBUTTONDOWN:
-        set_mouse_button_state(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), Mouse_Right_Down);
+        ui_set_mouse_button_state((short)LOWORD(lParam), (short)HIWORD(lParam), Mouse_Right_Down);
         break;
         
         case WM_MOUSEWHEEL:
-        set_mouse_wheel_state(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), GET_WHEEL_DELTA_WPARAM(wParam));
+        ui_set_mouse_wheel_state((short)LOWORD(lParam), (short)HIWORD(lParam), GET_WHEEL_DELTA_WPARAM(wParam));
         break;
         
         // WM_SIZE and WM_PAINT messages recieved when window resized,
@@ -682,11 +690,12 @@ WinMain(HINSTANCE instance,
         auto new_time = Steady_Clock::now();
         std::chrono::duration<time_type> diff = new_time - old_time;
         old_time = new_time;
-        float dt = diff.count();
+        time_type dt = diff.count();
         
         // Maybe pass in poll stuff here which would allow us to avoid timer stuff in app layer,
         // or could call poll windows from app layer, when we recieve a timer elapsed flag.
-        update_and_render(&monitor_state, &global_screen_buffer, dt);
+        // We might want to change frequency that we poll, so may need platform_change_wakeup_frequency()
+        update(&monitor_state, &global_screen_buffer, dt);
         
         // Maybe we want to call this from in the app layer because we might not always wan't to update on an event
         {

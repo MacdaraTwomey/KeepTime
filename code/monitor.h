@@ -2,28 +2,17 @@
 
 #include "date.h"
 #include "helper.h"
-
 #include "stb_truetype.h"
+#include <unordered_map>
 
 // TODO: Think of better way than just having error prone max amounts.
 static constexpr u32 MaxDailyRecords = 1000;
 static constexpr u32 MaxDays = 1000;
 static constexpr u32 DefaultDayAllocationCount = 30;
-
 static constexpr i32 MaxKeywordCount = 50;
 static constexpr i32 MaxWebsiteCount = 50;
 
 typedef double time_type;
-// using namespace date;
-
-// static constexpr u32 DefaultVersion = 0;
-// static constexpr u32 MaxSupportedVersion = 0;
-// static constexpr u16 DefaultDayStart = 0;
-// static constexpr u16 DefaultPollStart = 0;
-// static constexpr u16 DefaultPollEnd = 0;
-// static constexpr u16 DefaultRunAtSystemStartup = false;
-// static constexpr u32 DefaultPollFrequencyMilliseconds = 1000;
-
 
 // Steady clock typically uses system startup time as epoch, and system clock uses systems epoch like 1970-1-1 00:00
 // Clocks have a starting point (epoch) and tick rate (e.g. 1 tick per second)
@@ -33,19 +22,15 @@ typedef double time_type;
 using Steady_Clock = std::chrono::steady_clock;
 using System_Clock = std::chrono::system_clock;
 
-// Holds settings and info about file contents
 struct Header
 {
     // u32 version; // version 0
-    
     // minute 0 to minute 1439 of day (60*24)
     // u16 day_start_time;  // Default 0        // Changing this won't affect previously saved records
     // u16 poll_start_time; // Default 0 (if start == end, always poll)
     // u16 poll_end_time;   // Default 0
-    
     // bool16 run_at_system_startup;   // Default 0
     // u32 poll_frequency_milliseconds;    // Default 1000
-    
     u32 program_names_block_size;
     u32 total_program_count;
     u32 day_count;
@@ -57,19 +42,28 @@ struct Header
     // Dates of each day                    # days     (u32)
     // Counts       of each day             # days     (u32)
     // Array of all prorgam records clumped by day      # total records (Program_Records)
-    
     // Indexes work like this
     // |0        |5  |7     <- indexes (3 indexes for 10 total records)
     // [][][][][][][][][][] <- records
 };
 
+typedef u32 Program_Id;
+
+enum Record_Type
+{
+    Record_Invalid,
+    Record_Exe,     // Start at 0
+    Record_Firefox, // Start at 0x800000
+};
 
 struct Program_Record
 {
-    u32 ID;
-    double duration;
+    Program_Id id;
+    time_type duration;
 };
 
+
+// delet?
 struct Memory_Block
 {
     u8 *data;
@@ -84,46 +78,11 @@ struct Day
 };
 
 // Might want a linked list of fixed size blocks for the records, and a dynamic array for days
-
 struct NOT_SURE
 {
     Day *days;
     Program_Record *records; // all records, each days records points in here
     u32 day_count;
-};
-
-enum Button : u8
-{
-    Button_Invalid,
-    Button_Day,
-    Button_Week,
-    Button_Month,
-};
-
-enum Event_Type
-{
-    Event_Invalid,
-    Event_Button_Click,
-    Event_GUI_Open,
-    Event_GUI_Close,
-    Event_Poll_Programs,
-};
-
-struct Event
-{
-    union {
-        Button button;
-    };
-    Event_Type type;
-};
-
-struct Font
-{
-    i32 atlas_width;
-    i32 atlas_height;
-    u8 *atlas;  // Not sure if should be 32-bit
-    stbtt_bakedchar *glyphs;
-    i32 glyphs_count;
 };
 
 struct Day_View
@@ -138,60 +97,77 @@ struct Day_View
     bool accumulate;
 };
 
-struct website
+struct Program
 {
-    char *url;
-    char *name;
-};
-
-struct Exe_Path
-{
-    char *path;
-    bool updated_recently;
+    // TODO: Check that full paths saved to file are valid, and update if possible.
+    String full_path;
+    Program_Id id;
 };
 
 struct Keyword
 {
-    char *str;
-    u32 id;
+    String str;
+    Program_Id id;
 };
 
-struct Website
+
+#if 1
+// custom specialization of std::hash can be injected in namespace std
+namespace std
 {
-    u32 id;
-    char *website_name;
-};
+    template<> struct std::hash<String>
+    {
+        std::size_t operator()(String const& s) const noexcept
+        {
+            size_t hash = djb2((unsigned char *)s.str, s.length);
+            return hash;
+        }
+    };
+    
+    template<> struct std::hash<Program_Id>
+    {
+        std::size_t operator()(Program_Id const& id) const noexcept
+        {
+            // Probably fine for program ids (start at 0)
+            return (size_t)id;
+        }
+    };
+    
+    template <> struct std::equal_to<String>
+    {
+        bool operator()(String const& a, String const& b) const noexcept
+        {
+            return string_equals(a, b);
+        }
+    };
+}
+#endif
+
 
 struct Database
 {
-    Hash_Table all_programs; // name -> ID
-    Website websites[50];    // ID -> name TODO: Replace with a hash table?
-    i32 website_count;
+    //Hash_Table all_programs; // name -> ID
+    std::unordered_map<String, Program> programs;
+    
+    // ID -> name
+    std::unordered_map<Program_Id, String> websites;
     
     Keyword keywords[50];
     i32 keyword_count;
     
-    u32 next_exe_id;      // starts at 0x00000000 zero
-    u32 next_website_id;  // starts at 0x80000000 top bit set
+    u32 next_program_id;      // starts at 0x00000000 zero
+    u32 next_website_id;      // starts at 0x80000000 top bit set
     
     // Set these when possible
-    Exe_Path firefox_path;
-    Bitmap firefox_icon;
-    u32 firefox_id;
+    //Exe_Path firefox_path;
+    //Bitmap firefox_icon;
+    //u32 firefox_id;
     
     // Can have:
     // - a path (updated or not) with no corresponding bitmap (either not loaded or unable to be loaded)
     // - a path (updated or not) with a bitmap
     Bitmap icons[200]; // Loaded on demand
-    Exe_Path paths[200];      // Updated when possible at most once a session.
     
     Day days[MaxDays];
     i32 day_count;
-};
-
-enum Record_Type
-{
-    Record_Invalid,
-    Record_Exe,
-    Record_Firefox,
 };

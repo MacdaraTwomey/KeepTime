@@ -13,19 +13,15 @@ struct UI_Context
     bool mouse_right_down;
     bool mouse_right_up;
     
-    bool timer_elapsed;
-    
     int mouse_wheel;
     
-    bool hide_ui;
-    bool show_ui;
+    bool ui_hidden;
+    bool ui_shown;
     
     int width;
     int height;
     
-    
-    
-    UI_Id hot_id
+    UI_Id hot_id;
 };
 
 enum Mouse_Button_State

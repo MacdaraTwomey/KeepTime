@@ -271,8 +271,14 @@ render_gui(Bitmap *buffer, Database *database, Day_View *day_view, Font *font)
         
         // TODO: line between icon and bar?
         
+        // TODO: I want renderer to know less about program, immediate mode rendering might help with this
         Bitmap *icon = 0;
-        icon = get_icon_from_database(database, record.ID);
+        //icon = get_icon_from_database(database, record.id);
+        if (database->icons[record.id].pixels)
+        {
+            Assert(database->icons[record.id].width > 0 && database->icons[record.id].pixels > 0);
+            icon = &database->icons[record.id];
+        }
         if (icon)
         {
             int icon_centre_x = canvas_x + (bar_origin.x - canvas_x) / 2;
