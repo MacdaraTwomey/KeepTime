@@ -56,7 +56,6 @@ Bitmap global_ms_icons[5];
 #include "network.cpp"
 #include "draw.cpp"  // Rendering code
 #include "monitor.cpp" // This deals with id, days, databases, websites, bitmap icons
-#include "ui.cpp"
 
 #define CONSOLE_ON 1
 
@@ -539,22 +538,27 @@ WinProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
         
         case WM_LBUTTONUP:
         ui_set_mouse_button_state((short)LOWORD(lParam), (short)HIWORD(lParam), Mouse_Left_Up);
+        tprint("Left mouse up");
         break;
         
         case WM_LBUTTONDOWN:
         ui_set_mouse_button_state((short)LOWORD(lParam), (short)HIWORD(lParam), Mouse_Left_Down);
+        tprint("Left mouse down");
         break;
         
         case WM_RBUTTONUP:
         ui_set_mouse_button_state((short)LOWORD(lParam), (short)HIWORD(lParam), Mouse_Right_Up);
+        tprint("Right mouse up");
         break;
         
         case WM_RBUTTONDOWN:
         ui_set_mouse_button_state((short)LOWORD(lParam), (short)HIWORD(lParam), Mouse_Right_Down);
+        tprint("Right mouse down");
         break;
         
         case WM_MOUSEWHEEL:
         ui_set_mouse_wheel_state((short)LOWORD(lParam), (short)HIWORD(lParam), GET_WHEEL_DELTA_WPARAM(wParam));
+        tprint("mouse wheel");
         break;
         
         // WM_SIZE and WM_PAINT messages recieved when window resized,
@@ -666,7 +670,7 @@ WinMain(HINSTANCE instance,
     
     // Can't set lower than 10ms, not that you'd want to.
     // Can specify callback to call instead of posting message.
-    DWORD poll_milliseconds = 10;
+    DWORD poll_milliseconds = 100;
     SetTimer(window, 0, (UINT)poll_milliseconds, NULL);
     
     auto old_time = Steady_Clock::now();

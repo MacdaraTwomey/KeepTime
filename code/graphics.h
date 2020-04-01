@@ -9,9 +9,16 @@
 
 // TODO: THIS MIGHT BE MISNAMED, not actually rgb?
 #define RGBA(r, g, b, a) (((u8)(a) << 24) + ((u8)(r) << 16) + ((u8)(g) << 8) + (u8)(b))
+#define RGB_OPAQUE(r, g, b)  (((u8)0xFF << 24) + ((u8)(r) << 16) + ((u8)(g) << 8) + (u8)(b))
+
+#define A_COMP(col) ((u8)((col) >> 24))
+#define R_COMP(col) ((u8)((col) >> 16))
+#define G_COMP(col) ((u8)((col) >> 8))
+#define B_COMP(col) ((u8)(col))
 
 #define lerp(x, y, t) (((1.0f-(t))*(x)) + ((t)*(y)))
 
+// I don't know if this is really necesary
 typedef u32 Colour;
 
 // Same as windows one in wingdi.h
@@ -42,6 +49,8 @@ struct Font
     u8 *atlas;  // Not sure if should be 32-bit
     stbtt_bakedchar *glyphs;
     i32 glyphs_count;
+    i32 max_ascent;
+    i32 max_descent;
 };
 
 

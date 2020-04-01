@@ -1,7 +1,10 @@
+#include <unordered_map>
+
 #include "monitor.h"
 #include "platform.h"
 
-#include <unordered_map>
+#include "ui.h"
+#include "ui.cpp"
 
 void
 start_new_day(Database *database, sys_days date)
@@ -464,12 +467,15 @@ update(Monitor_State *state, Bitmap *screen_buffer, time_type dt)
         
         state->day_view = {};
         
-        state->font = create_font("c:\\windows\\fonts\\times.ttf", 28);
         //state->favicon = get_icon_from_website();
         
-        state->is_initialised = true;
-        
         state->accumulated_time = dt;
+        
+        // TODO: ui gets font instead of state
+        state->font = create_font("c:\\windows\\fonts\\times.ttf", 28);
+        ui_init(screen_buffer, &state->font);
+        
+        state->is_initialised = true;
     }
     
     
@@ -479,6 +485,9 @@ update(Monitor_State *state, Bitmap *screen_buffer, time_type dt)
         start_new_day(&state->database, current_date);
     }
     
+    // speed up time!!!
+    // int seconds_per_day = 5;
+    //sys_days current_date = floor<date::days>(System_Clock::now()) + date::days{(int)duration_accumulator / seconds_per_day};
     
     // Maybe better if this is all integer arithmetic
     float poll_window_freq = 100; // ms
@@ -490,11 +499,18 @@ update(Monitor_State *state, Bitmap *screen_buffer, time_type dt)
         poll_windows(&state->database, dt);
     }
     
-    // speed up time!!!
-    // int seconds_per_day = 5;
-    //sys_days current_date = floor<date::days>(System_Clock::now()) + date::days{(int)duration_accumulator / seconds_per_day};
+    
+    ui_begin();
+    
     draw_rectangle(screen_buffer, Rect2i{{0, 0}, {screen_buffer->width, screen_buffer->height}}, RGB(255, 255, 255));
     
+    ui_button_row_begin(50, 50, 100);
+    ui_button("Day");
+    ui_button("Week");
+    ui_button("Month");
+    ui_button_row_end();
+    
+    ui_end();
     
 #if 0
     if (gui_opened)

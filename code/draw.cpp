@@ -10,13 +10,27 @@ constexpr const T& clamp( const T& v, const T& lo, const T& hi )
     return (v < lo) ? lo : (hi < v) ? hi : v;
 }
 
-void draw_text(Bitmap *buffer, Font *font, char *text, int baseline_x, int baseline_y, r32 r, r32 g, r32 b)
+int
+text_width(char *text, Font *font)
+{
+    float total_w = 0;
+    for (char *c = text; *c; ++c)
+    {
+        if (*c < ' ' || *c > '~') continue;
+        stbtt_bakedchar glyph = font->glyphs[*c - 32];
+        total_w += glyph.xadvance;
+    }
+    
+    return (int)total_w;
+}
+
+void draw_text(Bitmap *buffer, Font *font, char *text, int baseline_x, int baseline_y, u32 colour)
 {
     // TODO: make pen_x and y float and accululate and round advance widths
     // TODO: font licensing
     // TODO: Maybe separate bitmap for each character
-    int pen_x = clamp(baseline_x, 0, buffer->width);
-    int pen_y = clamp(baseline_y, 0, buffer->height);
+    float pen_x = (float)clamp(baseline_x, 0, buffer->width);
+    float pen_y = (float)clamp(baseline_y, 0, buffer->height);
     
     for (char *c = text; *c; ++c)
     {
@@ -24,8 +38,8 @@ void draw_text(Bitmap *buffer, Font *font, char *text, int baseline_x, int basel
         
         stbtt_bakedchar glyph = font->glyphs[*c - 32];
         
-        int x = pen_x + (int)roundf(glyph.xoff);
-        int y = pen_y + (int)roundf(glyph.yoff);
+        int x = (int)roundf(pen_x + glyph.xoff);
+        int y = (int)roundf(pen_y + glyph.yoff);
         
         int w = glyph.x1 - glyph.x0;
         int h = glyph.y1 - glyph.y0;
@@ -59,10 +73,15 @@ void draw_text(Bitmap *buffer, Font *font, char *text, int baseline_x, int basel
                 r32 dest_g = (r32)((*dest >> 8) & 0xFF);
                 r32 dest_b = (r32)((*dest >> 0) & 0xFF);
                 
+                // TODO: Not sure how to pass in colour properly, it seems bad to pass in three floats as well.
+                r32 r = (r32)R_COMP(colour);
+                r32 g = (r32)G_COMP(colour);
+                r32 b = (r32)B_COMP(colour);
                 u32 result_r = (u32)roundf(lerp(dest_r, r, a));
                 u32 result_g = (u32)roundf(lerp(dest_g, g, a));
                 u32 result_b = (u32)roundf(lerp(dest_b, b, a));
                 
+                // This leaves dest with same alpha
                 *dest = (result_r << 16) | (result_g << 8) | (result_b << 0);
                 
                 ++dest;
@@ -73,8 +92,7 @@ void draw_text(Bitmap *buffer, Font *font, char *text, int baseline_x, int basel
             src_row += font->atlas_width;
         }
         
-        // TODO: Use floating point and just truncate to int when we need
-        pen_x += (int)roundf(glyph.xadvance);
+        pen_x += glyph.xadvance;
     }
 }
 
@@ -98,6 +116,75 @@ void draw_rectangle(Bitmap *buffer, Rect2i rect, Colour colour)
     }
 }
 
+void
+draw_rectangle(Bitmap *buffer, int x, int y, int w, int h, Colour colour)
+{
+    int x0 = clamp(x, 0, buffer->width);
+    int y0 = clamp(y, 0, buffer->height);
+    int x1 = clamp(x + w, 0, buffer->width);
+    int y1 = clamp(y + h, 0, buffer->height);
+    
+    u8 *row = (u8 *)buffer->pixels + x0*Bitmap::BYTES_PER_PIXEL + y0*buffer->pitch;
+    for (int y = y0; y < y1; ++y)
+    {
+        u32 *dest = (u32 *)row;
+        for (int x = x0; x < x1; ++x)
+        {
+            *dest++ = colour;
+        }
+        
+        row += buffer->pitch;
+    }
+}
+
+
+void
+draw_horizontal_line(Bitmap *buffer, int x0, int x1, int y, Colour colour)
+{
+    x0 = clamp(x0, 0, buffer->width-1);
+    x1 = clamp(x1, 0, buffer->width);
+    y  = clamp(y, 0, buffer->height-1);
+    if (x0 <= x1)
+    {
+        u32 *dest = (u32 *)((u8 *)buffer->pixels + x0*Bitmap::BYTES_PER_PIXEL + y*buffer->pitch);
+        for (int x = x0; x < x1; ++x)
+        {
+            *dest++ = colour;
+        }
+    }
+}
+
+void
+draw_vertical_line(Bitmap *buffer, int y0, int y1, int x, Colour colour)
+{
+    y0 = clamp(y0, 0, buffer->height-1);
+    y1 = clamp(y1, 0, buffer->height);
+    x  = clamp(x, 0, buffer->width-1);
+    
+    if (y0 <= y1)
+    {
+        u8 *dest = (u8 *)buffer->pixels + x*Bitmap::BYTES_PER_PIXEL + y0*buffer->pitch;
+        for (int y = y0; y < y1; ++y)
+        {
+            *(u32 *)dest = colour;
+            dest += buffer->pitch;
+        }
+    }
+}
+
+void
+draw_rect_outline(Bitmap *buffer, int x, int y, int w, int h, Colour colour)
+{
+    int x0 = clamp(x, 0, buffer->width);
+    int y0 = clamp(y, 0, buffer->height);
+    int x1 = clamp(x + w, 0, buffer->width);
+    int y1 = clamp(y + h, 0, buffer->height);
+    
+    draw_horizontal_line(buffer, x0, x1, y0, colour);
+    draw_horizontal_line(buffer, x0, x1, y1-1, colour);
+    draw_vertical_line(buffer,   y0, y1, x0, colour);
+    draw_vertical_line(buffer,   y0, y1, x1-1, colour);
+}
 
 void
 draw_simple_bitmap(Bitmap *buffer, Bitmap *bitmap, int buffer_x, int buffer_y)
@@ -167,6 +254,7 @@ draw_simple_bitmap(Bitmap *buffer, Bitmap *bitmap, int buffer_x, int buffer_y)
 void
 render_gui(Bitmap *buffer, Database *database, Day_View *day_view, Font *font)
 {
+#if 0
     Assert(day_view);
     Assert(buffer);
     Assert(database);
@@ -197,7 +285,6 @@ render_gui(Bitmap *buffer, Database *database, Day_View *day_view, Font *font)
     
     V2i bar_origin = canvas.min + V2i{icon_margin, 0};
     
-#if 0
     Rect2i x_axis = {
         bar_origin,
         bar_origin + V2i{x_axis_length, line_thickness}
@@ -209,7 +296,6 @@ render_gui(Bitmap *buffer, Database *database, Day_View *day_view, Font *font)
     
     draw_rectangle(buffer, x_axis, 0.0f, 0.0f, 0.0f);
     draw_rectangle(buffer, y_axis, 0.0f, 0.0f, 0.0f);
-#endif
     
     Assert(day_view->day_count > 0);
     Day *today = day_view->days[day_view->day_count-1];
@@ -290,6 +376,7 @@ render_gui(Bitmap *buffer, Database *database, Day_View *day_view, Font *font)
             draw_simple_bitmap(buffer, icon, icon_top_left_x, icon_top_left_y);
         }
     }
+#endif
 }
 
 
@@ -337,68 +424,87 @@ Font create_font(char *font_name, int pixel_height)
     font.atlas = atlas_bitmap;
     font.glyphs = chars;
     font.glyphs_count = 95;
-    return font;
     
-    
-#if 0
-    int ascent = 0;
-    int descent = 0;
-    int linegap = 0;
-    int baseline = 0;
-    float scale, xpos=2; // leave a little padding in case the character extends left
-    char *text = "Heljo World!"; // intentionally misspelled to show 'lj' brokenness
-    
-    scale = stbtt_ScaleForPixelHeight(&font, 15);
-    stbtt_GetFontVMetrics(&font, &ascent, &descent, &linegap);
-    baseline = (int) (ascent*scale);
-    
-    i32 atlas_width = 512;
-    i32 atlas_height = 512;
-    u8 *atlas_pixels = (u8 *)xalloc(atlas_width * atlas_height);
-    
-    int pen_x = 0;
-    int pen_y = 0;
-    int max_y = 0;
-    
-    i32 glyphs_desired = 25;
-    for (i32 i = 0; i < glyphs_desired; ++i)
+    int max_descent = 0;
+    int max_ascent = 0;
+    for (int i = 0; i < font.glyphs_count; ++i)
     {
-        int width = 0;
-        int height = 0;
-        int xoff = 0;
-        int yoff = 0;
-        unsigned char *glyph_bitmap = stbtt_GetCodepointBitmap(&font, 1, 1, 'a' + i, &width, &height, &xoff, &yoff);
+        stbtt_bakedchar glyph = font.glyphs[i];
+        int height = (int)(glyph.y1 - glyph.y0);
+        int ascent = (int)-glyph.yoff;
+        max_ascent = std::max(max_ascent, ascent); // Can't figure how to get ascent and descent in stb_tt
         
-        if (!is_space_in_atlas(atlas_width, atlas_height, width, height, pen_x, pen_y))
-        {
-            pen_x = 0;
-            pen_y = max_y;
-            Assert(is_space_in_atlas(atlas_width, atlas_height, width, height, pen_x, pen_y));
-        }
-        
-        u8 *src = glyph_bitmap;
-        u8 *dest_row = atlas_pixels + pen_x + (pen_y * atlas_width);
-        
-        for (i32 y = 0; y < height; ++y)
-        {
-            u8* dest = dest_row;
-            for (i32 x = 0; x < width; ++x)
-            {
-                *dest++ = *src++;
-            }
-            
-            dest_row += atlas_width;
-        }
-        
-        max_y = std::max(max_y, pen_y + height);
-        pen_x += width;
-        
-        // Not sure why this takes two arguments so will just free using free
-        // stbtt_FreeBitmap(glyph_bitmap);
-        free(glyph_bitmap);
+        // w and h are width and height of bitmap
+        // xoff/yoff are the offset it pixel space from the glyph origin to the top-left of the bitmap
+        // advance includes width, and is the distance to get start of next glyph (ignoring kerning)
+        // However it seems that ascent can be -18 (because it's counting with y as down), but height only 2
+        // so don't know how to calculare descent.
     }
     
-    return atlas_pixels;
-#endif
+    font.max_ascent = max_ascent;
+    font.max_descent = max_ascent;  // HACK: Assuming max descent <= max_ascent
+    
+    return font;
 }
+
+#if 0
+int ascent = 0;
+int descent = 0;
+int linegap = 0;
+int baseline = 0;
+float scale, xpos=2; // leave a little padding in case the character extends left
+char *text = "Heljo World!"; // intentionally misspelled to show 'lj' brokenness
+
+scale = stbtt_ScaleForPixelHeight(&font, 15);
+stbtt_GetFontVMetrics(&font, &ascent, &descent, &linegap);
+baseline = (int) (ascent*scale);
+
+i32 atlas_width = 512;
+i32 atlas_height = 512;
+u8 *atlas_pixels = (u8 *)xalloc(atlas_width * atlas_height);
+
+int pen_x = 0;
+int pen_y = 0;
+int max_y = 0;
+
+i32 glyphs_desired = 25;
+for (i32 i = 0; i < glyphs_desired; ++i)
+{
+    int width = 0;
+    int height = 0;
+    int xoff = 0;
+    int yoff = 0;
+    unsigned char *glyph_bitmap = stbtt_GetCodepointBitmap(&font, 1, 1, 'a' + i, &width, &height, &xoff, &yoff);
+    
+    if (!is_space_in_atlas(atlas_width, atlas_height, width, height, pen_x, pen_y))
+    {
+        pen_x = 0;
+        pen_y = max_y;
+        Assert(is_space_in_atlas(atlas_width, atlas_height, width, height, pen_x, pen_y));
+    }
+    
+    u8 *src = glyph_bitmap;
+    u8 *dest_row = atlas_pixels + pen_x + (pen_y * atlas_width);
+    
+    for (i32 y = 0; y < height; ++y)
+    {
+        u8* dest = dest_row;
+        for (i32 x = 0; x < width; ++x)
+        {
+            *dest++ = *src++;
+        }
+        
+        dest_row += atlas_width;
+    }
+    
+    max_y = std::max(max_y, pen_y + height);
+    pen_x += width;
+    
+    // Not sure why this takes two arguments so will just free using free
+    // stbtt_FreeBitmap(glyph_bitmap);
+    free(glyph_bitmap);
+}
+
+return atlas_pixels;
+#endif
 

@@ -3,8 +3,19 @@
 
 typedef u32 UI_Id;
 
+
+struct UI_Layout
+{
+    int x;
+    int y;
+    int w;
+    int h;
+    int spacing;
+};
+
 struct UI_Context
 {
+    // These can be set before struct it even initialised
     int mouse_x;
     int mouse_y;
     
@@ -18,10 +29,20 @@ struct UI_Context
     bool ui_hidden;
     bool ui_shown;
     
+    // Not sure when these should be set
     int width;
     int height;
     
-    UI_Id hot_id;
+    // These used after initialisation
+    UI_Id hot;
+    UI_Id active;
+    UI_Id selected;
+    
+    UI_Layout layout;
+    bool has_layout;
+    
+    Font *font;
+    Bitmap *buffer;
 };
 
 enum Mouse_Button_State
