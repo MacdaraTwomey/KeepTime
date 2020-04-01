@@ -42,10 +42,13 @@ String
 copy_alloc_string(String str)
 {
     String result;
-    result.str = clone_string(str.str, str.length+1);
+    int capacity = str.length + 1;
+    
+    result.str = clone_string(str.str, capacity);
     result.length = str.length;
-    result.capacity = str.length;
-    null_terminate(&result);
+    result.capacity = capacity;
+    null_terminate(&result); // requires len < cap
+    
     return result;
 }
 

@@ -1,38 +1,20 @@
 #include "ui.h"
 #include "graphics.h"
 
+// API calls prefixed with ui
+
 UI_Context ui_context; // should this be in monitor?
 
-void
-ui_set_mouse_button_state(int x, int y, Mouse_Button_State button_state)
-{
-    ui_context.mouse_x = x;
-    ui_context.mouse_y = y;
-    if (button_state == Mouse_Left_Up)         ui_context.mouse_left_up    = true;
-    else if (button_state == Mouse_Left_Down)  ui_context.mouse_left_down  = true;
-    else if (button_state == Mouse_Right_Up)   ui_context.mouse_right_up   = true;
-    else if (button_state == Mouse_Right_Down) ui_context.mouse_right_down = true;
-    else if (button_state == Mouse_Move)
-    {
-        // Do nothing
-    }
-}
 
-void
-ui_set_mouse_wheel_state(int x, int y, int delta)
-{
-    ui_context.mouse_x = x;
-    ui_context.mouse_y = y;
-    
-    // TODO: Make sure this is a good number
-    ui_context.mouse_wheel = delta;
-}
+#define gen_id() (__LINE__)
 
-void
-ui_set_visibility_changed(Window_Visibility visibility)
+UI_Id
+get_id(char *str)
 {
-    if (visibility == Window_Hidden) ui_context.ui_hidden = true;
-    else if (visibility == Window_Shown) ui_context.ui_shown = true;
+    // Need better way to avoid collisions
+    u32 id = djb2((unsigned char *)str);
+    if (id == 0) id += 1;
+    return id;
 }
 
 void
@@ -71,38 +53,15 @@ ui_end()
     ui_context.hot = 0;
 }
 
-UI_Id
-get_id(char *str)
-{
-    // Need better way to avoid collisions
-    u32 id = djb2((unsigned char *)str);
-    if (id == 0) id += 1;
-    return id;
-}
+// Api
+bool ui_was_shown() { return ui_context.ui_shown; }
+bool ui_was_hidden() { return ui_context.ui_hidden; }
 
-bool
-is_active(UI_Id id)
-{
-    return ui_context.active == id;
-}
-
-bool
-is_hot(UI_Id id)
-{
-    return ui_context.hot == id;
-}
-
-bool
-is_selected(UI_Id id)
-{
-    return ui_context.selected == id;
-}
-
-void
-set_active(UI_Id id)
-{
-    ui_context.active = id;
-}
+// Internal calls
+bool is_active(UI_Id id) { return ui_context.active == id; }
+bool is_hot(UI_Id id) { return ui_context.hot == id; }
+bool is_selected(UI_Id id) { return ui_context.selected == id; }
+void set_active(UI_Id id) { ui_context.active = id; }
 
 void
 maybe_set_hot(UI_Id id)
@@ -165,7 +124,7 @@ ui_button_row_begin(int x, int y, int w)
     layout.y = y;
     layout.spacing = 10;
     layout.w = w;
-    
+    layout.index = 0;
     int ypad = 3;
     int font_height = ui_context.font->max_ascent + ui_context.font->max_descent;
     layout.h = font_height;
@@ -210,7 +169,7 @@ ui_button(char *text, int x = 0, int y = 0)
     
     bool pressed = do_item(id, x, y, w, h);
     
-    draw_rectangle(buffer, x, y, w, h, RGB_OPAQUE(180, 180, 180));
+    draw_rectangle(buffer, x, y, w, h, GREY(190));
     
     int centre_x = x + (w/2);
     int centre_y = y + (int)(h*0.75f);
@@ -222,21 +181,144 @@ ui_button(char *text, int x = 0, int y = 0)
     if (is_hot(id)) colour = RGB_OPAQUE(255, 0, 0);
     if (is_active(id))
     {
-        colour = RGB_OPAQUE(0, 255, 0);
+        draw_rect_outline(buffer, x, y, w, h, RGB_OPAQUE(255, 255, 255));
+        draw_rect_outline(buffer, x-1, y-1, w+2, h+2, RGB_OPAQUE(0, 0, 0));
+        draw_rect_outline(buffer, x+1, y+1, w-2, h-2, RGB_OPAQUE(0, 0, 0));
+    }
+    else
+    {
         draw_rect_outline(buffer, x, y, w, h, RGB_OPAQUE(0, 0, 0));
     }
+    
     if (is_selected(id)) colour = RGB_OPAQUE(0, 0, 255);
+    
     draw_text(buffer, font, text, baseline_x, baseline_y, colour);
     
     return pressed;
+}
+
+void
+ui_graph_begin(int x, int y, int w, int h, UI_Id id)
+{
+    UI_Layout layout = {};
+    // Width and height of whole barplot
+    layout.w = w;
+    layout.h = h;
+    layout.x = x;
+    layout.spacing = 10;
+    layout.y = y;
+    layout.index = 0;
     
-    // Get widget's id
-    // UI_Id id = get_id(text);
+    layout.start_id = id;
+    ui_context.layout = layout;
+    ui_context.has_layout = true;
     
-    // Draw the button
+    draw_rectangle(ui_context.buffer, x, y, w, h, GREY(200));
+    draw_rect_outline(ui_context.buffer, x, y, w, h, GREY(0));
+}
+
+void ui_graph_end()
+{
+    ui_context.has_layout = false;
+}
+
+bool
+ui_graph_bar(float length, char *text, Bitmap *bitmap)
+{
+    Assert(length >= 0.0f && length <= 1.0f);
+    Assert(ui_context.has_layout);
     
-    // Layout is updated
+    UI_Layout *layout = &ui_context.layout;
+    Font *font = ui_context.font;
+    Bitmap *buffer = ui_context.buffer;
     
-    // Update UI_Context (compares mouse and button with button pos/dimensions to see if becomes hot)
-    // use
+    
+    int right_pad = 100;
+    int bar_height = 40;
+    int x = layout->x;
+    int h = bar_height;
+    int w = (int)((layout->w - right_pad) * length);
+    int y = layout->y + layout->spacing + (layout->index * (h + layout->spacing));
+    
+    if (y >= layout->y + layout->h) return false;
+    
+    y = clamp(y, layout->y, layout->y + layout->h-1);
+    h = std::min(h, (layout->y + layout->h-1) - y);
+    
+    layout->index += 1;
+    
+    UI_Id id = layout->start_id++;
+    
+    
+    
+    bool pressed = do_item(id, x, y, w, h);
+    
+    if (is_hot(id))
+    {
+        draw_rectangle(buffer, x, y, w, h, RGB_OPAQUE(190, 20, 75));
+    }
+    else
+    {
+        draw_rectangle(buffer, x, y, w, h, RGB_NORMAL(0.8, 0.1, 0.3));
+    }
+    if (is_active(id))
+    {
+        draw_rect_outline(buffer, x, y, w, h, RGB_OPAQUE(255, 255, 255));
+        draw_rect_outline(buffer, x-1, y-1, w+2, h+2, RGB_OPAQUE(0, 0, 0));
+        draw_rect_outline(buffer, x+1, y+1, w-2, h-2, RGB_OPAQUE(0, 0, 0));
+    }
+    else
+    {
+        draw_rect_outline(buffer, x, y, w, h, RGB_OPAQUE(0, 0, 0));
+    }
+    
+    
+    int centre_y = y + (int)(h*0.75f);
+    
+    int baseline_x = x + w + 10;
+    int baseline_y = centre_y;
+    
+    if (text) draw_text(buffer, font, text, baseline_x, baseline_y, GREY(0));
+    
+    if (bitmap)
+    {
+        int bitmap_x = x - (bitmap->width);
+        int bitmap_y = centre_y - (bitmap->height/2) + 3;
+        draw_bitmap(buffer, bitmap, x-50, y);
+    }
+    
+    return pressed;
+}
+
+
+void
+ui_set_mouse_button_state(int x, int y, Mouse_Button_State button_state)
+{
+    ui_context.mouse_x = x;
+    ui_context.mouse_y = y;
+    if (button_state == Mouse_Left_Up)         ui_context.mouse_left_up    = true;
+    else if (button_state == Mouse_Left_Down)  ui_context.mouse_left_down  = true;
+    else if (button_state == Mouse_Right_Up)   ui_context.mouse_right_up   = true;
+    else if (button_state == Mouse_Right_Down) ui_context.mouse_right_down = true;
+    else if (button_state == Mouse_Move)
+    {
+        // Do nothing
+    }
+}
+
+void
+ui_set_mouse_wheel_state(int x, int y, int delta)
+{
+    ui_context.mouse_x = x;
+    ui_context.mouse_y = y;
+    
+    // TODO: Make sure this is a good number
+    ui_context.mouse_wheel = delta;
+}
+
+void
+ui_set_visibility_changed(Window_Visibility visibility)
+{
+    if (visibility == Window_Hidden) ui_context.ui_hidden = true;
+    else if (visibility == Window_Shown) ui_context.ui_shown = true;
 }

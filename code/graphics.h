@@ -1,5 +1,4 @@
-#ifndef RENDER_H
-#define RENDER_H
+#pragma once
 
 #include "stb_truetype.h"
 
@@ -10,6 +9,7 @@
 // TODO: THIS MIGHT BE MISNAMED, not actually rgb?
 #define RGBA(r, g, b, a) (((u8)(a) << 24) + ((u8)(r) << 16) + ((u8)(g) << 8) + (u8)(b))
 #define RGB_OPAQUE(r, g, b)  (((u8)0xFF << 24) + ((u8)(r) << 16) + ((u8)(g) << 8) + (u8)(b))
+#define GREY(c) RGB_OPAQUE(c, c, c)
 
 #define A_COMP(col) ((u8)((col) >> 24))
 #define R_COMP(col) ((u8)((col) >> 16))
@@ -52,6 +52,3 @@ struct Font
     i32 max_ascent;
     i32 max_descent;
 };
-
-
-#endif //RENDER_H

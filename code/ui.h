@@ -3,7 +3,6 @@
 
 typedef u32 UI_Id;
 
-
 struct UI_Layout
 {
     int x;
@@ -11,6 +10,9 @@ struct UI_Layout
     int w;
     int h;
     int spacing;
+    int index;
+    
+    UI_Id start_id;
 };
 
 struct UI_Context

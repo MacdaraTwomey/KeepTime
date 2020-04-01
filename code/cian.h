@@ -88,8 +88,10 @@ cian_print_assert_msg(const char *assertion, const char *file, const char *func,
 #define CIAN_ASSERT1(cond, file, func, line) do { if(!(cond)) { cian_print_assert_msg(CIAN_STRINGIFY(cond), file, func, line); CIAN_DEBUG_TRAP(); } } while(0)
 #define Assert(cond) CIAN_ASSERT1(cond, __FILE__, __func__, __LINE__)
 
-#define KILOBYTES(Value) ((Value) * 1024LL)
-#define MEGABYTES(Value) (Kilobytes(Value) * 1024LL)
+#define Kilobytes(Value) ((Value) * 1024LL)
+#define Megabytes(Value) (Kilobytes((Value)) * 1024LL)
+#define Gigabytes(Value) (Megabytes((Value)) * 1024LL)
+
 
 template <typename T, size_t n>
 constexpr size_t array_count(T(&)[n])

@@ -24,6 +24,4 @@ struct ICONDIR
 };
 
 
-
-
 #endif //ICON_H

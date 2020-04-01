@@ -1,4 +1,4 @@
-
+#pragma once
 // NOTE: Most of this inspired/created by Allen Webster in the 4coder_string.h string library.
 // https://4coder.handmade.network/
 

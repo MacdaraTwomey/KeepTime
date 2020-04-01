@@ -119,7 +119,7 @@ request_favicon_from_website(String url, Size_Mem *icon_file)
     
     // TODO: Realloc and grow if size > initial alloc + make first alloc smaller
     Size_Mem response = {};
-    response.memory = (u8 *)xalloc(MEGABYTES(8));
+    response.memory = (u8 *)xalloc(Megabytes(8));
     
     // Usually called by libcurl multiple times
     curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, recieve_data_callback);

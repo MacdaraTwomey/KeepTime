@@ -3,10 +3,6 @@
 
 #include <type_traits>
 
-#define Kilobytes(Value) ((Value) * 1024LL)
-#define Megabytes(Value) (Kilobytes((Value)) * 1024LL)
-#define Gigabytes(Value) (Megabytes((Value)) * 1024LL)
-
 // Need to declare these, so hash and equals specialisations can see them
 unsigned long djb2(unsigned char *str);
 unsigned long djb2(unsigned char *str, size_t len);

@@ -187,7 +187,7 @@ draw_rect_outline(Bitmap *buffer, int x, int y, int w, int h, Colour colour)
 }
 
 void
-draw_simple_bitmap(Bitmap *buffer, Bitmap *bitmap, int buffer_x, int buffer_y)
+draw_bitmap(Bitmap *buffer, Bitmap *bitmap, int buffer_x, int buffer_y)
 {
     if (!bitmap->pixels || bitmap->width == 0 || bitmap->height == 0)
     {
@@ -297,22 +297,6 @@ render_gui(Bitmap *buffer, Database *database, Day_View *day_view, Font *font)
     draw_rectangle(buffer, x_axis, 0.0f, 0.0f, 0.0f);
     draw_rectangle(buffer, y_axis, 0.0f, 0.0f, 0.0f);
     
-    Assert(day_view->day_count > 0);
-    Day *today = day_view->days[day_view->day_count-1];
-    
-    if (today->record_count == 0) return;
-    
-    Program_Record sorted_records[MaxDailyRecords];
-    memcpy(sorted_records, today->records, sizeof(Program_Record) * today->record_count);
-    
-    std::sort(sorted_records, sorted_records + today->record_count, [](Program_Record &a, Program_Record &b){ return a.duration > b.duration; });
-    
-    int max_bars = canvas_height / (bar_thickness + bar_spacing);
-    int bar_count = std::min(max_bars, (int)today->record_count);
-    
-    double max_duration = sorted_records[0].duration;
-    int max_bar_length = canvas_width - icon_margin - text_margin;
-    
     for (int i = 0; i < bar_count; ++i)
     {
         Program_Record &record = sorted_records[i];
@@ -333,23 +317,6 @@ render_gui(Bitmap *buffer, Database *database, Day_View *day_view, Font *font)
             r32 red = lerp(0.0f, 1.0f, t);
             
             draw_rectangle(buffer, bar, RGB_NORMAL(red, 0.0f, 0.0f));
-            
-            char text[512];
-            if (record.duration < 60.0f)
-            {
-                // Seconds
-                snprintf(text, array_count(text), "%.2lfs", record.duration);
-            }
-            else if(record.duration < 3600.0f)
-            {
-                // Minutes
-                snprintf(text, array_count(text), "%.0lfm", record.duration/60);
-            }
-            else
-            {
-                // Hours
-                snprintf(text, array_count(text), "%.0lfh", record.duration/3600);
-            }
             
             
             draw_text(buffer, font, text, bar.max.x + 5, bar.max.y - 5, 0.0f, 0.0f, 0.0f);

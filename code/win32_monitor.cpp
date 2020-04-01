@@ -1,26 +1,9 @@
 #include "cian.h"
-#include "monitor_string.h" // more of a library file
+//#include "monitor_string.h" // more of a library file
 
-// TODO: Make each file only include what it needs
-#include "helper.h"
-#include "graphics.h"
-#include "icon.h"
-#include "monitor.h"
-#include "resource.h"
-#include "win32_monitor.h"
-#include "platform.h"
-#include "ui.h"
-
-
-#include <chrono>
-#include <vector>
-#include <algorithm>
-
-#include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
-
-#include <wchar.h>
+#include <windows.h>
+#undef min
+#undef max
 
 #include <AtlBase.h>
 #include <UIAutomation.h>
@@ -28,34 +11,24 @@
 #include <shellapi.h>
 #include <shlobj_core.h> // SHDefExtractIconA
 
-#include <windows.h>
-#undef min
-#undef max
+#include "win32_monitor.h"
+#include "resource.h"
+#include "platform.h"
+#include "graphics.h"
+#include "ui.h"
+#include "monitor.h"
 
-#include "date.h"
+#include <chrono>
+#include <vector>
+#include <algorithm>
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
+#include <wchar.h>
 
-#define STB_TRUETYPE_IMPLEMENTATION
-#include "stb_truetype.h"
-
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
-
-using namespace date;
-
-static_assert(sizeof(date::sys_days) == sizeof(u32), "");
-static_assert(sizeof(date::year_month_day) == sizeof(u32), "");
-
-// NOTE: Debug use only
-Bitmap global_ms_icons[5];
-
-#include "utilities.cpp" // General programming and graphics necessaries
-#include "helper.cpp"  // General ADTs and useful classes
-#include "bitmap.cpp"
-#include "icon.cpp"    // Deals with win32 icon interface
-#include "file.cpp"    // Deals with savefile and file operations
-#include "network.cpp"
-#include "draw.cpp"  // Rendering code
+#include "utilities.cpp" // xalloc, string copy, concat string, make filepath, get_filename_from_path
 #include "monitor.cpp" // This deals with id, days, databases, websites, bitmap icons
+
 
 #define CONSOLE_ON 1
 
@@ -71,7 +44,6 @@ static NOTIFYICONDATA global_nid = {};
 
 static constexpr int WindowWidth = 960;
 static constexpr int WindowHeight = 540;
-
 
 // -----------------------------------------------------------------
 // TODO:
@@ -608,18 +580,19 @@ WinMain(HINSTANCE instance,
     HRESULT gg = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
     
     {
+        // TODO: How to give the app layer its full path?
         // Relative paths possible???
-        char exe_path[MaxPathLen];
+        char exe_path[PLATFORM_MAX_PATH_LEN];
         DWORD filepath_len = GetModuleFileNameA(nullptr, exe_path, 1024);
         if (filepath_len == 0 || GetLastError() == ERROR_INSUFFICIENT_BUFFER) return 1;
         
-        global_savefile_path = make_filepath(exe_path, SaveFileName);
+        global_savefile_path = make_filepath(exe_path, "savefile.mpt");
         if (!global_savefile_path) return 1;
         
-        global_debug_savefile_path = make_filepath(exe_path, DebugSaveFileName);
+        global_debug_savefile_path = make_filepath(exe_path, "debug_savefile.txt");
         if (!global_debug_savefile_path) return 1;
         
-        if (strlen(global_savefile_path) > MAX_PATH)
+        if (strlen(global_savefile_path) > PLATFORM_MAX_PATH_LEN)
         {
             tprint("Error: Find first file ANSI version limited to MATH_PATH");
             return 1;
@@ -628,12 +601,6 @@ WinMain(HINSTANCE instance,
     
     // If already running just open/show GUI, or if already open do nothing.
     // FindWindowA();
-    
-    for (int i = 0; i < array_count(global_ms_icons); ++i)
-    {
-        HICON ico = LoadIconA(NULL, MAKEINTRESOURCE(32513 + i));
-        global_ms_icons[i] = get_icon_bitmap(ico);
-    }
     
     win32_resize_screen_buffer(&global_screen_buffer, WindowWidth, WindowHeight);
     
@@ -670,7 +637,7 @@ WinMain(HINSTANCE instance,
     
     // Can't set lower than 10ms, not that you'd want to.
     // Can specify callback to call instead of posting message.
-    DWORD poll_milliseconds = 100;
+    DWORD poll_milliseconds = 10;
     SetTimer(window, 0, (UINT)poll_milliseconds, NULL);
     
     auto old_time = Steady_Clock::now();
@@ -726,30 +693,7 @@ WinMain(HINSTANCE instance,
 }
 
 
-
-
-
 #if 0
-Day &today = days[cur_day];
-double sum_duration = 0;
-for (u32 i = 0; i < today.record_count; ++i)
-{
-    // Can store all names in array to quickly get name associated with ID
-    char *name = all_programs.search_by_value(today.records[i].ID);
-    Assert(name);
-    sb.appendf("%s %lu: %lf\n", name, today.records[i].ID, today.records[i].duration);
-    sum_duration += today.records[i].duration;
-}
-sb.appendf("\nAccumulated duration: %lf\n\n", duration_accumulator);
-sb.appendf("Sum records duration: %lf\n\n", sum_duration);
-SetWindowTextA(global_text_window, sb.str);
-
-if (Global_running) sb.clear();
-
-//
-//
-//
-
 // TRUE means thread owns the mutex, must have name to be visible to other processes
 // CreateMutex opens mutex if it exists, and creates it if it doesn't
 // ReleaseMutex gives up ownership ERROR_ALREADY_EXISTS and returns handle but not ownership

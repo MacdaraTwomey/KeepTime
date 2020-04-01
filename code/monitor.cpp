@@ -1,13 +1,42 @@
 #include <unordered_map>
 
+#include "monitor_string.h"
+#include "helper.h"
+
+
+#define STB_TRUETYPE_IMPLEMENTATION
+#include "stb_truetype.h"
+
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
+#include "graphics.h"
+#include "icon.h"
+
+#include "helper.h"
+#include "helper.cpp"
+
+#include "date.h"
+
+static_assert(sizeof(date::sys_days) == sizeof(u32), "");
+static_assert(sizeof(date::year_month_day) == sizeof(u32), "");
+
 #include "monitor.h"
 #include "platform.h"
+
+#include "draw.cpp"
+#include "bitmap.cpp"
+#include "icon.cpp"    // Deals with win32 icon interface TODO: Move platform dependent parts to win
+
 
 #include "ui.h"
 #include "ui.cpp"
 
+#include "network.cpp"
+
+
 void
-start_new_day(Database *database, sys_days date)
+start_new_day(Database *database, date::sys_days date)
 {
     Assert(database);
     Assert(database->days);
@@ -69,12 +98,12 @@ init_day_view(Database *database, Day_View *day_view)
 
 // TODO: Consider reworking this
 void
-set_range(Day_View *day_view, i32 period, sys_days current_date)
+set_range(Day_View *day_view, i32 period, date::sys_days current_date)
 {
     // From start date until today
     if (day_view->day_count > 0)
     {
-        sys_days start_date = current_date - date::days{period - 1};
+        date::sys_days start_date = current_date - date::days{period - 1};
         
         i32 end_range = day_view->day_count-1;
         i32 start_range = end_range;
@@ -115,7 +144,8 @@ destroy_day_view(Day_View *day_view)
 void init_database(Database *database)
 {
     *database = {};
-    database->programs = std::unordered_map<String, Program>(30);
+    database->programs = std::unordered_map<String, Program_Id>(30);
+    database->program_paths = std::unordered_map<Program_Id, Program_Paths>(30);
     database->websites = std::unordered_map<Program_Id, String>(50);
     
     // TODO: Maybe disallow 0
@@ -267,13 +297,9 @@ update_days_records(Day *day, u32 id, double dt)
 Bitmap *
 get_icon_from_database(Database *database, u32 id)
 {
-#if 0
     Assert(database);
     if (is_exe(id))
     {
-        // TODO: Change this assert
-        Assert(id < 200);
-        
         if (database->icons[id].pixels)
         {
             Assert(database->icons[id].width > 0 && database->icons[id].pixels > 0);
@@ -282,62 +308,39 @@ get_icon_from_database(Database *database, u32 id)
         else
         {
             // Load bitmap on demand
-            if (database->paths[id].is_initialised)
+            if  (database->program_paths.count(id) > 0)
             {
-                Bitmap *destination_icon = &database->icons[id];
-                bool success = get_icon_from_executable(database->paths[id].str, ICON_SIZE, destination_icon, true);
-                if (success)
+                String path = database->program_paths[id].full_path;
+                if (path.length > 0)
                 {
-                    // TODO: Maybe mark old paths that couldn't get correct icon for deletion.
-                    return destination_icon;
+                    Bitmap *destination_icon = &database->icons[id];
+                    bool success = get_icon_from_executable(path, ICON_SIZE, destination_icon, true);
+                    if (success)
+                    {
+                        // TODO: Maybe mark old paths that couldn't get correct icon for deletion.
+                        return destination_icon;
+                    }
                 }
             }
-            else
-            {
-                tprint("Could not get icon from exe, path not initialised");
-            }
         }
+        
+        // use default
+        u32 index = id % array_count(database->ms_icons);
+        Bitmap *ms_icon = &database->ms_icons[index];
+        if (ms_icon->pixels) return ms_icon;
     }
     else
     {
-#if 1
-        
-        u32 index = id & ((1u << 31) - 1);
-        if (index >= array_count(global_ms_icons))
-        {
-            return &global_ms_icons[0];
-        }
-        else
-        {
-            Bitmap *ms_icon = &global_ms_icons[index];
-            return ms_icon;
-        }
-#else
-        if (database->firefox_icon.pixels)
-        {
-            return &database->firefox_icon;
-        }
-        else
-        {
-            // TODO: @Cleanup: This is debug
-            u32 temp;
-            bool has_firefox = database->all_programs.search("firefox", &temp);
-            
-            // should not have gotten firefox, else we would have saved its icon
-            Assert(!has_firefox);
-            Assert(database->website_count == 0);
-            temp = 1; // too see which assert triggers more clearly.
-            Assert(0);
-            return nullptr;
-        }
-#endif
+        u32 index = id & ((1u << 31) - 1) % array_count(database->ms_icons);
+        Bitmap *ms_icon = &database->ms_icons[index];
+        if (ms_icon->pixels) return ms_icon;
     }
     
-#endif
     return nullptr;
 }
 
-// TODO: Do we need/want dt here
+// TODO: Do we need/want dt here,
+// maybe want to split up update_days
 void
 poll_windows(Database *database, double dt)
 {
@@ -386,7 +389,7 @@ poll_windows(Database *database, double dt)
                 Keyword *keyword = search_url_for_keywords(url, database->keywords, database->keyword_count);
                 if (keyword)
                 {
-                    if (!database->websites.count(keyword->id))
+                    if (database->websites.count(keyword->id) == 0)
                     {
                         Assert(database->websites.size() < MaxWebsiteCount);
                         String s = copy_alloc_string(url);
@@ -395,6 +398,7 @@ poll_windows(Database *database, double dt)
                     else
                     {
                         // get record id
+                        record_id = keyword->id;
                     }
                     
                     
@@ -410,19 +414,26 @@ poll_windows(Database *database, double dt)
         if (database->programs.count(program_name) == 0)
         {
             // These are null terminated
-            String key         = copy_alloc_string(program_name);
-            String s           = copy_alloc_string(full_path);
-            Program_Id temp_id = make_id(database, Record_Exe);
+            String name = copy_alloc_string(program_name);
+            String path = copy_alloc_string(full_path);
+            Program_Id new_id = make_id(database, Record_Exe);
             
-            Program program = {s, temp_id};
+            Program_Paths paths = {};
+            paths.full_path = full_path;
+            paths.name = name;
             
-            database->programs.insert({key, program});
+            database->program_paths.insert({new_id, paths});
             
-            record_id = temp_id;
+            // These don't share the same strings for now
+            String name_2 = copy_alloc_string(program_name);
+            database->programs.insert({name_2, new_id});
+            
+            record_id = new_id;
         }
         else
         {
             // get record id
+            record_id = database->programs[program_name];
         }
     }
     
@@ -475,81 +486,120 @@ update(Monitor_State *state, Bitmap *screen_buffer, time_type dt)
         state->font = create_font("c:\\windows\\fonts\\times.ttf", 28);
         ui_init(screen_buffer, &state->font);
         
+        for (int i = 0; i < array_count(state->database.ms_icons); ++i)
+        {
+            HICON ico = LoadIconA(NULL, MAKEINTRESOURCE(32513 + i));
+            state->database.ms_icons[i] = get_icon_bitmap(ico);
+        }
+        
+        
         state->is_initialised = true;
     }
+    // TODO: Separate platform and icon code in icon.cpp
     
-    
-    sys_days current_date = floor<date::days>(System_Clock::now());
+    date::sys_days current_date = floor<date::days>(System_Clock::now());
     if (current_date != state->database.days[state->database.day_count-1].date)
     {
         start_new_day(&state->database, current_date);
     }
     
-    // speed up time!!!
-    // int seconds_per_day = 5;
-    //sys_days current_date = floor<date::days>(System_Clock::now()) + date::days{(int)duration_accumulator / seconds_per_day};
-    
     // Maybe better if this is all integer arithmetic
-    float poll_window_freq = 100; // ms
     state->accumulated_time = dt;
+    float poll_window_freq = 100; // ms
     if (state->accumulated_time >= poll_window_freq)
     {
         state->accumulated_time -= poll_window_freq;
-        
-        poll_windows(&state->database, dt);
     }
     
+    poll_windows(&state->database, dt);
+    
+    if (ui_was_shown())
+    {
+        // Save a freeze frame of the currently saved days.
+    }
+    
+    init_day_view(&state->database, &state->day_view);
+    
+    draw_rectangle(screen_buffer, 0, 0, screen_buffer->width, screen_buffer->height, GREY(255));
     
     ui_begin();
     
-    draw_rectangle(screen_buffer, Rect2i{{0, 0}, {screen_buffer->width, screen_buffer->height}}, RGB(255, 255, 255));
+    {
+        static i32 period = 1;
+        ui_button_row_begin(270, 30, 100);
+        
+        if (ui_button("Day"))
+        {
+            period = 1;
+        }
+        if (ui_button("Week"))
+        {
+            period = 7;
+        }
+        if (ui_button("Month"))
+        {
+            period = 30;
+        }
+        
+        set_range(&state->day_view, period, current_date);
+        
+        ui_button_row_end();
+    }
     
-    ui_button_row_begin(50, 50, 100);
-    ui_button("Day");
-    ui_button("Week");
-    ui_button("Month");
-    ui_button_row_end();
+    {
+        Assert(state->day_view.day_count > 0);
+        Day *today = state->day_view.days[state->day_view.day_count-1];
+        
+        if (today->record_count >= 0)
+        {
+            i32 record_count = today->record_count;
+            
+            Program_Record sorted_records[MaxDailyRecords];
+            memcpy(sorted_records, today->records, sizeof(Program_Record) * record_count);
+            
+            std::sort(sorted_records, sorted_records + record_count, [](Program_Record &a, Program_Record &b){ return a.duration > b.duration; });
+            
+            double max_duration = sorted_records[0].duration;
+            
+            ui_graph_begin(270, 80, 650, 400, gen_id());
+            for (i32 i = 0; i < record_count; ++i)
+            {
+                Program_Record &record = sorted_records[i];
+                float length = (record.duration / max_duration);
+                length += 0.1f; // bump factor
+                if (length > 1.0f) length = 1.0f;
+                
+                char text[512];
+                snprintf(text, array_count(text), "%.2lfs", record.duration);
+#if 0
+                if (record.duration < 60.0f)
+                {
+                    // Seconds
+                }
+                else if(record.duration < 3600.0f)
+                {
+                    // Minutes
+                    snprintf(text, array_count(text), "%.0lfm", record.duration/60);
+                }
+                else
+                {
+                    // Hours
+                    snprintf(text, array_count(text), "%.0lfh", record.duration/3600);
+                }
+#endif
+                
+                Bitmap *icon = get_icon_from_database(&state->database, record.id);;
+                ui_graph_bar(length, text, icon); // pass bitmap and text too?
+            }
+            ui_graph_end();
+        }
+    }
     
     ui_end();
     
-#if 0
-    if (gui_opened)
-    {
-        // Save a freeze frame of the currently saved days.
-        init_day_view(&state->database, &day_view);
-    }
-    if (gui_closed)
-    {
-        destroy_day_view(&state->day_view);
-    }
-    init_day_view(&state->database, &state->day_view);
-    
-    if (button_clicked)
-    {
-        Button button_clicked = Button_Day;
-        
-        i32 period =
-            (button_clicked == Button_Day) ? 1 :
-        (button_clicked == Button_Week) ? 7 : 30;
-        
-        set_range(&state->day_view, period, current_date);
-    }
-    
-    
-    if (gui_visible)
-    {
-        // TODO: Move to system where we more tell renderer what to draw
-        // this would also stop needing to get_icon__from_database in render
-        
-        render_gui(global_screen_buffer, &state->database, &state->day_view, &font);
-    }
-    
     destroy_day_view(&state->day_view);
     
-    if (state->favicon.pixels)
+    if (ui_was_hidden())
     {
-        draw_simple_bitmap(global_screen_buffer, state->favicon, 200, 200);
     }
-#endif
-    
 }

@@ -53,6 +53,57 @@ concat_strings(char *dest, size_t dest_len,
 }
 
 
+
+
+static char *
+get_filename_from_path(const char *filepath)
+{
+    // Returns pointer to filename part of filepath
+    char *char_after_last_slash = (char *)filepath;
+    for (char *at = char_after_last_slash; at[0]; ++at)
+    {
+        if (*at == '\\')
+        {
+            char_after_last_slash = at + 1;
+        }
+    }
+    
+    return char_after_last_slash;
+}
+
+
+char *
+make_filepath(char *exe_path, const char *filename)
+{
+    char *buf = (char *)xalloc(PLATFORM_MAX_PATH_LEN);
+    if (!buf)
+    {
+        return nullptr;
+    }
+    
+    char *exe_name = get_filename_from_path(exe_path);
+    ptrdiff_t dir_len = exe_name - exe_path;
+    if (dir_len + strlen(filename) + 1 > PLATFORM_MAX_PATH_LEN)
+    {
+        free(buf);
+        return nullptr;
+    }
+    
+    concat_strings(buf, PLATFORM_MAX_PATH_LEN,
+                   exe_path, dir_len,
+                   filename, strlen(filename));
+    
+    realloc(buf, dir_len + strlen(filename) + 1);
+    if (!buf)
+    {
+        return nullptr;
+    }
+    
+    return buf;
+}
+
+
+
 struct V2i
 {
     int x, y;

@@ -1,8 +1,11 @@
 #pragma once
 
 #include "date.h"
+#include "graphics.h"
 #include "helper.h"
+#include "monitor_string.h"
 #include "stb_truetype.h"
+
 #include <unordered_map>
 
 // TODO: Think of better way than just having error prone max amounts.
@@ -97,11 +100,11 @@ struct Day_View
     bool accumulate;
 };
 
-struct Program
+struct Program_Paths
 {
     // TODO: Check that full paths saved to file are valid, and update if possible.
     String full_path;
-    Program_Id id;
+    String name;
 };
 
 struct Keyword
@@ -111,7 +114,6 @@ struct Keyword
 };
 
 
-#if 1
 // custom specialization of std::hash can be injected in namespace std
 namespace std
 {
@@ -124,6 +126,14 @@ namespace std
         }
     };
     
+    template <> struct std::equal_to<String>
+    {
+        bool operator()(String const& a, String const& b) const noexcept
+        {
+            return string_equals(a, b);
+        }
+    };
+    
     template<> struct std::hash<Program_Id>
     {
         std::size_t operator()(Program_Id const& id) const noexcept
@@ -133,21 +143,17 @@ namespace std
         }
     };
     
-    template <> struct std::equal_to<String>
-    {
-        bool operator()(String const& a, String const& b) const noexcept
-        {
-            return string_equals(a, b);
-        }
-    };
 }
-#endif
 
 
 struct Database
 {
     //Hash_Table all_programs; // name -> ID
-    std::unordered_map<String, Program> programs;
+    std::unordered_map<String, Program_Id> programs;
+    
+    // When we want to get a icon from an exe, we scan the table for an id, then use its path
+    // ID -> path
+    std::unordered_map<Program_Id, Program_Paths> program_paths;
     
     // ID -> name
     std::unordered_map<Program_Id, String> websites;
@@ -167,6 +173,8 @@ struct Database
     // - a path (updated or not) with no corresponding bitmap (either not loaded or unable to be loaded)
     // - a path (updated or not) with a bitmap
     Bitmap icons[200]; // Loaded on demand
+    
+    Bitmap ms_icons[5];
     
     Day days[MaxDays];
     i32 day_count;
