@@ -380,7 +380,8 @@ poll_windows(Database *database, double dt)
         // urls can validly have no www. or https:// and still be valid.
         char url_buf[2000];
         size_t url_len = 0;
-        bool got_url = platform_get_firefox_url(window, url_buf, &url_len);
+        //bool got_url = platform_get_firefox_url(window, url_buf, &url_len);
+        bool got_url = platform_get_firefox_url2(window, url_buf, array_count(url_buf), &url_len);
         if (got_url)
         {
             String url = make_string_size_cap(buf, url_len, array_count(url_buf));

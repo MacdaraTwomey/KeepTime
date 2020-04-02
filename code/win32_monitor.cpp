@@ -154,6 +154,156 @@ platform_get_program_from_window(Platform_Window window, char *buf, size_t *leng
 }
 
 bool
+proccess_url_bstr(BSTR url, char *buf, int buf_size, size_t *length)
+{
+    bool result = false;
+    size_t len = SysStringLen(url);
+    if (len > 0)
+    {
+        int converted_len = WideCharToMultiByte(CP_UTF8, 0,
+                                                url, len+1, // +1 to include null terminator
+                                                buf, buf_size, NULL, NULL);
+        if (converted_len == len+1)
+        {
+            *length = converted_len;
+            result = true;
+        }
+    }
+    else
+    {
+        // Url bar was just empty
+        *length = 0;
+        result = true;
+    }
+    
+    return result;
+}
+
+IUIAutomationElement *
+get_url_bar_editbox(HWND window)
+{
+    IUIAutomationElement *editbox = nullptr;
+    
+    IUIAutomation *uia = nullptr;
+    HRESULT err = CoCreateInstance(CLSID_CUIAutomation, NULL, CLSCTX_INPROC_SERVER, IID_IUIAutomation,
+                                   (void **)(&uia));
+    if (err != S_OK || !uia) goto CLEANUP;
+    
+    IUIAutomationElement *firefox_window = nullptr;
+    err = uia->ElementFromHandle(window, &firefox_window);
+    if (err != S_OK || !firefox_window) goto CLEANUP;
+    
+    VARIANT navigation_name;
+    navigation_name.vt = VT_BSTR;
+    navigation_name.bstrVal = SysAllocString(L"Navigation");
+    if (navigation_name.bstrVal == NULL) goto CLEANUP;
+    
+    IUIAutomationCondition *is_navigation = nullptr;
+    IUIAutomationCondition *is_toolbar = nullptr;
+    IUIAutomationCondition *and_cond = nullptr;
+    IUIAutomationCondition *is_combobox = nullptr;
+    IUIAutomationCondition *is_editbox = nullptr;
+    uia->CreatePropertyCondition(UIA_NamePropertyId, navigation_name, &is_navigation);
+    uia->CreatePropertyCondition(UIA_ControlTypePropertyId, CComVariant(UIA_ToolBarControlTypeId), &is_toolbar);
+    uia->CreateAndCondition(is_navigation, is_toolbar, &and_cond);
+    uia->CreatePropertyCondition(UIA_ControlTypePropertyId, CComVariant(UIA_ComboBoxControlTypeId), &is_combobox);
+    uia->CreatePropertyCondition(UIA_ControlTypePropertyId, CComVariant(UIA_EditControlTypeId), &is_editbox);
+    
+    // exception?
+    IUIAutomationElement *navigation_toolbar = nullptr;
+    err = firefox_window->FindFirst(TreeScope_Children, and_cond, &navigation_toolbar);
+    if (err != S_OK || !navigation_toolbar) goto CLEANUP;
+    
+    IUIAutomationElement *combobox = nullptr;
+    err = navigation_toolbar->FindFirst(TreeScope_Children, is_combobox, &combobox);
+    if (err != S_OK || !combobox) goto CLEANUP;
+    
+    err = combobox->FindFirst(TreeScope_Descendants, is_editbox, &editbox);
+    if (err != S_OK) editbox = nullptr;
+    
+    CLEANUP:
+    
+    if (combobox) combobox->Release();
+    if (navigation_toolbar) navigation_toolbar->Release();
+    if (is_editbox) is_editbox->Release();
+    if (is_combobox) is_combobox->Release();
+    if (and_cond) and_cond->Release();
+    if (is_toolbar) is_toolbar->Release();
+    if (is_navigation) is_navigation->Release();
+    if (navigation_name.bstrVal) VariantClear(&navigation_name);
+    if (firefox_window) firefox_window->Release();
+    if (uia) uia->Release();
+    
+    return editbox;
+}
+
+bool
+platform_get_firefox_url2(Platform_Window window, char *buf, int buf_size, size_t *length)
+{
+    // To get the URL of the active tab in Firefox Window:
+    // Mozilla firefox window          ControlType: UIA_WindowControlTypeId (0xC370) LocalizedControlType: "window"
+    //   "Navigation" tool bar         UIA_ToolBarControlTypeId (0xC365) LocalizedControlType: "tool bar"
+    //     "" combobox                 UIA_ComboBoxControlTypeId (0xC353) LocalizedControlType: "combo box"
+    //       "Search with Google or enter address"   UIA_EditControlTypeId (0xC354) LocalizedControlType: "edit"
+    //        which has Value.Value = URL
+    
+    bool success = false;
+    *length = 0;
+    
+    // NOTE: window will always be the up to date firefox window, even if our editbox pointer is old.
+    // NOTE: Even when everything else is released it seems that you can still use editbox pointer, unless the window is closed. Documentation does not confirm this, so i'm not 100% sure it's safe.
+    
+    static IUIAutomationElement *editbox = nullptr;
+    if (editbox)
+    {
+        // If we have a editbox pointer we can assume its the same window (likely) and try to get url bar
+        VARIANT url_bar = {};
+        HRESULT err = editbox->GetCurrentPropertyValue(UIA_ValueValuePropertyId, &url_bar);
+        if (err == S_OK)
+        {
+            if (url_bar.bstrVal)
+            {
+                success = proccess_url_bstr(url_bar.bstrVal, buf, buf_size, length);
+                VariantClear(&url_bar);
+            }
+            
+            return success;
+        }
+        else
+        {
+            // The editbox pointer probably isn't valid anymore
+            editbox->Release();
+            editbox = nullptr;
+        }
+    }
+    
+    // Try re-aquiring editbox pointer for the window handle
+    editbox = get_url_bar_editbox(window.handle);
+    if (editbox)
+    {
+        VARIANT url_bar = {};
+        HRESULT err = editbox->GetCurrentPropertyValue(UIA_ValueValuePropertyId, &url_bar);
+        if (err == S_OK)
+        {
+            if (url_bar.bstrVal)
+            {
+                success = proccess_url_bstr(url_bar.bstrVal, buf, buf_size, length);
+                VariantClear(&url_bar);
+            }
+            
+            return success;
+        }
+        else
+        {
+            editbox->Release();
+            editbox = nullptr;
+        }
+    }
+    
+    return success;
+}
+
+bool
 platform_get_firefox_url(Platform_Window window, char *buf, size_t *length)
 {
     // On success fills buf will null terminated string, and sets length to string length (not including null terminator)
@@ -167,6 +317,7 @@ platform_get_firefox_url(Platform_Window window, char *buf, size_t *length)
     // This error can be caused by the application requesting a newer version of oleaut32.dll than you have.
     // To fix I think you can just download newer version of oleaut32.dll.
     
+    bool success = false;
     *length = 0;
     
     // Need to create a  CUIAutomation object and retrieve an IUIAutomation interface pointer to to to access UIAutomation functionality...
@@ -243,13 +394,6 @@ platform_get_firefox_url(Platform_Window window, char *buf, size_t *length)
     //     "tab text"         ControlType: UIA_DocumentControlTypeId (0xC36E) LocalizedControlType: "document"
     //     which has Value.Value = URL
     
-    // To get the URL of the active tab in Firefox Window:
-    // Mozilla firefox window          ControlType: UIA_WindowControlTypeId (0xC370) LocalizedControlType: "window"
-    //   "Navigation" tool bar         UIA_ToolBarControlTypeId (0xC365) LocalizedControlType: "tool bar"
-    //     "" combobox                 UIA_ComboBoxControlTypeId (0xC353) LocalizedControlType: "combo box"
-    //       "Search with Google or enter address"   UIA_EditControlTypeId (0xC354) LocalizedControlType: "edit"
-    //        which has Value.Value = URL
-    
     int toolbars_count = 0;
     toolbars->get_Length(&toolbars_count);
     for(int i = 0; i < toolbars_count; i++)
@@ -319,11 +463,13 @@ platform_get_firefox_url(Platform_Window window, char *buf, size_t *length)
             // need to call SysFreeString?
             
             buf[len] = '\0';
-            return true;
+            success = true;
+            break;
+            // return true;// returning caused crash
         }
     }
     
-    return false;
+    return success;
 }
 
 void
