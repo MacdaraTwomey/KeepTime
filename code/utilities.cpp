@@ -12,32 +12,6 @@ void *xalloc(size_t size)
     return p;
 }
 
-// len is string length including null terminator
-char *clone_string(char *str, size_t len)
-{
-    Assert(len > 0);
-    if (len == 0) return nullptr;
-    
-    char *clone = (char *)xalloc(len);
-    if (clone)
-    {
-        // Copy all chars, len can be > number chars so dont use that.
-        strcpy(clone, str);
-    }
-    return clone;
-}
-
-char *
-clone_string(char *string)
-{
-    Assert(string);
-    size_t len = strlen(string);
-    Assert(len > 0);
-    
-    if (len == 0) return nullptr;
-    
-    return clone_string(string, len+1);
-}
 
 void
 concat_strings(char *dest, size_t dest_len,

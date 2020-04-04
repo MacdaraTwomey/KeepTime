@@ -44,7 +44,8 @@ copy_alloc_string(String str)
     String result;
     int capacity = str.length + 1;
     
-    result.str = clone_string(str.str, capacity);
+    result.str = (char *)xalloc(capacity);
+    memcpy(result.str, str.str, str.length);
     result.length = str.length;
     result.capacity = capacity;
     null_terminate(&result); // requires len < cap
@@ -52,7 +53,7 @@ copy_alloc_string(String str)
     return result;
 }
 
-
+#if 0
 bool init_hash_table(Hash_Table *table, s64 table_size)
 {
     Assert(table_size > 0);
@@ -211,6 +212,9 @@ char *Hash_Table::get_key_by_value(u32 value)
     return nullptr;
 }
 
+#endif
+
+// -------------------------------------------------------------------------
 
 String_Builder create_string_builder()
 {

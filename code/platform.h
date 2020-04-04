@@ -15,7 +15,7 @@ struct Platform_Window
 
 bool platform_get_program_from_window(Platform_Window window, char *buf, size_t *length);
 
-bool platform_get_firefox_url(Platform_Window window, char *buf, size_t *length);
+bool platform_get_firefox_url(Platform_Window window, char *buf, int buf_size, size_t *length);
 
 bool platform_get_firefox_url2(Platform_Window window, char *buf, int buf_size, size_t *length);
 

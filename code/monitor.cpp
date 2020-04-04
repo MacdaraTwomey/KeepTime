@@ -458,6 +458,9 @@ Monitor_State
 };
 
 
+
+u64 loops = 0;
+
 void
 update(Monitor_State *state, Bitmap *screen_buffer, time_type dt)
 {
@@ -498,6 +501,8 @@ update(Monitor_State *state, Bitmap *screen_buffer, time_type dt)
     }
     // TODO: Separate platform and icon code in icon.cpp
     
+    loops++;
+    
     date::sys_days current_date = floor<date::days>(System_Clock::now());
     if (current_date != state->database.days[state->database.day_count-1].date)
     {
@@ -512,7 +517,10 @@ update(Monitor_State *state, Bitmap *screen_buffer, time_type dt)
         state->accumulated_time -= poll_window_freq;
     }
     
+    _CrtMemState mem_state;
+    _CrtMemCheckpoint(&mem_state);
     poll_windows(&state->database, dt);
+    
     
     if (ui_was_shown())
     {
