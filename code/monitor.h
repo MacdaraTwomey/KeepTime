@@ -52,68 +52,6 @@ struct Header
 
 typedef u32 Program_Id;
 
-enum Record_Type
-{
-    Record_Invalid,
-    Record_Exe,     // Start at 0
-    Record_Firefox, // Start at 0x800000
-};
-
-struct Program_Record
-{
-    Program_Id id;
-    time_type duration;
-};
-
-
-// delet?
-struct Memory_Block
-{
-    u8 *data;
-    u32 size;
-};
-
-struct Day
-{
-    Program_Record *records;
-    u32 record_count;
-    date::sys_days date;
-};
-
-// Might want a linked list of fixed size blocks for the records, and a dynamic array for days
-struct NOT_SURE
-{
-    Day *days;
-    Program_Record *records; // all records, each days records points in here
-    u32 day_count;
-};
-
-struct Day_View
-{
-    // Must pass by reference because of pointer to last day
-    Day *days[MaxDays];
-    Day last_day_;
-    i32 day_count;
-    
-    i32 start_range;
-    i32 range_count;
-    bool accumulate;
-};
-
-struct Program_Paths
-{
-    // TODO: Check that full paths saved to file are valid, and update if possible.
-    String full_path;
-    String name;
-};
-
-struct Keyword
-{
-    String str;
-    Program_Id id;
-};
-
-
 // custom specialization of std::hash can be injected in namespace std
 namespace std
 {
@@ -146,17 +84,67 @@ namespace std
 }
 
 
+struct Program_Record
+{
+    Program_Id id;
+    time_type duration;
+};
+
+struct Day
+{
+    Program_Record *records;
+    u32 record_count;
+    date::sys_days date;
+};
+
+struct Day_View
+{
+    // Must pass by reference because of pointer to last day
+    Day *days[MaxDays];
+    Day last_day_;
+    i32 day_count;
+    
+    i32 start_range;
+    i32 range_count;
+    bool accumulate;
+};
+// Might want a linked list of fixed size blocks for the records, and a dynamic array for days
+
+
+enum Record_Type
+{
+    Record_Invalid,
+    Record_Exe,     // Start at 0
+    Record_Firefox, // Start at 0x800000
+};
+
+struct Program_Paths
+{
+    // TODO: Check that full paths saved to file are valid, and update if possible.
+    String full_path;
+    String name;
+};
+
+struct Keyword
+{
+    String str;
+    Program_Id id;
+};
+
+struct Record_Name
+{
+    // (full url, keyword) or
+    // (path, exe name)
+    String long_name;
+    String short_name;
+};
+
 struct Database
 {
-    //Hash_Table all_programs; // name -> ID
     std::unordered_map<String, Program_Id> programs;
     
-    // When we want to get a icon from an exe, we scan the table for an id, then use its path
-    // ID -> path
-    std::unordered_map<Program_Id, Program_Paths> program_paths;
-    
-    // ID -> name
-    std::unordered_map<Program_Id, String> websites;
+    // Contains websites matching a keyword and programs
+    std::unordered_map<Program_Id, Record_Name> record_names;
     
     Keyword keywords[50];
     i32 keyword_count;
@@ -164,15 +152,15 @@ struct Database
     u32 next_program_id;      // starts at 0x00000000 zero
     u32 next_website_id;      // starts at 0x80000000 top bit set
     
-    // Set these when possible
-    //Exe_Path firefox_path;
-    //Bitmap firefox_icon;
-    //u32 firefox_id;
+    // Temporary
+    Program_Id firefox_id;
+    bool added_firefox;
     
     // Can have:
     // - a path (updated or not) with no corresponding bitmap (either not loaded or unable to be loaded)
     // - a path (updated or not) with a bitmap
     Bitmap icons[200]; // Loaded on demand
+    Bitmap website_icons[200]; // Loaded on demand
     
     Bitmap ms_icons[5];
     

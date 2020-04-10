@@ -145,8 +145,7 @@ void init_database(Database *database)
 {
     *database = {};
     database->programs = std::unordered_map<String, Program_Id>(30);
-    database->program_paths = std::unordered_map<Program_Id, Program_Paths>(30);
-    database->websites = std::unordered_map<Program_Id, String>(50);
+    database->record_names = std::unordered_map<Program_Id, Record_Name>(80);
     
     // TODO: Maybe disallow 0
     database->next_program_id = 0;
@@ -295,9 +294,13 @@ update_days_records(Day *day, u32 id, double dt)
 
 
 Bitmap *
-get_icon_from_database(Database *database, u32 id)
+get_icon_from_database(Database *database, Program_Id id)
 {
-    Assert(database);
+    // HACK: We just use firefox icon
+    if (is_firefox(id))
+    {
+        id = database->firefox_id;
+    }
     if (is_exe(id))
     {
         if (database->icons[id].pixels)
@@ -308,9 +311,9 @@ get_icon_from_database(Database *database, u32 id)
         else
         {
             // Load bitmap on demand
-            if  (database->program_paths.count(id) > 0)
+            if  (database->record_names.count(id) > 0)
             {
-                String path = database->program_paths[id].full_path;
+                String path = database->record_names[id].long_name;
                 if (path.length > 0)
                 {
                     Bitmap *destination_icon = &database->icons[id];
@@ -331,8 +334,34 @@ get_icon_from_database(Database *database, u32 id)
     }
     else
     {
-        u32 index = id & ((1u << 31) - 1) % array_count(database->ms_icons);
-        Bitmap *ms_icon = &database->ms_icons[index];
+        // TODO: Make less error prone than using id for index
+#if 0
+        u32 index = id & ((1u << 31) - 1) % array_count(database->website_icons);
+        if (database->website_icons[index].pixels != nullptr)
+        {
+            Assert(database->website_icons[index].width > 0 && database->website_icons[index].pixels > 0);
+            return &database->website_icons[index];
+        }
+        else
+        {
+            if (database->websites.count(id) > 0)
+            {
+                String url = database->websites[id];
+                if (url.length > 0)
+                {
+                    Bitmap favicon = get_favicon_from_website(url);
+                    if (favicon.pixels)
+                    {
+                        database->website_icons[index] = favicon;
+                        return &database->website_icons[index];
+                    }
+                }
+            }
+        }
+#endif
+        static u32 index = 0;
+        Bitmap *ms_icon = &database->ms_icons[index++];
+        if (index >= array_count(database->ms_icons)) index = 0;
         if (ms_icon->pixels) return ms_icon;
     }
     
@@ -380,28 +409,23 @@ poll_windows(Database *database, double dt)
         // urls can validly have no www. or https:// and still be valid.
         char url_buf[2000];
         size_t url_len = 0;
-        //bool got_url = platform_get_firefox_url(window, url_buf, &url_len);
-        bool got_url = platform_get_firefox_url2(window, url_buf, array_count(url_buf), &url_len);
+        bool got_url = platform_get_firefox_url(window, url_buf, array_count(url_buf), &url_len);
         if (got_url)
         {
-            String url = make_string_size_cap(buf, url_len, array_count(url_buf));
+            String url = make_string_size_cap(url_buf, url_len, array_count(url_buf));
             if (url.length > 0)
             {
                 Keyword *keyword = search_url_for_keywords(url, database->keywords, database->keyword_count);
                 if (keyword)
                 {
-                    if (database->websites.count(keyword->id) == 0)
+                    if (database->record_names.count(keyword->id) == 0)
                     {
-                        Assert(database->websites.size() < MaxWebsiteCount);
-                        String s = copy_alloc_string(url);
-                        database->websites.insert({keyword->id, s});
+                        Record_Name names;
+                        names.long_name = copy_alloc_string(url);
+                        names.short_name = copy_alloc_string(keyword->str);
+                        
+                        database->record_names.insert({keyword->id, names});
                     }
-                    else
-                    {
-                        // get record id
-                        record_id = keyword->id;
-                    }
-                    
                     
                     record_id = keyword->id;
                     add_to_executables = false;
@@ -410,20 +434,39 @@ poll_windows(Database *database, double dt)
         }
     }
     
+    // Temporary, for when we get firefox website, before we have added firefox program
+    if (program_is_firefox && !add_to_executables)
+    {
+        if (!database->added_firefox)
+        {
+            Program_Id new_id = make_id(database, Record_Exe);
+            
+            Record_Name names;
+            names.long_name = copy_alloc_string(full_path);
+            names.short_name = copy_alloc_string(program_name);
+            
+            database->record_names.insert({new_id, names});
+            
+            // These don't share the same strings for now
+            String name_2 = copy_alloc_string(program_name);
+            database->programs.insert({name_2, new_id});
+            
+            database->firefox_id = new_id;
+            database->added_firefox = true;
+        }
+    }
+    
     if (add_to_executables)
     {
         if (database->programs.count(program_name) == 0)
         {
-            // These are null terminated
-            String name = copy_alloc_string(program_name);
-            String path = copy_alloc_string(full_path);
             Program_Id new_id = make_id(database, Record_Exe);
             
-            Program_Paths paths = {};
-            paths.full_path = full_path;
-            paths.name = name;
+            Record_Name names;
+            names.long_name = copy_alloc_string(full_path);
+            names.short_name = copy_alloc_string(program_name);
             
-            database->program_paths.insert({new_id, paths});
+            database->record_names.insert({new_id, names});
             
             // These don't share the same strings for now
             String name_2 = copy_alloc_string(program_name);
@@ -458,9 +501,6 @@ Monitor_State
 };
 
 
-
-u64 loops = 0;
-
 void
 update(Monitor_State *state, Bitmap *screen_buffer, time_type dt)
 {
@@ -469,6 +509,7 @@ update(Monitor_State *state, Bitmap *screen_buffer, time_type dt)
         //remove(global_savefile_path);
         //remove(global_debug_savefile_path);
         
+        *state = {};
         state->header = {};
         
         state->database = {};
@@ -481,8 +522,6 @@ update(Monitor_State *state, Bitmap *screen_buffer, time_type dt)
         start_new_day(&state->database, floor<date::days>(System_Clock::now()));
         
         state->day_view = {};
-        
-        //state->favicon = get_icon_from_website();
         
         state->accumulated_time = dt;
         
@@ -501,7 +540,7 @@ update(Monitor_State *state, Bitmap *screen_buffer, time_type dt)
     }
     // TODO: Separate platform and icon code in icon.cpp
     
-    loops++;
+    // TODO: Just use google or duckduckgo service for now
     
     date::sys_days current_date = floor<date::days>(System_Clock::now());
     if (current_date != state->database.days[state->database.day_count-1].date)
@@ -510,17 +549,13 @@ update(Monitor_State *state, Bitmap *screen_buffer, time_type dt)
     }
     
     // Maybe better if this is all integer arithmetic
-    state->accumulated_time = dt;
-    float poll_window_freq = 100; // ms
+    state->accumulated_time += dt;
+    float poll_window_freq = 0.1f;
     if (state->accumulated_time >= poll_window_freq)
     {
+        poll_windows(&state->database, state->accumulated_time);
         state->accumulated_time -= poll_window_freq;
     }
-    
-    _CrtMemState mem_state;
-    _CrtMemCheckpoint(&mem_state);
-    poll_windows(&state->database, dt);
-    
     
     if (ui_was_shown())
     {
@@ -597,8 +632,9 @@ update(Monitor_State *state, Bitmap *screen_buffer, time_type dt)
                 }
 #endif
                 
-                Bitmap *icon = get_icon_from_database(&state->database, record.id);;
-                ui_graph_bar(length, text, icon); // pass bitmap and text too?
+                Bitmap *icon = get_icon_from_database(&state->database, record.id);
+                char *name = state->database.record_names[record.id].short_name.str;
+                ui_graph_bar(length, name, text, icon);
             }
             ui_graph_end();
         }

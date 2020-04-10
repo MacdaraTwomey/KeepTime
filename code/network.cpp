@@ -99,33 +99,104 @@ recieve_data_callback(void *buffer, size_t size, size_t nmemb, void *userp)
 }
 
 bool
-request_favicon_from_website(String url, Size_Mem *icon_file)
+extract_scheme_and_host(String full_url, String *url_host)
 {
-    // url must be null terminted
-    // url must have no path
+    bool set_url_success = false;
+    CURLU *curl_full_url_handle = curl_url();
+    CURLU *new_url_handle = curl_url();
+    if (curl_full_url_handle && new_url_handle)
+    {
+        // If there is no scheme i think this fails
+        CURLUcode result = curl_url_set(curl_full_url_handle, CURLUPART_URL, full_url.str, 0);
+        if (result == CURLE_OK)
+        {
+            bool set_scheme = false;
+            bool set_host = false;
+            char *scheme;
+            CURLUcode result = curl_url_get(curl_full_url_handle, CURLUPART_SCHEME, &scheme, 0);
+            if(result == CURLE_OK)
+            {
+                result = curl_url_set(new_url_handle, CURLUPART_SCHEME, scheme, 0);
+                curl_free(scheme);
+                if (result == CURLE_OK) set_scheme = true;
+            }
+            
+            char *hostname;
+            result = curl_url_get(curl_full_url_handle, CURLUPART_HOST , &hostname, 0);
+            if(result == CURLE_OK)
+            {
+                result = curl_url_set(new_url_handle, CURLUPART_HOST, hostname, 0);
+                curl_free(hostname);
+                if (result == CURLE_OK) set_host = true;
+            }
+            
+            char *new_url;
+            result = curl_url_get(new_url_handle, CURLUPART_URL, &new_url, 0);
+            if(result == CURLE_OK)
+            {
+                // We dont really care if scheme got set or not for now
+                if (set_host)
+                {
+                    set_url_success = true;
+                    append_string(url_host, new_url);
+                    curl_free(new_url);
+                }
+            }
+        }
+    }
     
-#define print_error(code) curl_print_err((code), errbuf);
+    curl_url_cleanup(curl_full_url_handle);
+    curl_url_cleanup(new_url_handle);
     
-    curl_global_init(CURL_GLOBAL_ALL);
+    null_terminate(url_host);
     
-    CURL *handle = curl_easy_init();
-    if(!handle) return false;
+    return set_url_success;
+}
+
+bool
+get_icon_from_google_s2(CURL *handle, String url_host, Size_Mem *icon_file)
+{
+    char buf[2000];
+    String google_s2_url = make_empty_string(buf);
+    append_string(&google_s2_url, "http://s2.googleusercontent.com/s2/favicons?domain_url=");
+    append_string(&google_s2_url, url_host);
+    null_terminate(&google_s2_url);
     
-    char errbuf[CURL_ERROR_SIZE];
-    curl_easy_setopt(handle, CURLOPT_ERRORBUFFER, errbuf);
+    curl_easy_setopt(handle, CURLOPT_URL, google_s2_url.str);
+    curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, recieve_data_callback);
+    curl_easy_setopt(handle, CURLOPT_PROTOCOLS, CURLPROTO_HTTP|CURLPROTO_HTTPS);
+    curl_easy_setopt(handle, CURLOPT_USERAGENT, "libcurl-agent/1.0");
+    
+    *icon_file = {};
+    icon_file->memory = (u8 *)xalloc(Megabytes(8));
+    curl_easy_setopt(handle, CURLOPT_WRITEDATA, (void *)icon_file);
+    
+    if (curl_easy_perform(handle) != CURLE_OK)
+    {
+        free(icon_file->memory);
+        icon_file->memory = nullptr;
+        icon_file->size = 0;
+        return false;
+    }
+    
+    return true;
+}
+
+bool
+get_icon_location_from_main_page(CURL *handle, String url_host, String *icon_location, Size_Mem *response)
+{
+    Assert(response->size > 0);
+    Assert(response->memory);
+    // NOTE: Must be curl init etc ...
+    bool success = false;
     
     // must be scheme://host:port/path format
-    curl_easy_setopt(handle, CURLOPT_URL, url.str);
-    
-    // TODO: Realloc and grow if size > initial alloc + make first alloc smaller
-    Size_Mem response = {};
-    response.memory = (u8 *)xalloc(Megabytes(8));
+    curl_easy_setopt(handle, CURLOPT_URL, url_host.str);
     
     // Usually called by libcurl multiple times
     curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, recieve_data_callback);
     
-    curl_easy_setopt(handle, CURLOPT_WRITEDATA, (void *)&response);
-    
+    curl_easy_setopt(handle, CURLOPT_WRITEDATA, (void *)response);
     
     curl_easy_setopt(handle, CURLOPT_PROTOCOLS, CURLPROTO_HTTP|CURLPROTO_HTTPS);
     
@@ -135,41 +206,31 @@ request_favicon_from_website(String url, Size_Mem *icon_file)
     
     if (curl_easy_perform(handle) == CURLE_OK)
     {
-        tprint("HTML GET SUCCESS");
-    }
-    
-    response.memory[response.size] = '\0';
-    String html_page = make_string(response.memory, response.size);
-    
-    String linked_icon_url = search_html_for_icon_url(html_page);
-    
-    char buf[2000];
-    String absolute_icon_url = make_empty_string(buf);
-    
-    bool got_url = false;
-    if (linked_icon_url.length > 0)
-    {
-        linked_icon_url.str[linked_icon_url.length] = '\0'; // overwriting html_page
+        response->memory[response->size] = '\0';
+        String html_page = make_string(response->memory, response->size);
         
-        CURLU *h = curl_url();
-        if (h)
+        String linked_icon_url = search_html_for_icon_url(html_page);
+        if (linked_icon_url.length > 0)
         {
-            // Set the url to what was passed in. e.g. https://youtube.com
-            CURLUcode result = curl_url_set(h, CURLUPART_URL, url.str, 0);
-            if (result == CURLE_OK)
+            linked_icon_url.str[linked_icon_url.length] = '\0'; // overwriting html_page
+            
+            CURLU *h = curl_url();
+            if (h)
             {
                 // Changes whole url if linked_icon_url is an absolute url or just appends if it is relative
                 // TODO: Test if this is not prefixed with a slash
-                result = curl_url_set(h, CURLUPART_URL, linked_icon_url.str, 0);
+                CURLUcode result = curl_url_set(h, CURLUPART_URL, linked_icon_url.str, 0);
                 if(result == CURLE_OK)
                 {
                     char *full_url;
-                    result= curl_url_get(h, CURLUPART_URL, &full_url, 0);
+                    result = curl_url_get(h, CURLUPART_URL, &full_url, 0);
                     if(result == CURLE_OK)
                     {
-                        got_url = true;
-                        append_string(&absolute_icon_url, full_url);
+                        append_string(icon_location, full_url);
+                        null_terminate(icon_location);
+                        
                         curl_free(full_url);
+                        success = true;
                     }
                     else
                     {
@@ -180,28 +241,84 @@ request_favicon_from_website(String url, Size_Mem *icon_file)
                 {
                     tprint("Network error: The icon url we recieved from html page was invalid");
                 }
+                
+                curl_url_cleanup(h);
             }
-            else
-            {
-                // This should always succeed if we actually managed to get response message from site.
-                tprint("Network error: Invalid passed url");
-                Assert(0);
-            }
-            
-            curl_url_cleanup(h);
+        }
+        else
+        {
+            tprint("Couldnt find favicon in help page");
         }
     }
     
-    if (!got_url)
+    return success;
+}
+
+bool
+request_favicon_from_website(String url, Size_Mem *icon_file)
+{
+    // url must be null terminted
+    // url must have no path
+    
+    // https://blog.hubspot.com/marketing/parts-url
+    // protocol:         https://    always 'there' not always visible
+    // subdomain:        blog        not required
+    // domain name:      hubspot     always there (note aka second-level domain, it is level below TLD)
+    // top level domain: .com        required
+    // path:             /marketing/parts-url  always 'there' not always visible (browsers rewrite url)
+    
+    // Hostname: blog.hubspot.com
+    
+    // NOTE: TODO: For now we remove the path from the url passed in, in the future, this function will take urls with path already removed
+#define print_error(code) curl_print_err((code), errbuf);
+    
+    Assert(string_is_null_terminated(url));
+    
+    bool success = false;
+    
+    char builder_buf[2000];
+    String url_host = make_empty_string(builder_buf);
+    
+    bool extracted = extract_scheme_and_host(url, &url_host);
+    if (!extracted)
     {
-        // Default
-        append_string(&absolute_icon_url, url);
-        append_string(&absolute_icon_url, "/favicon.ico");
+        tprint("Could not get host part from url");
+        return false;
     }
     
+    Assert(string_is_null_terminated(url_host));
     
-    bool is_null_terminated = null_terminate(&absolute_icon_url);
-    Assert(is_null_terminated);
+    
+    curl_global_init(CURL_GLOBAL_ALL);
+    
+    CURL *handle = curl_easy_init();
+    if(!handle) return false;
+    
+    char errbuf[CURL_ERROR_SIZE];
+    curl_easy_setopt(handle, CURLOPT_ERRORBUFFER, errbuf);
+    
+    bool get_icon = get_icon_from_google_s2(handle, url_host, icon_file);
+    if (get_icon)
+    {
+        success = true;
+    }
+    
+#if 0
+    
+    
+    // TODO: Realloc and grow if size > initial alloc + make first alloc smaller
+    Size_Mem response = {};
+    response.memory = (u8 *)xalloc(Megabytes(8));
+    
+    char buf[2000];
+    String icon_location = make_empty_string(buf);
+    if (get_icon_location_from_main_page(handle, url_host, &icon_location) == false)
+    {
+        // Default
+        append_string(&icon_location, url_host);
+        append_string(&icon_location, "/favicon.ico");
+    }
+    
     
     
     // Do another GET
@@ -216,10 +333,18 @@ request_favicon_from_website(String url, Size_Mem *icon_file)
     curl_easy_setopt(handle, CURLOPT_WRITEDATA, (void *)icon_file);
     
     bool success = (curl_easy_perform(handle) == CURLE_OK);
+    if (!success)
+    {
+        free(icon_file->memory);
+        icon_file->memory = nullptr;
+        icon_file->size = 0;
+    }
+    free(response.memory);
+    
+#endif
+    
     
     curl_easy_cleanup(handle);
-    
-    free(response.memory);
     
     curl_global_cleanup(); // global_init and global_cleanup should only really be called once by program.
     

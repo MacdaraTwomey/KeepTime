@@ -24,11 +24,13 @@ text_width(char *text, Font *font)
     return (int)total_w;
 }
 
-void draw_text(Bitmap *buffer, Font *font, char *text, int baseline_x, int baseline_y, u32 colour)
+void draw_text(Bitmap *buffer, Font *font, char *text, int baseline_x, int baseline_y,
+               u32 colour, int max_width = INT_MAX)
 {
     // TODO: make pen_x and y float and accululate and round advance widths
     // TODO: font licensing
     // TODO: Maybe separate bitmap for each character
+    float total_width = 0;
     float pen_x = (float)clamp(baseline_x, 0, buffer->width);
     float pen_y = (float)clamp(baseline_y, 0, buffer->height);
     
@@ -43,6 +45,8 @@ void draw_text(Bitmap *buffer, Font *font, char *text, int baseline_x, int basel
         
         int w = glyph.x1 - glyph.x0;
         int h = glyph.y1 - glyph.y0;
+        
+        if ((int)roundf(total_width + w) > max_width) break;
         
         if (x < 0) glyph.x0 += -x;
         if (x + w > buffer->width) glyph.x1 -= ((x + w) - buffer->width);
@@ -93,6 +97,7 @@ void draw_text(Bitmap *buffer, Font *font, char *text, int baseline_x, int basel
         }
         
         pen_x += glyph.xadvance;
+        total_width += glyph.xadvance;
     }
 }
 

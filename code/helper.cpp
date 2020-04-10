@@ -53,6 +53,27 @@ copy_alloc_string(String str)
     return result;
 }
 
+
+// TODO: Don't use this in finished version
+// Also null terminates
+String
+copy_alloc_string(char *str)
+{
+    size_t length = strlen(str);
+    
+    String result;
+    int capacity = length + 1;
+    
+    result.str = (char *)xalloc(capacity);
+    memcpy(result.str, str, length);
+    result.length = length;
+    result.capacity = capacity;
+    null_terminate(&result); // requires len < cap
+    
+    return result;
+}
+
+
 #if 0
 bool init_hash_table(Hash_Table *table, s64 table_size)
 {

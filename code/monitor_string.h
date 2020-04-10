@@ -416,3 +416,15 @@ remove_extension(String *file)
     // If there is a dot, the string is clipped to before the dot
     file->length = dot_pos;
 }
+
+bool
+string_is_null_terminated(String s)
+{
+    bool is_null_terminated = false;
+    if (s.capacity > s.length)
+    {
+        is_null_terminated = (s.str[s.length] == '\0');
+    }
+    
+    return is_null_terminated;
+}

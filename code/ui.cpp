@@ -223,7 +223,7 @@ void ui_graph_end()
 }
 
 bool
-ui_graph_bar(float length, char *text, Bitmap *bitmap)
+ui_graph_bar(float length, char *name, char *time_text, Bitmap *bitmap)
 {
     Assert(length >= 0.0f && length <= 1.0f);
     Assert(ui_context.has_layout);
@@ -275,10 +275,19 @@ ui_graph_bar(float length, char *text, Bitmap *bitmap)
     
     int centre_y = y + (int)(h*0.75f);
     
-    int baseline_x = x + w + 10;
+    int baseline_x = x + 10;
     int baseline_y = centre_y;
     
-    if (text) draw_text(buffer, font, text, baseline_x, baseline_y, GREY(0));
+    if (name)
+    {
+        int max_width = layout->w - 10 - 100;
+        draw_text(buffer, font, name, baseline_x, baseline_y, GREY(0), max_width);
+        baseline_x += max_width + 20;
+    }
+    if (time_text)
+    {
+        draw_text(buffer, font, time_text, baseline_x, baseline_y, GREY(0));
+    }
     
     if (bitmap)
     {
