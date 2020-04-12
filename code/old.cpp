@@ -3,6 +3,169 @@
 // TODO: async
 
 
+bool
+platform_get_firefox_url2(Platform_Window window, char *buf, int buf_size, size_t *length)
+{
+    CComQIPtr<IUIAutomation> uia;
+    if(FAILED(uia.CoCreateInstance(CLSID_CUIAutomation)) || !uia)
+        return false;
+    
+#if 0
+    // Different style
+    CComQIPtr<IUIAutomation> uia;
+    CoCreateInstance(CLSID_CUIAutomation, NULL,
+                     CLSCTX_INPROC_SERVER, IID_IUIAutomation,
+                     reinterpret_cast<void**>(&uia));
+#endif
+    
+    // Clients use methods exposed by the IUIAutomation interface to retrieve IUIAutomationElement interfaces for UI elements in the tree
+    CComPtr<IUIAutomationElement> element;
+    if(FAILED(uia->ElementFromHandle(window.handle, &element)) || !element)
+        return false;
+    
+    // NOTE:
+    // When retrieving UI elements, clients can improve system performance by using the caching capabilities of UI Automation. Caching enables a client to specify a set of properties and control patterns to retrieve along with the element. In a single interprocess call, UI Automation retrieves the element and the specified properties and control patterns, and then stores them in the cache. Without caching, a separate interprocess call is required to retrieve each property or control pattern.
+    
+    
+    //initialize conditions
+    CComPtr<IUIAutomationCondition> toolbar_cond;
+    uia->CreatePropertyCondition(UIA_ControlTypePropertyId,
+                                 CComVariant(UIA_ToolBarControlTypeId), &toolbar_cond);
+    
+    CComPtr<IUIAutomationCondition> combobox_cond;
+    uia->CreatePropertyCondition(UIA_ControlTypePropertyId,
+                                 CComVariant(UIA_ComboBoxControlTypeId), &combobox_cond);
+    
+    CComPtr<IUIAutomationCondition> editbox_cond;
+    uia->CreatePropertyCondition(UIA_ControlTypePropertyId,
+                                 CComVariant(UIA_EditControlTypeId), &editbox_cond);
+    
+    
+    
+    
+    // TODO:
+    // This AND condition finds the navigation toolbar straight away, rather than other one looping
+    // so can use find first instead of find all, but is this faster (does windows do a string compare on each element?)
+    // TODO: Don't realloc this repeatedly.
+    VARIANT variant;
+    variant.vt = VT_BSTR;
+    variant.bstrVal = SysAllocString(L"Navigation");
+    if (!variant.bstrVal)
+        return false;
+    defer(SysFreeString(variant.bstrVal));
+    
+    CComPtr<IUIAutomationCondition> navigation_name_cond;
+    uia->CreatePropertyCondition(UIA_NamePropertyId,
+                                 variant, &navigation_name_cond);
+    
+    
+    CComPtr<IUIAutomationCondition> and_cond;
+    uia->CreateAndCondition(navigation_name_cond, toolbar_cond, &and_cond);
+    
+    
+    // Find the top toolbars
+    // Throws an exception on my machine, but doesn't crash program. This may just be a debug printout only
+    // and not a problem.
+    CComPtr<IUIAutomationElementArray> toolbars;
+    if (FAILED(element->FindAll(TreeScope_Children, and_cond, &toolbars)) || !toolbars)
+        return false;
+    
+    // NOTE: 27/02/2020:
+    // (according to Inspect.exe)
+    // To get the URLs of all open tabs in Firefox Window:
+    // Mozilla firefox window ControlType: UIA_WindowControlTypeId (0xC370) LocalizedControlType: "window"
+    // "" group               ControlType: UIA_GroupControlTypeId (0xC36A) LocalizedControlType: "group"
+    //
+    // containing multiple nestings of this (one for each tab):
+    // ""                     no TypeId or Type
+    //   ""                   no TypeId or Type
+    //     "tab text"         ControlType: UIA_DocumentControlTypeId (0xC36E) LocalizedControlType: "document"
+    //     which has Value.Value = URL
+    
+    // To get the URL of the active tab in Firefox Window:
+    // Mozilla firefox window          ControlType: UIA_WindowControlTypeId (0xC370) LocalizedControlType: "window"
+    //   "Navigation" tool bar         UIA_ToolBarControlTypeId (0xC365) LocalizedControlType: "tool bar"
+    //     "" combobox                 UIA_ComboBoxControlTypeId (0xC353) LocalizedControlType: "combo box"
+    //       "Search with Google or enter address"   UIA_EditControlTypeId (0xC354) LocalizedControlType: "edit"
+    //        which has Value.Value = URL
+    
+    int toolbars_count = 0;
+    toolbars->get_Length(&toolbars_count);
+    for(int i = 0; i < toolbars_count; i++)
+    {
+        CComPtr<IUIAutomationElement> toolbar;
+        if(FAILED(toolbars->GetElement(i, &toolbar)) || !toolbar)
+            continue;
+        
+        //find the comboxes for each toolbar
+        CComPtr<IUIAutomationElementArray> comboboxes;
+        if(FAILED(toolbar->FindAll(TreeScope_Children, combobox_cond, &comboboxes)) || !comboboxes)
+            return false;
+        
+        int combobox_count = 0;
+        comboboxes->get_Length(&combobox_count);
+        for(int j = 0; j < combobox_count; j++)
+        {
+            CComPtr<IUIAutomationElement> combobox;
+            if(FAILED(comboboxes->GetElement(j, &combobox)) || !combobox)
+                continue;
+            
+            CComVariant test;
+            if(FAILED(combobox->GetCurrentPropertyValue(UIA_ValueValuePropertyId, &test)))
+                continue;
+            
+            //we are interested in a combobox which has no lable
+            if(wcslen(test.bstrVal))
+                continue;
+            
+            //find the first editbox
+            CComPtr<IUIAutomationElement> edit;
+            if(FAILED(combobox->FindFirst(TreeScope_Descendants, editbox_cond, &edit)) || !edit)
+                continue;
+            
+            // CComVariant contains a bstr in a union
+            // CComVariant calls destructor, which calls VariantClear (which may free BSTR?)
+            CComVariant bstr;
+            if(FAILED(edit->GetCurrentPropertyValue(UIA_ValueValuePropertyId, &bstr)))
+                continue;
+            
+            // A null pointer is the same as an empty string to a BSTR. An empty BSTR is a pointer to a zero-length string. It has a single null character to the right of the address being pointed to, and a long integer containing zero to the left. A null BSTR is a null pointer pointing to nothing. There can't be any characters to the right of nothing, and there can't be any length to the left of nothing. Nevertheless, a null pointer is considered to have a length of zero (that's what SysStringLen returns).
+            
+            // On my firefox a empty URL bar gives a length of 0
+            
+            //https://docs.microsoft.com/en-us/previous-versions/87zae4a3(v=vs.140)?redirectedfrom=MSDN#atl70stringconversionclassesmacros
+            // From MSVC: To convert from a BSTR, use COLE2[C]DestinationType[EX], such as COLE2T.
+            // An OLE character is a Wide (W) character, a TCHAR is a Wide char if _UNICODE defined, elsewise it is an ANSI char
+            
+            // BSTR is a pointer to a wide character, with a byte count before the pointer and a (2 byte?) null terminator
+            if (bstr.bstrVal)
+            {
+                size_t len = wcslen(bstr.bstrVal);
+                // Probably just use stack, but maybe not on ATL 7.0 (on my PC calls alloca)
+                // On my PC internally uses WideCharToMultiByte
+                USES_CONVERSION; // disable warnings for conversion macro
+                if (len > 0)
+                {
+                    strcpy(buf, OLE2CA(bstr.bstrVal));
+                }
+                
+                *length = len;
+            }
+            else
+            {
+                *length = 0;
+            }
+            
+            // need to call SysFreeString?
+            
+            return true;
+        }
+    }
+    return false;
+}
+
+
+
 constexpr int MAX_HTML_ELEMENT_LENGTH = 2000;
 
 

@@ -29,7 +29,6 @@
 #include "utilities.cpp" // xalloc, string copy, concat string, make filepath, get_filename_from_path
 #include "monitor.cpp" // This deals with id, days, databases, websites, bitmap icons
 
-
 #define CONSOLE_ON 1
 
 static Bitmap global_screen_buffer;
@@ -81,12 +80,6 @@ create_console()
     
     return GetStdHandle(STD_INPUT_HANDLE);
 }
-
-// Ways to handle app getting the urls and path names it needs are:
-//   1. app calls platform_get_active_window() and get_names()
-//   2. app just calls get_names() but then platform has to do work of seeing if browser is part of the program path etc.
-//   3. Pass Poll_Window_Result with all necessary names/urls to app on avery update, only cantain valid names
-//      when timer has elapsed (similar to previous just app doesn't call just recieves when it needs it).
 
 Platform_Window
 platform_get_active_window()
@@ -154,7 +147,7 @@ platform_get_program_from_window(Platform_Window window, char *buf, size_t *leng
 }
 
 bool
-proccess_url_bstr(BSTR url, char *buf, int buf_size, size_t *length)
+win32_BSTR_to_utf8(BSTR url, char *buf, int buf_size, size_t *length)
 {
     bool result = false;
     size_t len = SysStringLen(url);
@@ -180,7 +173,7 @@ proccess_url_bstr(BSTR url, char *buf, int buf_size, size_t *length)
 }
 
 IUIAutomationElement *
-get_url_bar_editbox(HWND window)
+win32_firefox_get_url_bar_editbox(HWND window)
 {
     IUIAutomationElement *editbox = nullptr;
     
@@ -264,7 +257,7 @@ platform_get_firefox_url(Platform_Window window, char *buf, int buf_size, size_t
         {
             if (url_bar.bstrVal)
             {
-                success = proccess_url_bstr(url_bar.bstrVal, buf, buf_size, length);
+                success = win32_BSTR_to_utf8(url_bar.bstrVal, buf, buf_size, length);
                 VariantClear(&url_bar);
             }
             
@@ -279,7 +272,7 @@ platform_get_firefox_url(Platform_Window window, char *buf, int buf_size, size_t
     }
     
     // Try re-aquiring editbox pointer for the window handle
-    editbox = get_url_bar_editbox(handle);
+    editbox = win32_firefox_get_url_bar_editbox(handle);
     if (editbox)
     {
         VARIANT url_bar = {};
@@ -288,7 +281,7 @@ platform_get_firefox_url(Platform_Window window, char *buf, int buf_size, size_t
         {
             if (url_bar.bstrVal)
             {
-                success = proccess_url_bstr(url_bar.bstrVal, buf, buf_size, length);
+                success = win32_BSTR_to_utf8(url_bar.bstrVal, buf, buf_size, length);
                 VariantClear(&url_bar);
             }
             
@@ -304,166 +297,131 @@ platform_get_firefox_url(Platform_Window window, char *buf, int buf_size, size_t
     return success;
 }
 
+
 bool
-platform_get_firefox_url2(Platform_Window window, char *buf, int buf_size, size_t *length)
+win32_get_bitmap_from_HICON(HICON icon, Bitmap *bitmap)
 {
-    CComQIPtr<IUIAutomation> uia;
-    if(FAILED(uia.CoCreateInstance(CLSID_CUIAutomation)) || !uia)
-        return false;
+    bool success = false;
+    *bitmap = {};
     
-#if 0
-    // Different style
-    CComQIPtr<IUIAutomation> uia;
-    CoCreateInstance(CLSID_CUIAutomation, NULL,
-                     CLSCTX_INPROC_SERVER, IID_IUIAutomation,
-                     reinterpret_cast<void**>(&uia));
-#endif
+    // TODO: Get icon from UWP:
+    // Process is wrapped in a parent process, and can't extract icons from the child, not sure about parent
+    // SO might need to use SHLoadIndirectString, GetPackageInfo could be helpful.
     
-    // Clients use methods exposed by the IUIAutomation interface to retrieve IUIAutomationElement interfaces for UI elements in the tree
-    CComPtr<IUIAutomationElement> element;
-    if(FAILED(uia->ElementFromHandle(window.handle, &element)) || !element)
-        return false;
+    //GetIconInfoEx creates bitmaps for the hbmMask and hbmCol or members of ICONINFOEX. The calling application must manage these bitmaps and delete them when they are no longer necessary.
     
-    // NOTE:
-    // When retrieving UI elements, clients can improve system performance by using the caching capabilities of UI Automation. Caching enables a client to specify a set of properties and control patterns to retrieve along with the element. In a single interprocess call, UI Automation retrieves the element and the specified properties and control patterns, and then stores them in the cache. Without caching, a separate interprocess call is required to retrieve each property or control pattern.
+    // These bitmaps are stored as bottom up bitmaps, so the bottom row of image is stored in the first 'row' in memory.
+    ICONINFO ii;
+    BITMAP colour_mask;
+    BITMAP and_mask;
+    HBITMAP and_mask_handle = 0;
+    HBITMAP colours_handle = 0;
     
-    
-    //initialize conditions
-    CComPtr<IUIAutomationCondition> toolbar_cond;
-    uia->CreatePropertyCondition(UIA_ControlTypePropertyId,
-                                 CComVariant(UIA_ToolBarControlTypeId), &toolbar_cond);
-    
-    CComPtr<IUIAutomationCondition> combobox_cond;
-    uia->CreatePropertyCondition(UIA_ControlTypePropertyId,
-                                 CComVariant(UIA_ComboBoxControlTypeId), &combobox_cond);
-    
-    CComPtr<IUIAutomationCondition> editbox_cond;
-    uia->CreatePropertyCondition(UIA_ControlTypePropertyId,
-                                 CComVariant(UIA_EditControlTypeId), &editbox_cond);
-    
-    
-    
-    
-    // TODO:
-    // This AND condition finds the navigation toolbar straight away, rather than other one looping
-    // so can use find first instead of find all, but is this faster (does windows do a string compare on each element?)
-    // TODO: Don't realloc this repeatedly.
-    VARIANT variant;
-    variant.vt = VT_BSTR;
-    variant.bstrVal = SysAllocString(L"Navigation");
-    if (!variant.bstrVal)
-        return false;
-    defer(SysFreeString(variant.bstrVal));
-    
-    CComPtr<IUIAutomationCondition> navigation_name_cond;
-    uia->CreatePropertyCondition(UIA_NamePropertyId,
-                                 variant, &navigation_name_cond);
-    
-    
-    CComPtr<IUIAutomationCondition> and_cond;
-    uia->CreateAndCondition(navigation_name_cond, toolbar_cond, &and_cond);
-    
-    
-    // Find the top toolbars
-    // Throws an exception on my machine, but doesn't crash program. This may just be a debug printout only
-    // and not a problem.
-    CComPtr<IUIAutomationElementArray> toolbars;
-    if (FAILED(element->FindAll(TreeScope_Children, and_cond, &toolbars)) || !toolbars)
-        return false;
-    
-    // NOTE: 27/02/2020:
-    // (according to Inspect.exe)
-    // To get the URLs of all open tabs in Firefox Window:
-    // Mozilla firefox window ControlType: UIA_WindowControlTypeId (0xC370) LocalizedControlType: "window"
-    // "" group               ControlType: UIA_GroupControlTypeId (0xC36A) LocalizedControlType: "group"
-    //
-    // containing multiple nestings of this (one for each tab):
-    // ""                     no TypeId or Type
-    //   ""                   no TypeId or Type
-    //     "tab text"         ControlType: UIA_DocumentControlTypeId (0xC36E) LocalizedControlType: "document"
-    //     which has Value.Value = URL
-    
-    // To get the URL of the active tab in Firefox Window:
-    // Mozilla firefox window          ControlType: UIA_WindowControlTypeId (0xC370) LocalizedControlType: "window"
-    //   "Navigation" tool bar         UIA_ToolBarControlTypeId (0xC365) LocalizedControlType: "tool bar"
-    //     "" combobox                 UIA_ComboBoxControlTypeId (0xC353) LocalizedControlType: "combo box"
-    //       "Search with Google or enter address"   UIA_EditControlTypeId (0xC354) LocalizedControlType: "edit"
-    //        which has Value.Value = URL
-    
-    int toolbars_count = 0;
-    toolbars->get_Length(&toolbars_count);
-    for(int i = 0; i < toolbars_count; i++)
+    if (GetIconInfo(icon, &ii))
     {
-        CComPtr<IUIAutomationElement> toolbar;
-        if(FAILED(toolbars->GetElement(i, &toolbar)) || !toolbar)
-            continue;
+        // It is necessary to call DestroyObject for icons and cursors created with CopyImage
+        colours_handle = (HBITMAP)CopyImage(ii.hbmColor, IMAGE_BITMAP, 0, 0, LR_CREATEDIBSECTION);
+        and_mask_handle = (HBITMAP)CopyImage(ii.hbmMask, IMAGE_BITMAP, 0, 0, LR_CREATEDIBSECTION);
         
-        //find the comboxes for each toolbar
-        CComPtr<IUIAutomationElementArray> comboboxes;
-        if(FAILED(toolbar->FindAll(TreeScope_Children, combobox_cond, &comboboxes)) || !comboboxes)
-            return false;
-        
-        int combobox_count = 0;
-        comboboxes->get_Length(&combobox_count);
-        for(int j = 0; j < combobox_count; j++)
+        // When this is done without CopyImage the bitmaps don't have any .bits memory allocated
+        //int result_1 = GetObject(ii.hbmColor, sizeof(BITMAP), &bitmap);
+        //int result_2 = GetObject(ii.hbmMask, sizeof(BITMAP), &mask);
+        if (colours_handle && and_mask_handle)
         {
-            CComPtr<IUIAutomationElement> combobox;
-            if(FAILED(comboboxes->GetElement(j, &combobox)) || !combobox)
-                continue;
-            
-            CComVariant test;
-            if(FAILED(combobox->GetCurrentPropertyValue(UIA_ValueValuePropertyId, &test)))
-                continue;
-            
-            //we are interested in a combobox which has no lable
-            if(wcslen(test.bstrVal))
-                continue;
-            
-            //find the first editbox
-            CComPtr<IUIAutomationElement> edit;
-            if(FAILED(combobox->FindFirst(TreeScope_Descendants, editbox_cond, &edit)) || !edit)
-                continue;
-            
-            // CComVariant contains a bstr in a union
-            // CComVariant calls destructor, which calls VariantClear (which may free BSTR?)
-            CComVariant bstr;
-            if(FAILED(edit->GetCurrentPropertyValue(UIA_ValueValuePropertyId, &bstr)))
-                continue;
-            
-            // A null pointer is the same as an empty string to a BSTR. An empty BSTR is a pointer to a zero-length string. It has a single null character to the right of the address being pointed to, and a long integer containing zero to the left. A null BSTR is a null pointer pointing to nothing. There can't be any characters to the right of nothing, and there can't be any length to the left of nothing. Nevertheless, a null pointer is considered to have a length of zero (that's what SysStringLen returns).
-            
-            // On my firefox a empty URL bar gives a length of 0
-            
-            //https://docs.microsoft.com/en-us/previous-versions/87zae4a3(v=vs.140)?redirectedfrom=MSDN#atl70stringconversionclassesmacros
-            // From MSVC: To convert from a BSTR, use COLE2[C]DestinationType[EX], such as COLE2T.
-            // An OLE character is a Wide (W) character, a TCHAR is a Wide char if _UNICODE defined, elsewise it is an ANSI char
-            
-            // BSTR is a pointer to a wide character, with a byte count before the pointer and a (2 byte?) null terminator
-            if (bstr.bstrVal)
+            int result_1 = GetObject(colours_handle, sizeof(BITMAP), &colour_mask) == sizeof(BITMAP);
+            int result_2 = GetObject(and_mask_handle, sizeof(BITMAP), &and_mask) == sizeof(BITMAP);
+            if (result_1 && result_2)
             {
-                size_t len = wcslen(bstr.bstrVal);
-                // Probably just use stack, but maybe not on ATL 7.0 (on my PC calls alloca)
-                // On my PC internally uses WideCharToMultiByte
-                USES_CONVERSION; // disable warnings for conversion macro
-                if (len > 0)
+                init_bitmap(bitmap, colour_mask.bmWidth, colour_mask.bmHeight);
+                success = true;
+                
+                bool32 had_alpha = false;
+                u32 *dest = bitmap->pixels;
+                u8 *src_row = (u8 *)colour_mask.bmBits + (colour_mask.bmWidthBytes * (colour_mask.bmHeight-1));
+                for (int y = 0; y < colour_mask.bmHeight; ++y)
                 {
-                    strcpy(buf, OLE2CA(bstr.bstrVal));
+                    u32 *src = (u32 *)src_row;
+                    for (int x = 0; x < colour_mask.bmWidth; ++x)
+                    {
+                        u32 col = *src++;
+                        *dest++ = col;
+                        had_alpha |= A_COMP(col);
+                    }
+                    
+                    src_row -= colour_mask.bmWidthBytes;
                 }
                 
-                *length = len;
+                // Some icons have no set alpha channel in the colour mask, so specify it in the and mask.
+                if (!had_alpha)
+                {
+                    int and_mask_pitch = and_mask.bmWidthBytes;
+                    u32 *dest = bitmap->pixels;
+                    u8 *src_row = (u8 *)and_mask.bmBits + (and_mask.bmWidthBytes * (and_mask.bmHeight-1));
+                    for (int y = 0; y < and_mask.bmHeight; ++y)
+                    {
+                        u8 *src = src_row;
+                        for (int x = 0; x < and_mask_pitch; ++x)
+                        {
+                            for (int i = 7; i >= 0; --i)
+                            {
+                                if (!(src[x] & (1 << i))) *dest |= 0xFF000000;
+                                dest++;
+                            }
+                        }
+                        
+                        src_row -= and_mask_pitch;
+                    }
+                }
             }
-            else
-            {
-                *length = 0;
-            }
-            
-            // need to call SysFreeString?
-            
-            return true;
         }
     }
-    return false;
+    
+    if (colours_handle)  DeleteObject(colours_handle);
+    if (and_mask_handle) DeleteObject(and_mask_handle);
+    
+    if (ii.hbmMask)  DeleteObject(ii.hbmMask);
+    if (ii.hbmColor) DeleteObject(ii.hbmColor);
+    
+    return success;
 }
+
+bool
+platform_get_icon_from_executable(char *path, u32 desired_size, Bitmap *icon_bitmap,
+                                  bool load_default_on_failure = true)
+{
+    // path must be null terminated
+    
+    HICON small_icon_handle = 0;
+    HICON icon_handle = 0;
+    
+    // TODO: maybe just use extract icon, or manually extract to avoid shellapi.h maybe shell32.dll
+    if(SHDefExtractIconA(path, 0, 0, &icon_handle, &small_icon_handle, desired_size) != S_OK)
+    {
+        // NOTE: Show me that path was actually wrong and it wasn't just failed icon extraction.
+        // If we can load the executable, it means we probably should be able to get the icon
+        //Assert(!LoadLibraryA(path)); // TODO: Enable this when we support UWP icons
+        if (load_default_on_failure)
+        {
+            icon_handle = LoadIconA(NULL, IDI_APPLICATION);
+            if (!icon_handle) return false;
+        }
+    }
+    
+    bool success = false;
+    if (icon_handle)
+    {
+        success = win32_get_bitmap_from_HICON(icon_handle, icon_bitmap);
+    }
+    else if (small_icon_handle)
+    {
+        success = win32_get_bitmap_from_HICON(small_icon_handle, icon_bitmap);
+    }
+    
+    if (icon_handle) DestroyIcon(icon_handle);
+    if (small_icon_handle) DestroyIcon(small_icon_handle);
+    return success;
+}
+
 
 void
 platform_change_wakeup_frequency(int wakeup_milliseconds)

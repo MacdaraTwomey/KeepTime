@@ -1,9 +1,6 @@
 #ifndef ICON_H
 #define ICON_H
 
-
-#define ICON_SIZE 32
-
 struct ICONDIRENTRY
 {
     u8  width;     // Originally range was 1-255 originally but 0 is accepted to represent width of 256

@@ -150,60 +150,6 @@ typedef  enum
 // The format of a PNG-compressed image consists simply of a PNG image, starting with the PNG file signature. The image must be in 32bpp ARGB format (known to GDI+ as Pixel­Format­32bpp­ARGB). There is no BITMAP­INFO­HEADER prefix, and no monochrome mask is present.
 
 
-
-Bitmap
-win32_bitmap_to_bitmap(BITMAP *win32_bitmap)
-{
-    Assert(win32_bitmap->bmType == 0);
-    Assert(win32_bitmap->bmHeight > 0);
-    Assert(win32_bitmap->bmHeight > 0);
-    Assert(win32_bitmap->bmBitsPixel == 32);
-    Assert(win32_bitmap->bmBits);
-    
-    Bitmap simple_bitmap = {};
-    simple_bitmap.width = win32_bitmap->bmWidth;
-    simple_bitmap.height = win32_bitmap->bmHeight;
-    simple_bitmap.pixels = (u32 *)xalloc(simple_bitmap.width * simple_bitmap.height * simple_bitmap.BYTES_PER_PIXEL);
-    
-    // BITMAP is bottom up with a positive height.
-    u32 *dest = (u32 *)simple_bitmap.pixels;
-    u8 *src_row = (u8 *)win32_bitmap->bmBits + (win32_bitmap->bmWidthBytes * (win32_bitmap->bmHeight-1));
-    for (int y = 0; y < win32_bitmap->bmHeight; ++y)
-    {
-        u32 *src = (u32 *)src_row;
-        for (int x = 0; x < win32_bitmap->bmWidth; ++x)
-        {
-            *dest++ = *src++;
-        }
-        
-        src_row -= win32_bitmap->bmWidthBytes;
-    }
-    
-    return simple_bitmap;
-}
-
-
-// TODO just use bitmap_has_alpha_component instead
-bool
-win32_bitmap_has_alpha_component(BITMAP *bitmap)
-{
-    u8 *row = (u8 *)bitmap->bmBits;
-    for (int y = 0; y < bitmap->bmHeight; ++y)
-    {
-        u32 *pixels = (u32 *)row;
-        for (int x = 0; x < bitmap->bmWidth; ++x)
-        {
-            u32 pixel = *pixels++;
-            if (pixel & 0xFF000000) return true;
-        }
-        
-        row += bitmap->bmWidthBytes;
-    }
-    
-    return false;
-}
-
-
 bool
 bitmap_has_alpha_component(u32 *pixels, int width, int height, int pitch)
 {
@@ -221,170 +167,6 @@ bitmap_has_alpha_component(u32 *pixels, int width, int height, int pitch)
     }
     
     return false;
-}
-
-
-Bitmap
-get_icon_bitmap(HICON icon)
-{
-    // TODO: Get icon from UWP:
-    // Process is wrapped in a parent process, and can't extract icons from the child, not sure about parent
-    // SO might need to use SHLoadIndirectString, GetPackageInfo could be helpful.
-    
-    
-    // Info from Chromium source: ui/gfx/icon_itil.cc
-    // https://chromium.googlesource.com/chromium/chromium/+/master/ui/gfx/icon_util.cc
-    
-    // THe AND mask of the icon specifies the transparency of each pixel, where one
-    // each bit represents one pixel. The XOR mask contains the images pixels,
-    // and possibly it's own alpha channel, meaning the AND mask isn't needed.
-    
-    // Mostly copied from raymond chen article
-    // https://devblogs.microsoft.com/oldnewthing/20101020-00/?p=12493
-    
-    //GetIconInfoEx creates bitmaps for the hbmMask and hbmCol or members of ICONINFOEX. The calling application must manage these bitmaps and delete them when they are no longer necessary.
-    
-    Bitmap simple_bitmap = {};
-    
-    // If this structure defines a color icon, this mask only defines the AND bitmask of the icon.
-    ICONINFO ii;
-    
-    // These bitmaps are stored as bottom up bitmaps, so the bottom row of image is stored in the first 'row' in memory.
-    BITMAP bitmap;
-    BITMAP mask;
-    HBITMAP mask_handle = 0;
-    HBITMAP colours_handle = 0;
-    
-    if (GetIconInfo(icon, &ii))
-    {
-        // It is necessary to call DestroyObject for icons and cursors created with CopyImage
-        colours_handle = (HBITMAP)CopyImage(ii.hbmColor, IMAGE_BITMAP, 0, 0, LR_CREATEDIBSECTION);
-        mask_handle = (HBITMAP)CopyImage(ii.hbmMask, IMAGE_BITMAP, 0, 0, LR_CREATEDIBSECTION);
-        
-        // When this is done without CopyImage the bitmaps don't have any .bits memory allocated
-        //int result_1 = GetObject(ii.hbmColor, sizeof(BITMAP), &bitmap);
-        //int result_2 = GetObject(ii.hbmMask, sizeof(BITMAP), &mask);
-        if (colours_handle && mask_handle)
-        {
-            int result_1 = GetObject(colours_handle, sizeof(BITMAP), &bitmap) == sizeof(BITMAP);
-            int result_2 = GetObject(mask_handle, sizeof(BITMAP), &mask) == sizeof(BITMAP);
-            if (result_1 && result_2)
-            {
-                // Only apply AND mask if the icon image didn't have an alpha channel
-                if (!win32_bitmap_has_alpha_component(&bitmap))
-                {
-                    u8 *row = (u8 *)bitmap.bmBits;
-                    u8 *bits = (u8 *)mask.bmBits;
-                    int i = 0;
-                    for (int y = 0; y < bitmap.bmHeight; ++y)
-                    {
-                        u32 *dest = (u32 *)row;
-                        for (int x = 0; x < bitmap.bmWidth; ++x)
-                        {
-                            if(*bits & (1 << 7-i))
-                            {
-                                // Pixel should be transparent
-                                u32 a = 0x00FFFFFF;
-                                *dest &= a;
-                            }
-                            else
-                            {
-                                // Pixel should be visible
-                                u32 a = 0xFF000000;
-                                *dest |= a;
-                            }
-                            
-                            ++i;
-                            if (i == 8)
-                            {
-                                ++bits;
-                                i = 0;
-                            }
-                            
-                            
-                            dest++;
-                        }
-                        
-                        row += bitmap.bmWidthBytes;
-                    }
-                }
-                
-                simple_bitmap = win32_bitmap_to_bitmap(&bitmap);
-            }
-        }
-        
-    }
-    
-    // Destroy HBITMAPs
-    if (colours_handle)  DeleteObject(colours_handle);
-    if (mask_handle) DeleteObject(mask_handle);
-    
-    if (ii.hbmMask)  DeleteObject(ii.hbmMask);
-    if (ii.hbmColor) DeleteObject(ii.hbmColor);
-    
-    return simple_bitmap;
-};
-
-
-
-bool
-get_icon_from_executable(String path, u32 size, Bitmap *icon_bitmap, bool load_default_on_failure = true)
-{
-    // path must be null terminated
-    Assert(path.str);
-    Assert(path.length < path.capacity);
-    Assert(path.str[path.length] == '\0');
-    Assert(icon_bitmap);
-    Assert(size > 0);
-    
-    HICON small_icon = 0;
-    HICON icon = 0;
-    
-    //icon = ExtractIconA(instance, path, 0);
-    //if (icon == NULL || icon == (HICON)1) printf("ERROR");
-    
-    // TODO: May just be able to manually extract icon from executable's resource section, and
-    // convert to Bitmap similar to the how we get bitmap from .ico file.
-    if(SHDefExtractIconA(path.str, 0, 0, &icon, &small_icon, size) != S_OK)
-    {
-        // NOTE: Show me that path was actually wrong and it wasn't just failed icon extraction.
-        // If we can load the executable, it means we probably should be able to get the icon
-        //Assert(!LoadLibraryA(path)); // TODO: Enable this when we support UWP icons
-        
-        if (load_default_on_failure)
-        {
-            icon = LoadIconA(NULL, IDI_APPLICATION);
-            if (!icon)
-            {
-                return false;
-            }
-        }
-    }
-    
-    Bitmap bitmap;
-    if (icon)
-    {
-        bitmap = get_icon_bitmap(icon);
-    }
-    else if (small_icon && !icon)
-    {
-        bitmap = get_icon_bitmap(small_icon);
-    }
-    
-    if (icon) DestroyIcon(icon);
-    if (small_icon) DestroyIcon(small_icon);
-    
-    
-    if (bitmap.pixels && bitmap.width > 0 && bitmap.height > 0)
-    {
-        *icon_bitmap = bitmap;
-        return true;
-    }
-    else
-    {
-        if (bitmap.pixels) free(bitmap.pixels);
-        return false;
-    }
 }
 
 
@@ -517,6 +299,10 @@ get_bitmap_from_ico_file(u8 *file_data, u32 file_size, int max_icon_size)
     
     free(bitmap.pixels);
     bitmap = make_bitmap(width, height, RGBA(193, 84, 193, 255));
+    
+    // NOTE: From win32 icon code with and_mask.bmBits etc, the pixel is _transparent_ when the bit is 1
+    // and visible when the bit is 0 I think     ---    if (!(src[x] & (1 << i))) *dest |= 0xFF000000;
+    // This might be the same here
     
     tprint("bpp = %", bpp);
     switch (bpp)

@@ -145,7 +145,7 @@ void init_database(Database *database)
 {
     *database = {};
     database->programs = std::unordered_map<String, Program_Id>(30);
-    database->record_names = std::unordered_map<Program_Id, Record_Name>(80);
+    database->names = std::unordered_map<Program_Id, Program_Name>(80);
     
     // TODO: Maybe disallow 0
     database->next_program_id = 0;
@@ -296,11 +296,13 @@ update_days_records(Day *day, u32 id, double dt)
 Bitmap *
 get_icon_from_database(Database *database, Program_Id id)
 {
-    // HACK: We just use firefox icon
     if (is_firefox(id))
     {
+        // HACK: We just use firefox icon
         id = database->firefox_id;
+        //get_favicon_from_website(url);
     }
+    
     if (is_exe(id))
     {
         if (database->icons[id].pixels)
@@ -311,13 +313,13 @@ get_icon_from_database(Database *database, Program_Id id)
         else
         {
             // Load bitmap on demand
-            if  (database->record_names.count(id) > 0)
+            if  (database->names.count(id) > 0)
             {
-                String path = database->record_names[id].long_name;
+                String path = database->names[id].long_name;
                 if (path.length > 0)
                 {
                     Bitmap *destination_icon = &database->icons[id];
-                    bool success = get_icon_from_executable(path, ICON_SIZE, destination_icon, true);
+                    bool success = platform_get_icon_from_executable(path.str, 32, destination_icon, true);
                     if (success)
                     {
                         // TODO: Maybe mark old paths that couldn't get correct icon for deletion.
@@ -325,44 +327,12 @@ get_icon_from_database(Database *database, Program_Id id)
                     }
                 }
             }
+            
+            // DEBUG use default
+            u32 index = id % array_count(database->ms_icons);
+            Bitmap *ms_icon = &database->ms_icons[index];
+            if (ms_icon->pixels) return ms_icon;
         }
-        
-        // use default
-        u32 index = id % array_count(database->ms_icons);
-        Bitmap *ms_icon = &database->ms_icons[index];
-        if (ms_icon->pixels) return ms_icon;
-    }
-    else
-    {
-        // TODO: Make less error prone than using id for index
-#if 0
-        u32 index = id & ((1u << 31) - 1) % array_count(database->website_icons);
-        if (database->website_icons[index].pixels != nullptr)
-        {
-            Assert(database->website_icons[index].width > 0 && database->website_icons[index].pixels > 0);
-            return &database->website_icons[index];
-        }
-        else
-        {
-            if (database->websites.count(id) > 0)
-            {
-                String url = database->websites[id];
-                if (url.length > 0)
-                {
-                    Bitmap favicon = get_favicon_from_website(url);
-                    if (favicon.pixels)
-                    {
-                        database->website_icons[index] = favicon;
-                        return &database->website_icons[index];
-                    }
-                }
-            }
-        }
-#endif
-        static u32 index = 0;
-        Bitmap *ms_icon = &database->ms_icons[index++];
-        if (index >= array_count(database->ms_icons)) index = 0;
-        if (ms_icon->pixels) return ms_icon;
     }
     
     return nullptr;
@@ -390,7 +360,7 @@ poll_windows(Database *database, double dt)
     remove_extension(&program_name);
     if (program_name.length == 0) return;
     
-    string_to_lower(&program_name);
+    // string_to_lower(&program_name);
     
     // Maybe disallow 0 as a valid id so this initialisation makes more sense
     Program_Id record_id = 0;
@@ -418,13 +388,13 @@ poll_windows(Database *database, double dt)
                 Keyword *keyword = search_url_for_keywords(url, database->keywords, database->keyword_count);
                 if (keyword)
                 {
-                    if (database->record_names.count(keyword->id) == 0)
+                    if (database->names.count(keyword->id) == 0)
                     {
-                        Record_Name names;
+                        Program_Name names;
                         names.long_name = copy_alloc_string(url);
                         names.short_name = copy_alloc_string(keyword->str);
                         
-                        database->record_names.insert({keyword->id, names});
+                        database->names.insert({keyword->id, names});
                     }
                     
                     record_id = keyword->id;
@@ -441,11 +411,11 @@ poll_windows(Database *database, double dt)
         {
             Program_Id new_id = make_id(database, Record_Exe);
             
-            Record_Name names;
+            Program_Name names;
             names.long_name = copy_alloc_string(full_path);
             names.short_name = copy_alloc_string(program_name);
             
-            database->record_names.insert({new_id, names});
+            database->names.insert({new_id, names});
             
             // These don't share the same strings for now
             String name_2 = copy_alloc_string(program_name);
@@ -462,11 +432,11 @@ poll_windows(Database *database, double dt)
         {
             Program_Id new_id = make_id(database, Record_Exe);
             
-            Record_Name names;
+            Program_Name names;
             names.long_name = copy_alloc_string(full_path);
             names.short_name = copy_alloc_string(program_name);
             
-            database->record_names.insert({new_id, names});
+            database->names.insert({new_id, names});
             
             // These don't share the same strings for now
             String name_2 = copy_alloc_string(program_name);
@@ -532,7 +502,7 @@ update(Monitor_State *state, Bitmap *screen_buffer, time_type dt)
         for (int i = 0; i < array_count(state->database.ms_icons); ++i)
         {
             HICON ico = LoadIconA(NULL, MAKEINTRESOURCE(32513 + i));
-            state->database.ms_icons[i] = get_icon_bitmap(ico);
+            win32_get_bitmap_from_HICON(ico, &state->database.ms_icons[i]);
         }
         
         
@@ -633,7 +603,7 @@ update(Monitor_State *state, Bitmap *screen_buffer, time_type dt)
 #endif
                 
                 Bitmap *icon = get_icon_from_database(&state->database, record.id);
-                char *name = state->database.record_names[record.id].short_name.str;
+                char *name = state->database.names[record.id].short_name.str;
                 ui_graph_bar(length, name, text, icon);
             }
             ui_graph_end();

@@ -195,3 +195,14 @@ make_bitmap(int width, int height, u32 colour)
     
     return bitmap;
 }
+
+void
+init_bitmap(Bitmap *bitmap, int width, int height)
+{
+    Assert(width > 0 && height > 0 && bitmap);
+    bitmap->width = width;
+    bitmap->height = height;
+    bitmap->pitch = bitmap->width * Bitmap::BYTES_PER_PIXEL;
+    bitmap->pixels = (u32 *)xalloc(width * height * Bitmap::BYTES_PER_PIXEL);
+    memset(bitmap->pixels, 0, width*height*Bitmap::BYTES_PER_PIXEL);
+}

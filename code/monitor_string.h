@@ -286,11 +286,11 @@ prefix_match_case_insensitive(String str, char *prefix)
 }
 
 void
-string_to_lower(String *str)
+string_to_lower(String *s)
 {
-    for (i32 i = 0; i < str->length; ++i)
+    for (i32 i = 0; i < s->length; ++i)
     {
-        to_lower(str->str[i]);
+        s->str[i] = to_lower(s->str[i]);
     }
 }
 

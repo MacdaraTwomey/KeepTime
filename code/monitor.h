@@ -118,24 +118,19 @@ enum Record_Type
     Record_Firefox, // Start at 0x800000
 };
 
-struct Program_Paths
-{
-    // TODO: Check that full paths saved to file are valid, and update if possible.
-    String full_path;
-    String name;
-};
-
 struct Keyword
 {
     String str;
     Program_Id id;
 };
 
-struct Record_Name
+struct Program_Name
 {
+    // TODO: Check that full paths saved to file are valid, and update if possible.
     // (full url, keyword) or
     // (path, exe name)
-    String long_name;
+    
+    String long_name; // this must be null terminated because passed to curl as url or OS as a path
     String short_name;
 };
 
@@ -144,7 +139,10 @@ struct Database
     std::unordered_map<String, Program_Id> programs;
     
     // Contains websites matching a keyword and programs
-    std::unordered_map<Program_Id, Record_Name> record_names;
+    // We use long_name as a path to load icons from executables
+    // We use long_name as a url to download favicon from website
+    // We use shortname when we iterate records and want to display names
+    std::unordered_map<Program_Id, Program_Name> names;
     
     Keyword keywords[50];
     i32 keyword_count;
