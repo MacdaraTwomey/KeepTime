@@ -15,7 +15,9 @@ static constexpr u32 DefaultDayAllocationCount = 30;
 static constexpr i32 MaxKeywordCount = 50;
 static constexpr i32 MaxWebsiteCount = 50;
 
-typedef double time_type;
+// u32 can overflows after 50 days when usning milliseconds, this might be ok
+// as we only get this when summing multiple days, but for now KISS.
+typedef u64 time_type;
 
 // Steady clock typically uses system startup time as epoch, and system clock uses systems epoch like 1970-1-1 00:00
 // Clocks have a starting point (epoch) and tick rate (e.g. 1 tick per second)

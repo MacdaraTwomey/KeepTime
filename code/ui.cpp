@@ -27,6 +27,8 @@ ui_init(Bitmap *buffer, Font *font)
     ui_context.height = buffer->height;
     ui_context.active = 0; // invalid id
     ui_context.hot = 0; // invalid id
+    
+    ui_context.current_graph_scroll = 0;
 }
 
 void
@@ -197,30 +199,117 @@ ui_button(char *text, int x = 0, int y = 0)
     return pressed;
 }
 
+int bar_height = 30;
+int pixels_per_scroll = 30;
+
 void
-ui_graph_begin(int x, int y, int w, int h, UI_Id id)
+ui_graph_begin(int x, int y, int w, int h, int bar_count, UI_Id id)
 {
     UI_Layout layout = {};
     // Width and height of whole barplot
     layout.w = w;
     layout.h = h;
     layout.x = x;
-    layout.spacing = 10;
     layout.y = y;
+    layout.spacing = 10;
     layout.index = 0;
-    
     layout.start_id = id;
+    layout.first_visible_bar = 0;
+    layout.visible_bar_count = bar_count;
+    
+    
     ui_context.layout = layout;
     ui_context.has_layout = true;
     
     draw_rectangle(ui_context.buffer, x, y, w, h, GREY(200));
     draw_rect_outline(ui_context.buffer, x, y, w, h, GREY(0));
+    
+    // TODO: If on scroll max last frame, keep on scroll max, even if bar count increases
+    
+    int body_height = bar_count * (bar_height + layout.spacing);
+    if (body_height > layout.h)
+    {
+        int scroll_bar_w = 10;
+        int scroll_bar_pad = 10;
+        int scroll_bar_h = h - (2*scroll_bar_pad);
+        int scroll_bar_x = x + w - scroll_bar_pad - scroll_bar_w;
+        int scroll_bar_y = y + scroll_bar_pad;
+        draw_rectangle(ui_context.buffer, scroll_bar_x, scroll_bar_y, scroll_bar_w, scroll_bar_h, NICE_GREEN);
+        
+        float inscreen = (float)layout.h;
+        float offscreen = (float)body_height;
+        
+        // 5 scrolls
+        // 10p per scroll
+        // 2 is max scroll
+        // cur scroll is 2
+        // | - | - | o | o | o |
+        
+        int slider_h   = (int)roundf((inscreen / offscreen) * scroll_bar_h);
+        
+        // TODO: for now all this current scroll is in pixels along the scroll bar, which will become wrong is
+        // the scrolbar is resized (e.g. when window resized).
+        int max_scroll = scroll_bar_h - slider_h;
+        // for now invert this
+        ui_context.current_graph_scroll += (int)(-ui_context.mouse_wheel) * pixels_per_scroll;
+        
+        ui_context.current_graph_scroll = clamp(ui_context.current_graph_scroll, 0, max_scroll);
+        
+        // For user experience, don't allow annoying small last part of scrolling needed to reach bottom/top
+        if (max_scroll - ui_context.current_graph_scroll < 10)
+        {
+            ui_context.current_graph_scroll = max_scroll;
+        }
+        else if (ui_context.mouse_wheel > 0 /* scrolling up */ &&
+                 ui_context.current_graph_scroll < 10)
+        {
+            ui_context.current_graph_scroll = 0;
+        }
+        
+        int slider_x   = scroll_bar_x;
+        int slider_y   = scroll_bar_y + ui_context.current_graph_scroll;
+        int slider_w   = scroll_bar_w;
+        
+        draw_rectangle(ui_context.buffer, slider_x, slider_y, slider_w, slider_h, NICE_RED);
+        
+        // 20p / 5+2 = 2.8 (2  at 1.d.p)
+        // 20p % 5+2 = 6p
+        layout.first_visible_bar = ui_context.current_graph_scroll / (bar_height + layout.spacing);
+        int first_visible_bar_clipped_pixels = ui_context.current_graph_scroll % (bar_height + layout.spacing);
+        
+        int remaining_visible_pixels = layout.h - first_visible_bar_clipped_pixels;
+        
+        // Assumes first bar is visible
+        int visible_bars = 1 + remaining_visible_pixels / (bar_height + layout.spacing);
+        if (remaining_visible_pixels % (bar_height + layout.spacing) != 0)
+        {
+            // Partially visible last bar
+            visible_bars += 1;
+        }
+        
+        layout.visible_bar_count = visible_bars;
+    }
 }
 
 void ui_graph_end()
 {
     ui_context.has_layout = false;
 }
+
+void
+clip_rect(Rect *a, Rect *b)
+{
+    if (b->min.x < a->min.x) b->min.x = a->min.x;
+    if (b->max.x > a->max.x) b->max.x = a->max.x;
+    if (b->min.y < a->min.y) b->min.y = a->min.y;
+    if (b->max.y > a->max.y) b->max.y = a->max.y;
+}
+
+void
+contains_rect(Rect *a, Rect *b)
+{
+}
+
 
 bool
 ui_graph_bar(float length, char *name, char *time_text, Bitmap *bitmap)
@@ -233,14 +322,26 @@ ui_graph_bar(float length, char *name, char *time_text, Bitmap *bitmap)
     Bitmap *buffer = ui_context.buffer;
     
     
+    if (layout->index < layout->first_visible_bar ||
+        layout->index > (layout->first_visible_bar + layout->visible_bar_count) - 1)
+    {
+        layout->index += 1;
+        return;
+    }
+    
+    // x and w in whole body (visible and hidden) of graph, needs to be clipped to visible portion
     int right_pad = 100;
-    int bar_height = 40;
-    int x = layout->x;
+    int x = 0;
     int h = bar_height;
     int w = (int)((layout->w - right_pad) * length);
-    int y = layout->y + layout->spacing + (layout->index * (h + layout->spacing));
+    int y = layout->index * (bar_height + layout->spacing);
     
-    if (y >= layout->y + layout->h) return false;
+    if (y < ui_context.current_graph_scroll)                y = ui_context.current_graph_scroll;
+    if (y + h > ui_context.current_graph_scroll + layout.h)
+    {
+        int clipped_h = (ui_context.current_graph_scroll + layout.h)
+            h = ui_context.current_graph_scroll;
+    }
     
     y = clamp(y, layout->y, layout->y + layout->h-1);
     h = std::min(h, (layout->y + layout->h-1) - y);
@@ -249,8 +350,8 @@ ui_graph_bar(float length, char *name, char *time_text, Bitmap *bitmap)
     
     UI_Id id = layout->start_id++;
     
-    
-    
+    x += layout->x;
+    y += layout->y;
     bool pressed = do_item(id, x, y, w, h);
     
     if (is_hot(id))
@@ -322,7 +423,22 @@ ui_set_mouse_wheel_state(int x, int y, int delta)
     ui_context.mouse_y = y;
     
     // TODO: Make sure this is a good number
-    ui_context.mouse_wheel = delta;
+    
+    //printf("scroll %i\n", delta);
+    
+    // On windows
+    // The high-order word indicates the distance the wheel is rotated, expressed in multiples or divisions of WHEEL_DELTA, which is 120.
+    // Positive value indicates wheel rotated forward, away from user
+    // Negative value indicates wheel rotated backward, toward from user
+    
+    //The wheel rotation will be a multiple of WHEEL_DELTA, which is set at 120. This is the threshold for action to be taken, and one such action (for example, scrolling one increment) should occur for each delta.
+    
+    // I observed delta or -120, +120, +240 etc on my computer
+    // NOTE: This may mean that +60, or even +30 is possible with a free wheeling mouse, and you are supposed
+    // to add it?
+    
+    // We add all wheel deltas
+    ui_context.mouse_wheel += (float)delta / 120.0f;
 }
 
 void

@@ -124,6 +124,7 @@
     <ClInclude Include="..\code\resource.h" />
     <ClInclude Include="..\code\stb_image.h" />
     <ClInclude Include="..\code\stb_truetype.h" />
+    <ClInclude Include="..\code\ui.h" />
     <ClInclude Include="..\code\win32_monitor.h" />
   </ItemGroup>
   <ItemGroup>
@@ -134,6 +135,7 @@
     <ClCompile Include="..\code\icon.cpp" />
     <ClCompile Include="..\code\monitor.cpp" />
     <ClCompile Include="..\code\network.cpp" />
+    <ClCompile Include="..\code\ui.cpp" />
     <ClCompile Include="..\code\utilities.cpp" />
     <ClCompile Include="..\code\win32_monitor.cpp" />
   </ItemGroup>

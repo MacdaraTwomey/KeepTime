@@ -16,6 +16,11 @@
 #define G_COMP(col) ((u8)((col) >> 8))
 #define B_COMP(col) ((u8)(col))
 
+#define NICE_RED RGB_OPAQUE(244, 67, 54)
+#define NICE_GREEN RGB_OPAQUE(102, 187, 106)
+#define NICE_BLUE RGB_OPAQUE(79, 195, 247)
+
+
 #define lerp(x, y, t) (((1.0f-(t))*(x)) + ((t)*(y)))
 
 // I don't know if this is really necesary

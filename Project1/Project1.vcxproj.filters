@@ -45,6 +45,9 @@
     <ClInclude Include="..\code\icon.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\code\ui.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\code\win32_monitor.cpp">
@@ -72,6 +75,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\code\file.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\code\ui.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

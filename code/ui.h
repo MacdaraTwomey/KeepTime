@@ -13,6 +13,9 @@ struct UI_Layout
     int index;
     
     UI_Id start_id;
+    
+    int first_visible_bar;
+    int visible_bar_count;
 };
 
 struct UI_Context
@@ -26,7 +29,7 @@ struct UI_Context
     bool mouse_right_down;
     bool mouse_right_up;
     
-    int mouse_wheel;
+    float mouse_wheel;
     
     bool ui_hidden;
     bool ui_shown;
@@ -45,6 +48,9 @@ struct UI_Context
     
     Font *font;
     Bitmap *buffer;
+    
+    //temp
+    int current_graph_scroll;
 };
 
 enum Mouse_Button_State

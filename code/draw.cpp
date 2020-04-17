@@ -101,25 +101,6 @@ void draw_text(Bitmap *buffer, Font *font, char *text, int baseline_x, int basel
     }
 }
 
-void draw_rectangle(Bitmap *buffer, Rect2i rect, Colour colour)
-{
-    int x0 = clamp(rect.min.x, 0, buffer->width);
-    int y0 = clamp(rect.min.y, 0, buffer->height);
-    int x1 = clamp(rect.max.x, 0, buffer->width);
-    int y1 = clamp(rect.max.y, 0, buffer->height);
-    
-    u8 *row = (u8 *)buffer->pixels + x0*Bitmap::BYTES_PER_PIXEL + y0*buffer->pitch;
-    for (int y = y0; y < y1; ++y)
-    {
-        u32 *dest = (u32 *)row;
-        for (int x = x0; x < x1; ++x)
-        {
-            *dest++ = colour;
-        }
-        
-        row += buffer->pitch;
-    }
-}
 
 void
 draw_rectangle(Bitmap *buffer, int x, int y, int w, int h, Colour colour)

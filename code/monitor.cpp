@@ -276,7 +276,7 @@ get_favicon_from_website(String url)
 }
 
 void
-update_days_records(Day *day, u32 id, double dt)
+update_days_records(Day *day, u32 id, time_type dt)
 {
     for (u32 i = 0; i < day->record_count; ++i)
     {
@@ -341,7 +341,7 @@ get_icon_from_database(Database *database, Program_Id id)
 // TODO: Do we need/want dt here,
 // maybe want to split up update_days
 void
-poll_windows(Database *database, double dt)
+poll_windows(Database *database, time_type dt)
 {
     char buf[2000];
     size_t len = 0;
@@ -471,6 +471,46 @@ Monitor_State
 };
 
 
+const char *
+day_suffix(int day)
+{
+    Assert(day >= 1 && day <= 31);
+    static const char *suffixes[] = {"st", "nd", "rd", "th"};
+    switch (day)
+    {
+        case 1:
+        case 21:
+        case 31:
+        return suffixes[0];
+        break;
+        
+        case 2:
+        case 22:
+        return suffixes[1];
+        break;
+        
+        case 3:
+        case 23:
+        return suffixes[2];
+        break;
+        
+        default:
+        return suffixes[3];
+        break;
+    }
+}
+
+const char *
+month_string(int month)
+{
+    Assert(month >= 1 && month <= 12);
+    month -= 1;
+    static const char *months[] = {"January","February","March","April","May","June",
+        "July","August","September","October","November","December"};
+    return months[month];
+}
+
+
 void
 update(Monitor_State *state, Bitmap *screen_buffer, time_type dt)
 {
@@ -508,22 +548,26 @@ update(Monitor_State *state, Bitmap *screen_buffer, time_type dt)
         
         state->is_initialised = true;
     }
+    
+    Database *database = &state->database;
+    
     // TODO: Separate platform and icon code in icon.cpp
     
     // TODO: Just use google or duckduckgo service for now
     
     date::sys_days current_date = floor<date::days>(System_Clock::now());
-    if (current_date != state->database.days[state->database.day_count-1].date)
+    if (current_date != database->days[state->database.day_count-1].date)
     {
-        start_new_day(&state->database, current_date);
+        start_new_day(database, current_date);
     }
     
     // Maybe better if this is all integer arithmetic
+    // 1000ms per 1s
     state->accumulated_time += dt;
-    float poll_window_freq = 0.1f;
+    time_type poll_window_freq = 100;
     if (state->accumulated_time >= poll_window_freq)
     {
-        poll_windows(&state->database, state->accumulated_time);
+        poll_windows(database, state->accumulated_time);
         state->accumulated_time -= poll_window_freq;
     }
     
@@ -532,11 +576,20 @@ update(Monitor_State *state, Bitmap *screen_buffer, time_type dt)
         // Save a freeze frame of the currently saved days.
     }
     
-    init_day_view(&state->database, &state->day_view);
+    init_day_view(database, &state->day_view);
     
     draw_rectangle(screen_buffer, 0, 0, screen_buffer->width, screen_buffer->height, GREY(255));
     
     ui_begin();
+    
+    date::year_month_day ymd_date {current_date};
+    // date:: overrides operator int() etc ...
+    int y = int(ymd_date.year());
+    int m = unsigned(ymd_date.month());
+    int d = unsigned(ymd_date.day());
+    char text[512];
+    snprintf(text, array_count(text), "%i%s %s, %i", d, day_suffix(d), month_string(m), y);
+    draw_text(screen_buffer, &state->font, text, 26, 53, GREY(0));
     
     {
         static i32 period = 1;
@@ -573,34 +626,19 @@ update(Monitor_State *state, Bitmap *screen_buffer, time_type dt)
             
             std::sort(sorted_records, sorted_records + record_count, [](Program_Record &a, Program_Record &b){ return a.duration > b.duration; });
             
-            double max_duration = sorted_records[0].duration;
+            time_type max_duration = sorted_records[0].duration;
             
-            ui_graph_begin(270, 80, 650, 400, gen_id());
+            ui_graph_begin(270, 80, 650, 400, record_count, gen_id());
             for (i32 i = 0; i < record_count; ++i)
             {
                 Program_Record &record = sorted_records[i];
-                float length = (record.duration / max_duration);
+                float length = (float)(record.duration / max_duration);
                 length += 0.1f; // bump factor
                 if (length > 1.0f) length = 1.0f;
                 
                 char text[512];
-                snprintf(text, array_count(text), "%.2lfs", record.duration);
-#if 0
-                if (record.duration < 60.0f)
-                {
-                    // Seconds
-                }
-                else if(record.duration < 3600.0f)
-                {
-                    // Minutes
-                    snprintf(text, array_count(text), "%.0lfm", record.duration/60);
-                }
-                else
-                {
-                    // Hours
-                    snprintf(text, array_count(text), "%.0lfh", record.duration/3600);
-                }
-#endif
+                double duration_seconds = (double)record.duration / 1000;
+                snprintf(text, array_count(text), "%.2fs", duration_seconds);
                 
                 Bitmap *icon = get_icon_from_database(&state->database, record.id);
                 char *name = state->database.names[record.id].short_name.str;
@@ -618,3 +656,20 @@ update(Monitor_State *state, Bitmap *screen_buffer, time_type dt)
     {
     }
 }
+
+#if 0
+if (duration_seconds < 60)
+{
+    // Seconds
+}
+else if(duration_seconds < 3600)
+{
+    // Minutes
+    snprintf(text, array_count(text), "%llum", duration_seconds/60);
+}
+else
+{
+    // Hours
+    snprintf(text, array_count(text), "%lluh", duration_seconds/3600);
+}
+#endif

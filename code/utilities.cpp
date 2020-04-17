@@ -82,7 +82,7 @@ struct V2i
 {
     int x, y;
 };
-struct Rect2i
+struct Rect
 {
     V2i min, max;
 };

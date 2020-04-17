@@ -85,10 +85,61 @@ Platform_Window
 platform_get_active_window()
 {
     // TODO: Use GetShellWindow GetShellWindow to detect when not doing anything on desktop, if foreground == desktop etc
+    
+#ifdef CYCLE
+    
+    static HWND queue[100];
+    static int count = 0;
+    static bool first = true;
+    static bool done = false;
+    
+    auto get_windows = [](int &count, HWND *queue) {
+        for (HWND hwnd = GetTopWindow(NULL); hwnd != NULL && count < 100; hwnd = GetNextWindow(hwnd, GW_HWNDNEXT))
+        {
+            if (IsWindowVisible(hwnd))
+            {
+                queue[count++] = hwnd;
+            }
+        }
+    };
+    
+    if (first)
+    {
+        get_windows(count, queue);
+        first = false;
+    }
+    
+    Platform_Window window = {};
+    if (count > 0)
+    {
+        HWND foreground_win = queue[count-1];
+        window = {};
+        window.handle = foreground_win;
+        window.is_valid = (foreground_win != 0);
+        
+        count -= 1;
+    }
+    else
+    {
+        done = true;
+    }
+    
+    if (done)
+    {
+        HWND foreground_win = GetForegroundWindow();
+        window = {};
+        window.handle = foreground_win;
+        window.is_valid = (foreground_win != 0);
+    }
+#else
+    
     HWND foreground_win = GetForegroundWindow();
     Platform_Window window = {};
     window.handle = foreground_win;
     window.is_valid = (foreground_win != 0);
+#endif
+    
+    
     return window;
 }
 
@@ -240,6 +291,8 @@ platform_get_firefox_url(Platform_Window window, char *buf, int buf_size, size_t
     //       "Search with Google or enter address"   UIA_EditControlTypeId (0xC354) LocalizedControlType: "edit"
     //        which has Value.Value = URL
     
+    // TODO: Does this handle multiple firefox windows correctly??
+    
     HWND handle = window.handle;
     bool success = false;
     *length = 0;
@@ -247,6 +300,7 @@ platform_get_firefox_url(Platform_Window window, char *buf, int buf_size, size_t
     // NOTE: window will always be the up to date firefox window, even if our editbox pointer is old.
     // NOTE: Even when everything else is released it seems that you can still use editbox pointer, unless the window is closed. Documentation does not confirm this, so i'm not 100% sure it's safe.
     
+    // NOTE: This is duplicated because the editbox pointer can be valid, but just stale, and we only know that if GetCurrentPropertyValue fails, in which case we free the pointer and try to reacquire the editbox.
     static IUIAutomationElement *editbox = nullptr;
     if (editbox)
     {
@@ -271,7 +325,6 @@ platform_get_firefox_url(Platform_Window window, char *buf, int buf_size, size_t
         }
     }
     
-    // Try re-aquiring editbox pointer for the window handle
     editbox = win32_firefox_get_url_bar_editbox(handle);
     if (editbox)
     {
@@ -607,27 +660,27 @@ WinProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
         
         case WM_LBUTTONUP:
         ui_set_mouse_button_state((short)LOWORD(lParam), (short)HIWORD(lParam), Mouse_Left_Up);
-        tprint("Left mouse up");
+        //tprint("Left mouse up");
         break;
         
         case WM_LBUTTONDOWN:
         ui_set_mouse_button_state((short)LOWORD(lParam), (short)HIWORD(lParam), Mouse_Left_Down);
-        tprint("Left mouse down");
+        //tprint("Left mouse down");
         break;
         
         case WM_RBUTTONUP:
         ui_set_mouse_button_state((short)LOWORD(lParam), (short)HIWORD(lParam), Mouse_Right_Up);
-        tprint("Right mouse up");
+        //tprint("Right mouse up");
         break;
         
         case WM_RBUTTONDOWN:
         ui_set_mouse_button_state((short)LOWORD(lParam), (short)HIWORD(lParam), Mouse_Right_Down);
-        tprint("Right mouse down");
+        //tprint("Right mouse down");
         break;
         
         case WM_MOUSEWHEEL:
         ui_set_mouse_wheel_state((short)LOWORD(lParam), (short)HIWORD(lParam), GET_WHEEL_DELTA_WPARAM(wParam));
-        tprint("mouse wheel");
+        //tprint("mouse wheel");
         break;
         
         // WM_SIZE and WM_PAINT messages recieved when window resized,
@@ -674,7 +727,7 @@ WinMain(HINSTANCE instance,
     
     // TODO: Why don't we need to link ole32.lib?
     // Call this because we use CoCreateInstance in UIAutomation
-    HRESULT gg = CoInitialize(NULL);//, COINIT_APARTMENTTHREADED);
+    CoInitializeEx(NULL, COINIT_APARTMENTTHREADED); // equivalent to CoInitialize(NULL)
     
     {
         // TODO: How to give the app layer its full path?
@@ -756,7 +809,7 @@ WinMain(HINSTANCE instance,
         
         // Steady clock also accounts for time paused in debugger etc, so can introduce bugs that aren't there normally when debugging.
         auto new_time = Steady_Clock::now();
-        std::chrono::duration<time_type> diff = new_time - old_time;
+        auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(new_time - old_time);
         old_time = new_time;
         time_type dt = diff.count();
         
