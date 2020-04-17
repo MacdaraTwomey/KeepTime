@@ -1,14 +1,13 @@
 #ifndef UI_H
 #define UI_H
 
+#include "graphics.h"
+
 typedef u32 UI_Id;
 
 struct UI_Layout
 {
-    int x;
-    int y;
-    int w;
-    int h;
+    Rect rect;
     int spacing;
     int index;
     

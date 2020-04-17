@@ -57,3 +57,15 @@ struct Font
     i32 max_ascent;
     i32 max_descent;
 };
+
+struct V2i
+{
+    int x, y;
+};
+
+struct Rect
+{
+    V2i pos;
+    V2i dim;
+};
+

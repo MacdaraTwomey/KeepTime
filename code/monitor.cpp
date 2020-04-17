@@ -593,7 +593,7 @@ update(Monitor_State *state, Bitmap *screen_buffer, time_type dt)
     
     {
         static i32 period = 1;
-        ui_button_row_begin(270, 30, 100);
+        ui_button_row_begin(270, 30);
         
         if (ui_button("Day"))
         {
@@ -632,7 +632,7 @@ update(Monitor_State *state, Bitmap *screen_buffer, time_type dt)
             for (i32 i = 0; i < record_count; ++i)
             {
                 Program_Record &record = sorted_records[i];
-                float length = (float)(record.duration / max_duration);
+                float length = ((float)record.duration / max_duration);
                 length += 0.1f; // bump factor
                 if (length > 1.0f) length = 1.0f;
                 

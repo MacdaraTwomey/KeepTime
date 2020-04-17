@@ -123,6 +123,12 @@ draw_rectangle(Bitmap *buffer, int x, int y, int w, int h, Colour colour)
     }
 }
 
+void
+draw_rectangle(Bitmap *buffer, Rect rect, Colour colour)
+{
+    draw_rectangle(buffer, rect.pos.x, rect.pos.y, rect.dim.x, rect.dim.y, colour);
+}
+
 
 void
 draw_horizontal_line(Bitmap *buffer, int x0, int x1, int y, Colour colour)
@@ -159,17 +165,26 @@ draw_vertical_line(Bitmap *buffer, int y0, int y1, int x, Colour colour)
 }
 
 void
-draw_rect_outline(Bitmap *buffer, int x, int y, int w, int h, Colour colour)
+draw_rect_outline(Bitmap *buffer, int x, int y, int w, int h, Colour colour,
+                  bool draw_top = true, bool draw_bottom = true)
 {
-    int x0 = clamp(x, 0, buffer->width);
-    int y0 = clamp(y, 0, buffer->height);
-    int x1 = clamp(x + w, 0, buffer->width);
-    int y1 = clamp(y + h, 0, buffer->height);
+    int x0 = clamp(x, 0, buffer->width-1);
+    int y0 = clamp(y, 0, buffer->height-1);
+    int x1 = clamp(x + w - 1, 0, buffer->width);
+    int y1 = clamp(y + h - 1, 0, buffer->height);
     
-    draw_horizontal_line(buffer, x0, x1, y0, colour);
-    draw_horizontal_line(buffer, x0, x1, y1-1, colour);
+    if (draw_top) draw_horizontal_line(buffer, x0, x1, y0, colour);
+    if (draw_bottom) draw_horizontal_line(buffer, x0, x1, y1, colour);
     draw_vertical_line(buffer,   y0, y1, x0, colour);
-    draw_vertical_line(buffer,   y0, y1, x1-1, colour);
+    draw_vertical_line(buffer,   y0, y1, x1, colour);
+}
+
+void
+draw_rect_outline(Bitmap *buffer, Rect rect, Colour colour,
+                  bool draw_top = true, bool draw_bottom = true)
+{
+    draw_rect_outline(buffer, rect.pos.x, rect.pos.y, rect.dim.x, rect.dim.y, colour,
+                      draw_top, draw_bottom);
 }
 
 void

@@ -53,8 +53,8 @@
 //       Johan Duparc               Thomas Fields
 //       Hou Qiming                 Derek Vinyard
 //       Rob Loach                  Cort Stratton
-//       Kenney Phillis Jr.         Brian Costabile            
-//       Ken Voskuil (kaesve)       
+//       Kenney Phillis Jr.         Brian Costabile
+//       Ken Voskuil (kaesve)
 //
 // VERSION HISTORY
 //
@@ -959,7 +959,13 @@ extern "C" {
     //
     // pixel_dist_scale & onedge_value are a scale & bias that allows you to make
     // optimal use of the limited 0..255 for your application, trading off precision
-    // and special effects. SDF values outside the range 0..255 are clamped to 0..255.
+    // and special effects. SDF values outside the range 0..255 are
+	
+	
+	
+	
+	
+	
     //
     // Example:
     //      scale = stbtt_ScaleForPixelHeight(22)

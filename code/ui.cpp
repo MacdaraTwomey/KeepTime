@@ -75,14 +75,14 @@ maybe_set_hot(UI_Id id)
 }
 
 bool
-in_item_rect(int rect_x, int rect_y, int rect_w, int rect_h)
+in_item_rect(Rect rect)
 {
-    return (ui_context.mouse_x >= rect_x && ui_context.mouse_x <= rect_x+rect_w &&
-            ui_context.mouse_y >= rect_y && ui_context.mouse_y <= rect_y+rect_h);
+    return (ui_context.mouse_x >= rect.pos.x && ui_context.mouse_x <= rect.pos.x + rect.dim.x &&
+            ui_context.mouse_y >= rect.pos.y && ui_context.mouse_y <= rect.pos.y + rect.dim.y);
 }
 
 bool
-do_item(UI_Id id, int x, int y, int w, int h)
+do_item(UI_Id id, Rect item_rect)
 {
     // Could instead pass in a bool, that says in rect or not
     
@@ -92,7 +92,7 @@ do_item(UI_Id id, int x, int y, int w, int h)
     
     bool result = false;
     
-    if (in_item_rect(x, y, w, h)) maybe_set_hot(id);
+    if (in_item_rect(item_rect)) maybe_set_hot(id);
     
     if (ui_context.active == 0) // Nothing is active
     {
@@ -119,18 +119,15 @@ do_item(UI_Id id, int x, int y, int w, int h)
 }
 
 void
-ui_button_row_begin(int x, int y, int w)
+ui_button_row_begin(int x, int y)
 {
     UI_Layout layout = {};
-    layout.x = x;
-    layout.y = y;
-    layout.spacing = 10;
-    layout.w = w;
-    layout.index = 0;
     int ypad = 3;
+    int button_width = 100;
     int font_height = ui_context.font->max_ascent + ui_context.font->max_descent;
-    layout.h = font_height;
-    
+    layout.rect = {x, y, button_width, font_height};
+    layout.spacing = 10;
+    layout.index = 0;
     ui_context.layout = layout;
     ui_context.has_layout = true;
 }
@@ -143,100 +140,85 @@ ui_button_row_end()
 }
 
 bool
-ui_button(char *text, int x = 0, int y = 0)
+ui_button(char *text)
 {
-    Assert(x >= 0 && y >= 0);
-    // Calculate w/h position from layout rules (maybe also x y if we want)
+    Assert(ui_context.has_layout);
+    
+    UI_Layout *layout = &ui_context.layout;
     Font *font = ui_context.font;
     Bitmap *buffer = ui_context.buffer;
     
     int xpad = 0; // make these mode dynamic, for different text sizes
     int ypad = 0;
-    int text_w = text_width(text, ui_context.font);
-    int w = text_w + xpad*2;
-    int h = font->max_ascent + font->max_descent + ypad*2;
     
-    if (ui_context.has_layout)
-    {
-        UI_Layout *layout = &ui_context.layout;
-        x = layout->x;
-        y = layout->y;
-        w = layout->w;
-        h = layout->h;
-        
-        layout->x += w + layout->spacing;
-    }
+    Rect rect = layout->rect;
+    rect.pos.x += layout->index * (layout->rect.dim.x + layout->spacing);
+    layout->index += 1;
     
     UI_Id id = get_id(text);
     
-    bool pressed = do_item(id, x, y, w, h);
+    bool pressed = do_item(id, rect);
     
-    draw_rectangle(buffer, x, y, w, h, GREY(190));
-    
-    int centre_x = x + (w/2);
-    int centre_y = y + (int)(h*0.75f);
-    
-    int baseline_x = centre_x - text_w/2;
-    int baseline_y = centre_y;
+    draw_rectangle(buffer, rect, GREY(190));
     
     u32 colour = RGB_OPAQUE(0, 0, 0);
     if (is_hot(id)) colour = RGB_OPAQUE(255, 0, 0);
     if (is_active(id))
     {
-        draw_rect_outline(buffer, x, y, w, h, RGB_OPAQUE(255, 255, 255));
-        draw_rect_outline(buffer, x-1, y-1, w+2, h+2, RGB_OPAQUE(0, 0, 0));
-        draw_rect_outline(buffer, x+1, y+1, w-2, h-2, RGB_OPAQUE(0, 0, 0));
+        draw_rect_outline(buffer, rect, RGB_OPAQUE(255, 255, 255));
+        draw_rect_outline(buffer, grow(rect, 1), RGB_OPAQUE(0, 0, 0));
+        draw_rect_outline(buffer, shrink(rect, 1), RGB_OPAQUE(0, 0, 0));
     }
     else
     {
-        draw_rect_outline(buffer, x, y, w, h, RGB_OPAQUE(0, 0, 0));
+        draw_rect_outline(buffer, rect, RGB_OPAQUE(0, 0, 0));
     }
     
     if (is_selected(id)) colour = RGB_OPAQUE(0, 0, 255);
     
+    int centre_x = rect.pos.x + (rect.dim.x/2);
+    int centre_y = rect.pos.y + (int)(rect.dim.y*0.75f);
+    
+    int text_w = text_width(text, font);
+    int baseline_x = centre_x - text_w/2;
+    int baseline_y = centre_y;
     draw_text(buffer, font, text, baseline_x, baseline_y, colour);
     
     return pressed;
 }
 
-int bar_height = 30;
-int pixels_per_scroll = 30;
+int bar_height = 60;
+int pixels_per_scroll = 1;
 
 void
 ui_graph_begin(int x, int y, int w, int h, int bar_count, UI_Id id)
 {
     UI_Layout layout = {};
     // Width and height of whole barplot
-    layout.w = w;
-    layout.h = h;
-    layout.x = x;
-    layout.y = y;
+    layout.rect = {x, y, w, h};
     layout.spacing = 10;
     layout.index = 0;
     layout.start_id = id;
     layout.first_visible_bar = 0;
     layout.visible_bar_count = bar_count;
     
-    
-    ui_context.layout = layout;
-    ui_context.has_layout = true;
-    
-    draw_rectangle(ui_context.buffer, x, y, w, h, GREY(200));
-    draw_rect_outline(ui_context.buffer, x, y, w, h, GREY(0));
+    draw_rectangle(ui_context.buffer, layout.rect, GREY(200));
+    //draw_rect_outline(ui_context.buffer, layout.rect, GREY(0));
     
     // TODO: If on scroll max last frame, keep on scroll max, even if bar count increases
     
     int body_height = bar_count * (bar_height + layout.spacing);
-    if (body_height > layout.h)
+    if (body_height > layout.rect.dim.y)
     {
         int scroll_bar_w = 10;
         int scroll_bar_pad = 10;
         int scroll_bar_h = h - (2*scroll_bar_pad);
         int scroll_bar_x = x + w - scroll_bar_pad - scroll_bar_w;
         int scroll_bar_y = y + scroll_bar_pad;
+        
         draw_rectangle(ui_context.buffer, scroll_bar_x, scroll_bar_y, scroll_bar_w, scroll_bar_h, NICE_GREEN);
         
-        float inscreen = (float)layout.h;
+        float inscreen = (float)layout.rect.dim.y;
         float offscreen = (float)body_height;
         
         // 5 scrolls
@@ -256,7 +238,8 @@ ui_graph_begin(int x, int y, int w, int h, int bar_count, UI_Id id)
         ui_context.current_graph_scroll = clamp(ui_context.current_graph_scroll, 0, max_scroll);
         
         // For user experience, don't allow annoying small last part of scrolling needed to reach bottom/top
-        if (max_scroll - ui_context.current_graph_scroll < 10)
+        if (ui_context.mouse_wheel < 0 /* scrolling down */ &&
+            max_scroll - ui_context.current_graph_scroll < 10)
         {
             ui_context.current_graph_scroll = max_scroll;
         }
@@ -277,7 +260,23 @@ ui_graph_begin(int x, int y, int w, int h, int bar_count, UI_Id id)
         layout.first_visible_bar = ui_context.current_graph_scroll / (bar_height + layout.spacing);
         int first_visible_bar_clipped_pixels = ui_context.current_graph_scroll % (bar_height + layout.spacing);
         
-        int remaining_visible_pixels = layout.h - first_visible_bar_clipped_pixels;
+        // Graph goes bar, spacing, bar, spacing ...
+        // If only the spacing is visible don't count the bar
+        int remaining_visible_pixels = layout.rect.dim.y;
+        if (first_visible_bar_clipped_pixels >= bar_height)
+        {
+            // First real visible bar is not clipped, only an offscreen one's spacing is
+            layout.first_visible_bar += 1;
+            // So remove this fully visible bar's pixels from tally
+            int first_visible_bar_visible_pixels = (bar_height + layout.spacing);
+            remaining_visible_pixels -= first_visible_bar_visible_pixels;
+        }
+        else
+        {
+            // Remove clipped first bars pixels from tally
+            int first_visible_bar_visible_pixels = (bar_height + layout.spacing) - first_visible_bar_clipped_pixels;
+            remaining_visible_pixels -= first_visible_bar_visible_pixels;
+        }
         
         // Assumes first bar is visible
         int visible_bars = 1 + remaining_visible_pixels / (bar_height + layout.spacing);
@@ -289,6 +288,10 @@ ui_graph_begin(int x, int y, int w, int h, int bar_count, UI_Id id)
         
         layout.visible_bar_count = visible_bars;
     }
+    
+    
+    ui_context.layout = layout;
+    ui_context.has_layout = true;
 }
 
 void ui_graph_end()
@@ -297,19 +300,20 @@ void ui_graph_end()
 }
 
 void
-clip_rect(Rect *a, Rect *b)
+clip_rect(Rect a, Rect *b)
 {
-    if (b->min.x < a->min.x) b->min.x = a->min.x;
-    if (b->max.x > a->max.x) b->max.x = a->max.x;
-    if (b->min.y < a->min.y) b->min.y = a->min.y;
-    if (b->max.y > a->max.y) b->max.y = a->max.y;
+    if (b->pos.x < a.pos.x) {
+        b->dim.x -= a.pos.x - b->pos.x;
+        b->pos.x = a.pos.x;
+    }
+    if (b->pos.x + b->dim.x > a.pos.x + a.dim.x) b->dim.x = a.pos.x + a.dim.x - b->pos.x;
+    if (b->pos.y < a.pos.y)
+    {
+        b->dim.y -= a.pos.y - b->pos.y;
+        b->pos.y = a.pos.y;
+    }
+    if (b->pos.y + b->dim.y > a.pos.y + a.dim.y) b->dim.y = a.pos.y + a.dim.y - b->pos.y;
 }
-
-void
-contains_rect(Rect *a, Rect *b)
-{
-}
-
 
 bool
 ui_graph_bar(float length, char *name, char *time_text, Bitmap *bitmap)
@@ -321,67 +325,68 @@ ui_graph_bar(float length, char *name, char *time_text, Bitmap *bitmap)
     Font *font = ui_context.font;
     Bitmap *buffer = ui_context.buffer;
     
-    
     if (layout->index < layout->first_visible_bar ||
         layout->index > (layout->first_visible_bar + layout->visible_bar_count) - 1)
     {
         layout->index += 1;
-        return;
+        return false;
     }
     
-    // x and w in whole body (visible and hidden) of graph, needs to be clipped to visible portion
+    // rect in is the pixel space of the whole extended visible and hidden portions of bar plot
     int right_pad = 100;
-    int x = 0;
-    int h = bar_height;
-    int w = (int)((layout->w - right_pad) * length);
-    int y = layout->index * (bar_height + layout->spacing);
+    int bar_len = (int)((layout->rect.dim.x - right_pad) * length);
+    Rect bar = {
+        0,
+        layout->index * (bar_height + layout->spacing),
+        bar_len,
+        bar_height,
+    };
     
-    if (y < ui_context.current_graph_scroll)                y = ui_context.current_graph_scroll;
-    if (y + h > ui_context.current_graph_scroll + layout.h)
-    {
-        int clipped_h = (ui_context.current_graph_scroll + layout.h)
-            h = ui_context.current_graph_scroll;
-    }
+    bar.pos += layout->rect.pos;
     
-    y = clamp(y, layout->y, layout->y + layout->h-1);
-    h = std::min(h, (layout->y + layout->h-1) - y);
+    Rect outline = bar;
     
-    layout->index += 1;
+    // Move layout into the 'body' pixel space to get visible rect then move back again into window space.
+    Rect visible_rect = layout->rect;
+    visible_rect.pos.y += ui_context.current_graph_scroll;
+    
+    clip_rect(visible_rect, &bar);
+    bar.pos.y -= ui_context.current_graph_scroll;
     
     UI_Id id = layout->start_id++;
     
-    x += layout->x;
-    y += layout->y;
-    bool pressed = do_item(id, x, y, w, h);
+    bool pressed = do_item(id, bar);
     
     if (is_hot(id))
     {
-        draw_rectangle(buffer, x, y, w, h, RGB_OPAQUE(190, 20, 75));
+        draw_rectangle(buffer, bar, RGB_OPAQUE(190, 20, 75));
     }
     else
     {
-        draw_rectangle(buffer, x, y, w, h, RGB_NORMAL(0.8, 0.1, 0.3));
+        draw_rectangle(buffer, bar, RGB_NORMAL(0.8, 0.1, 0.3));
     }
     if (is_active(id))
     {
-        draw_rect_outline(buffer, x, y, w, h, RGB_OPAQUE(255, 255, 255));
-        draw_rect_outline(buffer, x-1, y-1, w+2, h+2, RGB_OPAQUE(0, 0, 0));
-        draw_rect_outline(buffer, x+1, y+1, w-2, h-2, RGB_OPAQUE(0, 0, 0));
+        draw_rect_outline(buffer, bar, RGB_OPAQUE(255, 255, 255));
+        draw_rect_outline(buffer, shrink(bar, 1), RGB_OPAQUE(0, 0, 0));
+        draw_rect_outline(buffer, grow(bar, 1), RGB_OPAQUE(0, 0, 0));
     }
     else
     {
-        draw_rect_outline(buffer, x, y, w, h, RGB_OPAQUE(0, 0, 0));
+        // TODO: We also want to clip outlines if part of a bar goes offscreen, but this is not easy with current way of doing things
+        draw_rect_outline(buffer, bar, RGB_OPAQUE(0, 0, 0));
     }
     
     
-    int centre_y = y + (int)(h*0.75f);
+#if 1
+    int centre_y = bar.pos.y + (int)(bar.dim.y*0.75f);
     
-    int baseline_x = x + 10;
+    int baseline_x = bar.pos.x + 10;
     int baseline_y = centre_y;
     
     if (name)
     {
-        int max_width = layout->w - 10 - 100;
+        int max_width = layout->rect.dim.x - 10 - 100;
         draw_text(buffer, font, name, baseline_x, baseline_y, GREY(0), max_width);
         baseline_x += max_width + 20;
     }
@@ -392,10 +397,13 @@ ui_graph_bar(float length, char *name, char *time_text, Bitmap *bitmap)
     
     if (bitmap)
     {
-        int bitmap_x = x - (bitmap->width);
+        int bitmap_x = bar.pos.x - (bitmap->width);
         int bitmap_y = centre_y - (bitmap->height/2) + 3;
-        draw_bitmap(buffer, bitmap, x-50, y);
+        draw_bitmap(buffer, bitmap, bar.pos.x-50, bar.pos.y);
     }
+#endif
+    
+    layout->index += 1;
     
     return pressed;
 }

@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "graphics.h"
+
 void *xalloc(size_t size)
 {
     Assert(size > 0);
@@ -76,83 +78,77 @@ make_filepath(char *exe_path, const char *filename)
     return buf;
 }
 
-
-
-struct V2i
-{
-    int x, y;
-};
-struct Rect
-{
-    V2i min, max;
-};
-
 inline V2i
 operator-(V2i a)
 {
     V2i result;
-    
     result.x = -a.x;
     result.y = -a.y;
-    
-    return(result);
+    return result;
 }
 
 inline V2i
 operator+(V2i a, V2i b)
 {
     V2i result;
-    
     result.x = a.x + b.x;
     result.y = a.y + b.y;
-    
-    return(result);
+    return result;
 }
 
 inline V2i &
 operator+=(V2i &a, V2i b)
 {
     a = a + b;
-    
-    return(a);
+    return a;
 }
 
 inline V2i
 operator-(V2i a, V2i b)
 {
     V2i result;
-    
     result.x = a.x - b.x;
     result.y = a.y - b.y;
-    
     return(result);
 }
 
 inline V2i
-operator*(r32 A, V2i B)
+operator*(int a, V2i b)
 {
-    V2i Result;
-    
-    // TODO: Should this take a float or an int?
-    Result.x = (int)A*B.x;
-    Result.y = (int)A*B.y;
-    
-    return(Result);
+    V2i result;
+    result.x = a * b.x;
+    result.y = a * b.y;
+    return result;
 }
 
 inline V2i
-operator*(V2i B, r32 A)
+operator*(V2i a, int b)
 {
-    V2i Result = A*B;
-    
-    return(Result);
+    V2i result = b * a;
+    return result;
 }
 
 inline V2i &
-operator*=(V2i &B, r32 A)
+operator*=(V2i &b, int a)
 {
-    B = A * B;
-    
-    return(B);
+    b = a * b;
+    return b;
 }
 
+
+inline Rect
+shrink(Rect rect, int amount)
+{
+    Rect result;
+    result.pos.x = rect.pos.x + amount;
+    result.pos.y = rect.pos.y + amount;
+    result.dim.x = rect.dim.x - amount*2;
+    result.dim.y = rect.dim.y - amount*2;
+    return result;
+}
+
+inline Rect
+grow(Rect rect, int amount)
+{
+    return shrink(rect, -amount);
+}
