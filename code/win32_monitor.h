@@ -16,3 +16,14 @@ struct Process_Ids
     DWORD parent;
     DWORD child;
 };
+
+
+struct Options_Window
+{
+    bool is_open;
+    char edit[100][50];
+    HWND list_view;
+    HWND dialog;
+    int count;
+    int capacity;
+};

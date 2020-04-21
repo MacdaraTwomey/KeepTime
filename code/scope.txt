@@ -1,4 +1,24 @@
 
+__Things needed to make minimum viable product__
+ * Save state to database, maybe use real sql database for this?
+ * User can enter keywords for websites
+ * Window resizing
+ * Finilise UI
+ * View by week month day
+ * Platform can detect multiple firefox windows (more of a bug)
+
+__Things needed to put into minimum finished state__
+ * Settings menu, for day start, blacklist,
+ * Autosave on shutdown
+ * Autostart at time of day
+
+__Things needed to put into good finished state__
+ * Use hardware acceleration
+ * Multiple platforms
+ * Download website icons
+ * detect idle
+
+
 Possible other features:
  * Can detect if multiple windows are being viewed even if just one is in focus
  * Detect that window is opened in second monitor and is being read from
@@ -69,8 +89,6 @@ Time of day:
 Settings:
  * User
      - Blacklist program names
-UI:
- * Could make horizontal graphs, with layout similar like win10 task manager processes screen
 
 
 

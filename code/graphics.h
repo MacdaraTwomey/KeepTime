@@ -1,3 +1,5 @@
+#ifndef GRAPHICS_H
+#define GRAPHICS_H
 #pragma once
 
 #include "stb_truetype.h"
@@ -69,3 +71,5 @@ struct Rect
     V2i dim;
 };
 
+
+#endif

@@ -4,7 +4,8 @@ version(1);
 project_name = "Monitor";
 
 patterns = {
-	"*.cpp", 
+	"*.cpp",
+	"*.rc",
 	"*.h",
 	"*.4coder",
 	"build.bat",

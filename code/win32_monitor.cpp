@@ -5,6 +5,8 @@
 #undef min
 #undef max
 
+#include <commctrl.h>
+
 #include <AtlBase.h>
 #include <UIAutomation.h>
 
@@ -40,6 +42,7 @@ static bool global_running = false;
 // Use pump messages result to check if visible to avoid the issues with value unexpectly changing.
 // Still counts as visible if minimised to the task bar.
 static NOTIFYICONDATA global_nid = {};
+static Options_Window global_options_win;
 
 static constexpr int WindowWidth = 960;
 static constexpr int WindowHeight = 540;
@@ -519,6 +522,221 @@ win32_paint_window(Bitmap *buffer, HDC device_context)
                   SRCCOPY);
 }
 
+INT_PTR CALLBACK AboutDlgProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lParam)
+{
+    // NOTE: you return FALSE for messages you don't process, and TRUE for messages you do process, UNLESS the message specifies you return something else
+    
+    switch(Message)
+    {
+        case WM_INITDIALOG: tprint("INITDIALOG"); return TRUE;
+        
+        case WM_CLOSE:
+        {
+            DestroyWindow(global_options_win.list_view);
+            EndDialog(global_options_win.dialog, TRUE);
+            
+            global_options_win.list_view = nullptr;
+            global_options_win.dialog = nullptr;
+            global_options_win.is_open = false;
+            return TRUE;
+        } break;
+        
+        case WM_NOTIFY:
+        {
+            if (wParam != ID_LISTVIEW) break;
+            LV_DISPINFO *display_info = (LV_DISPINFO *)lParam;
+            NM_LISTVIEW *list_view = (NM_LISTVIEW *)lParam;
+            switch (display_info->hdr.code)
+            {
+                case LVN_GETDISPINFO:
+                {
+                    if (display_info->item.iItem < global_options_win.count)
+                    {
+                        display_info->item.pszText = global_options_win.edit[display_info->item.iItem];
+                    }
+                } break;
+                
+                case NM_CLICK:
+                case NM_DBLCLK:
+                {
+                    int item = ((LPNMITEMACTIVATE)lParam)->iItem;
+                    
+                    if (item != -1 && item <= global_options_win.count)
+                    {
+                        ListView_EditLabel(global_options_win.list_view, item);
+                    }
+                } break;
+                
+                case LVN_BEGINLABELEDIT:
+                {
+                    HWND hWndEdit = (HWND)SendMessage(global_options_win.dialog, LVM_GETEDITCONTROL, 0, 0);
+                    
+                    // Limit the amount of text that can be entered.
+                    SendMessage(hWndEdit, EM_SETLIMITTEXT, (WPARAM)20, 0);
+                    
+                    //To allow the user to edit the label, return FALSE.
+                    //To prevent the user from editing the label, return TRUE.
+                    return FALSE;
+                } break;
+                
+                case LVN_ENDLABELEDIT:
+                {
+                    // Save the new label information
+                    tprint("End edit");
+                    int item = display_info->item.iItem;
+                    if (item != -1 && display_info->item.pszText != NULL)
+                    {
+                        size_t len = strlen(display_info->item.pszText);
+                        if (len == 0)
+                        {
+                            // TODO: Shuffle items up and dont add to count/remove count
+                            strcpy(global_options_win.edit[item], "__EMPTY__");
+                        }
+                        else
+                        {
+                            strcpy(global_options_win.edit[item], display_info->item.pszText);
+                            if (item == global_options_win.count)
+                            {
+                                // Editing last item
+                                global_options_win.count += 1;
+                            }
+                        }
+                        
+                    }
+                    
+                    if (global_options_win.count == global_options_win.capacity)
+                    {
+                        LV_ITEM item = {};
+                        item.mask = LVIF_TEXT;
+                        item.iItem = global_options_win.count;
+                        item.pszText = LPSTR_TEXTCALLBACK;
+                        item.cchTextMax = 49;
+                        
+                        int ss = ListView_InsertItem(global_options_win.list_view, &item);
+                        
+                        // TODO: Expand edit storage size too
+                        global_options_win.capacity += 1;
+                    }
+                    
+                    // return TRUE to set the item's label to the edited text. Return FALSE to reject the edited text and revert to the original label.
+                    return TRUE;
+                } break;
+            }
+            
+            return TRUE;
+        } break;
+        
+        case WM_COMMAND:
+        {
+            tprint("COMMAND");
+            
+            switch(LOWORD(wParam))
+            {
+                case ID_NEW_KEYWORD:
+                {
+                    tprint("NEW KEYWORD");
+                    SetFocus(global_options_win.list_view);
+                    
+                    ListView_EditLabel(global_options_win.list_view, global_options_win.count);
+                } break;
+            }
+            return TRUE;
+        } break;
+        
+        
+        default:
+        return FALSE;
+    }
+    
+    return TRUE;
+}
+
+Options_Window
+create_options_window(HWND parent)
+{
+    Options_Window opt_win = {};
+    opt_win.is_open = true;
+    opt_win.capacity = 10;
+    opt_win.count = 0;
+    
+    INITCOMMONCONTROLSEX used_controls = {sizeof(INITCOMMONCONTROLSEX), ICC_LISTVIEW_CLASSES};
+    InitCommonControlsEx(&used_controls);
+    
+    opt_win.dialog = CreateDialog(GetModuleHandle(NULL), MAKEINTRESOURCE(IDD_TOOLBAR), parent, AboutDlgProc);
+    if (!opt_win.dialog)
+    {
+        opt_win.is_open = false;
+        return opt_win;
+    }
+    
+    ShowWindow(opt_win.dialog, SW_SHOW);
+    
+    opt_win.list_view = CreateWindowEx(0,
+                                       WC_LISTVIEW,                // list view class
+                                       "Hello friend",                         // no default text
+                                       WS_VISIBLE | WS_CHILD | WS_BORDER
+                                       | LVS_REPORT | LVS_EDITLABELS | WS_EX_CLIENTEDGE |
+                                       LVS_NOCOLUMNHEADER | LVS_SINGLESEL,
+                                       20, 20,
+                                       200, // width
+                                       200, // height
+                                       opt_win.dialog,
+                                       (HMENU) ID_LISTVIEW,
+                                       GetModuleHandle(NULL),
+                                       NULL );
+    
+    if (!opt_win.list_view)
+    {
+        DestroyWindow(opt_win.dialog);
+        opt_win.is_open = false;
+        return opt_win;
+    }
+    
+    // Now initialize the columns we will need
+    // Initialize the LV_COLUMN structure
+    // the mask specifies that the .fmt, .ex, width, and .subitem members
+    // of the structure are valid,
+    LV_COLUMN columns = {};
+    columns.mask = LVCF_FMT | LVCF_WIDTH | LVCF_TEXT;
+    columns.fmt = LVCFMT_CENTER;//LVCFMT_LEFT;  // left align the column
+    columns.cx = 180;            // width of the column, in pixels (want this close to control size to side other weird column)
+    columns.pszText = 0;
+    columns.cchTextMax = 49;
+    columns.iSubItem = 0;
+    
+    // Columns are visible only in report (details) view.
+    ListView_InsertColumn(opt_win.list_view, 0, &columns);
+    
+    // can send  LVM_SETITEMCOUNT to tell how many you will set for efficiency
+    //  LVM_GETITEMCOUNT message to get number
+    // acn use  LVM_SETITEM and  LVM_GETITEM , or LVM_GETITEMTEXT
+    for (int i = 0; i < opt_win.capacity; ++i)
+    {
+        // If iItem > number of current items it appends to the list
+        LV_ITEM item = {};
+        item.mask = LVIF_TEXT;
+        item.iItem = i;
+        item.pszText = LPSTR_TEXTCALLBACK;
+        item.cchTextMax = 49;
+        
+        ListView_InsertItem(opt_win.list_view, &item);
+    }
+    
+    ListView_SetExtendedListViewStyleEx(opt_win.list_view,
+                                        LVS_EX_GRIDLINES|LVS_EX_FULLROWSELECT,
+                                        LVS_EX_GRIDLINES|LVS_EX_FULLROWSELECT);
+    
+    DWORD dwStyle;
+    dwStyle = GetWindowLong(opt_win.list_view, GWL_STYLE);
+    
+    if ((dwStyle & LVS_TYPEMASK) != LVS_REPORT)
+        SetWindowLong(opt_win.list_view, GWL_STYLE,
+                      (dwStyle & ~LVS_TYPEMASK) | LVS_REPORT);
+    
+    return opt_win;
+}
+
+
 LRESULT CALLBACK
 WinProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
 {
@@ -528,6 +746,8 @@ WinProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
         // We use windows timer so we can wake up waiting on input events
         case WM_TIMER:
         {
+            // An application should return zero if it processes this message.
+            return 0;
         } break;
         
         
@@ -588,13 +808,14 @@ WinProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
         
         case WM_CREATE:
         {
+            // Instead of using .rc stuff we can create a menu using win32 api too, e.g. CreateMenu() ...
+            
             SetWindowText(window, "This is the Title Bar");
             
             // TODO: To maintain compatibility with older and newer versions of shell32.dll while using
             // current header files may need to check which version of shell32.dll is installed so the
             // cbSize of NOTIFYICONDATA can be initialised correctly.
             // https://docs.microsoft.com/en-us/windows/win32/api/shellapi/ns-shellapi-notifyicondataa
-            
             global_nid = {};
             global_nid.cbSize = sizeof(NOTIFYICONDATA);
             global_nid.hWnd = window;
@@ -603,13 +824,36 @@ WinProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
             global_nid.uCallbackMessage = CUSTOM_WM_TRAY_ICON;
             // Recommented you provide 32x32 icon for higher DPI systems
             // Can use LoadIconMetric to specify correct one with correct settings is used
-            global_nid.hIcon = (HICON)LoadIcon(GetModuleHandle(NULL), MAKEINTRESOURCE(MAIN_ICON_ID));
+            global_nid.hIcon = (HICON)LoadIcon(GetModuleHandle(NULL), MAKEINTRESOURCE(ID_MAIN_ICON));
             
             // TODO: This should say "running"
             TCHAR tooltip[] = {"Tooltip dinosaur"}; // Use max 64 chars
             strncpy(global_nid.szTip, tooltip, sizeof(tooltip));
             
             Shell_NotifyIconA(NIM_ADD, &global_nid);
+        } break;
+        
+        case WM_COMMAND:
+        {
+            switch (LOWORD(wParam))
+            {
+                case ID_EXIT:
+                {
+                    global_running = false;
+                } break;
+                
+                case ID_OPEN_OPTIONS:
+                {
+                    if (global_options_win.is_open)
+                    {
+                        ShowWindow(global_options_win.dialog, SW_SHOW);
+                    }
+                    else
+                    {
+                        global_options_win = create_options_window(window);
+                    }
+                } break;
+            }
         } break;
         
         case CUSTOM_WM_TRAY_ICON:
@@ -656,16 +900,17 @@ WinProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
         // The problem is that these returned values can be negative when there are multiple monitors (not sure how to handle this issue).
         case WM_MOUSEMOVE:
         ui_set_mouse_button_state((short)LOWORD(lParam), (short)HIWORD(lParam), Mouse_Move);
+        tprint("Mouse Move");
         break;
         
         case WM_LBUTTONUP:
         ui_set_mouse_button_state((short)LOWORD(lParam), (short)HIWORD(lParam), Mouse_Left_Up);
-        //tprint("Left mouse up");
+        tprint("Left mouse up");
         break;
         
         case WM_LBUTTONDOWN:
         ui_set_mouse_button_state((short)LOWORD(lParam), (short)HIWORD(lParam), Mouse_Left_Down);
-        //tprint("Left mouse down");
+        tprint("Left mouse down");
         break;
         
         case WM_RBUTTONUP:
@@ -758,11 +1003,12 @@ WinMain(HINSTANCE instance,
     window_class.style         = CS_HREDRAW|CS_VREDRAW;
     window_class.lpfnWndProc   = WinProc;
     window_class.hInstance     = instance;
-    window_class.hIcon         =  LoadIcon(instance, MAKEINTRESOURCE(MAIN_ICON_ID));
+    window_class.hIcon         =  LoadIcon(instance, MAKEINTRESOURCE(ID_MAIN_ICON));
     window_class.hCursor       = LoadCursor(NULL, IDC_ARROW);
-    window_class.lpszMenuName  = "Monitor";
+    window_class.lpszMenuName  = MAKEINTRESOURCE(ID_TOPMENU); // "Monitor";
     window_class.lpszClassName = "MonitorWindowClassName";
     //window_classex.hIconsm   = LoadIcon(instance, MAKEINTRESOURCE(MAIN_ICON_ID)); // OS may still look in ico file for small icon anyway
+    // or maybe   wc.hIconSm  = (HICON)LoadImage(GetModuleHandle(NULL), MAKEINTRESOURCE(IDI_MYICON), IMAGE_ICON, 16, 16, 0);
     
     if (!RegisterClassA(&window_class))
     {
@@ -803,6 +1049,9 @@ WinMain(HINSTANCE instance,
         MSG msg;
         while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
         {
+            // Processes dialog messages
+            if(IsDialogMessage(global_options_win.dialog, &msg)) continue;
+            
             TranslateMessage(&msg);
             DispatchMessageA(&msg);
         }
