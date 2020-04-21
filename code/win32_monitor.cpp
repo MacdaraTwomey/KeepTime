@@ -528,7 +528,10 @@ INT_PTR CALLBACK AboutDlgProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lPa
     
     switch(Message)
     {
-        case WM_INITDIALOG: tprint("INITDIALOG"); return TRUE;
+        case WM_INITDIALOG:
+        {
+            return TRUE;
+        } break;
         
         case WM_CLOSE:
         {
@@ -546,43 +549,63 @@ INT_PTR CALLBACK AboutDlgProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lPa
             if (wParam != ID_LISTVIEW) break;
             LV_DISPINFO *display_info = (LV_DISPINFO *)lParam;
             NM_LISTVIEW *list_view = (NM_LISTVIEW *)lParam;
+            
+            int item = display_info->item.iItem;
+            
             switch (display_info->hdr.code)
             {
                 case LVN_GETDISPINFO:
                 {
-                    if (display_info->item.iItem < global_options_win.count)
+                    if (item < global_options_win.count)
                     {
-                        display_info->item.pszText = global_options_win.edit[display_info->item.iItem];
+                        display_info->item.pszText = global_options_win.edit[item];
                     }
+                    return TRUE;
                 } break;
                 
                 case NM_CLICK:
                 case NM_DBLCLK:
                 {
-                    int item = ((LPNMITEMACTIVATE)lParam)->iItem;
-                    
-                    if (item != -1 && item <= global_options_win.count)
+                    // item != click_item
+                    int click_item = ((LPNMITEMACTIVATE)lParam)->iItem;
+                    if (click_item != -1 && click_item <= global_options_win.count)
                     {
-                        ListView_EditLabel(global_options_win.list_view, item);
+                        ListView_EditLabel(global_options_win.list_view, click_item);
                     }
+                    return TRUE;
                 } break;
                 
                 case LVN_BEGINLABELEDIT:
                 {
-                    HWND hWndEdit = (HWND)SendMessage(global_options_win.dialog, LVM_GETEDITCONTROL, 0, 0);
-                    
-                    // Limit the amount of text that can be entered.
-                    SendMessage(hWndEdit, EM_SETLIMITTEXT, (WPARAM)20, 0);
-                    
-                    //To allow the user to edit the label, return FALSE.
-                    //To prevent the user from editing the label, return TRUE.
-                    return FALSE;
+                    if (item <= global_options_win.count)
+                    {
+                        HWND hWndEdit = (HWND)SendMessage(global_options_win.list_view, LVM_GETEDITCONTROL, 0, 0);
+                        
+                        // Limit the amount of text that can be entered.
+                        SendMessage(hWndEdit, EM_SETLIMITTEXT, (WPARAM)20, 0);
+                        
+                        //To allow the user to edit the label, return FALSE.
+                        //To prevent the user from editing the label, return TRUE.
+                        return FALSE;
+                    }
+                    else
+                    {
+                        // It is not that important for this to work as it won't save input
+                        
+                        // To use this message, you must provide a manifest specifying Comclt32.dll version 6.0. For more information on manifests, see Enabling Visual Styles.
+                        // ListView_CancelEditLabel(global_options_win.list_view);
+                        
+                        // Doesn't work
+                        //HWND hWndEdit = (HWND)SendMessage(global_options_win.list_view, LVM_GETEDITCONTROL, 0, 0);
+                        //SendMessage(hWndEdit, WM_CANCELMODE, 0, 0);
+                        
+                        return TRUE;
+                    }
                 } break;
                 
                 case LVN_ENDLABELEDIT:
                 {
                     // Save the new label information
-                    tprint("End edit");
                     int item = display_info->item.iItem;
                     if (item != -1 && display_info->item.pszText != NULL)
                     {
@@ -590,7 +613,9 @@ INT_PTR CALLBACK AboutDlgProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lPa
                         if (len == 0)
                         {
                             // TODO: Shuffle items up and dont add to count/remove count
+                            // clear edit slot?
                             strcpy(global_options_win.edit[item], "__EMPTY__");
+                            
                         }
                         else
                         {
@@ -628,21 +653,16 @@ INT_PTR CALLBACK AboutDlgProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lPa
         
         case WM_COMMAND:
         {
-            tprint("COMMAND");
-            
             switch(LOWORD(wParam))
             {
                 case ID_NEW_KEYWORD:
                 {
-                    tprint("NEW KEYWORD");
                     SetFocus(global_options_win.list_view);
-                    
                     ListView_EditLabel(global_options_win.list_view, global_options_win.count);
                 } break;
             }
             return TRUE;
         } break;
-        
         
         default:
         return FALSE;
