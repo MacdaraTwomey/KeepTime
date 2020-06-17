@@ -29,6 +29,20 @@ ui_init(Bitmap *buffer, Font *font)
     ui_context.hot = 0; // invalid id
     
     ui_context.current_graph_scroll = 0;
+    
+    ui_context.count = 0;
+    ui_context.capacity = UI_OPTIONS_MAX_KEYWORD_COUNT; // not currently used
+}
+
+void
+ui_options_add_keyword(char *keyword)
+{
+    if (ui_context.count < UI_OPTIONS_MAX_KEYWORD_COUNT)
+    {
+        if (strlen(keyword) > UI_OPTIONS_MAX_KEYWORD_LEN) return;
+        strcpy(ui_context.options_rows[ui_context.count], keyword);
+        ui_context.count += 1;
+    }
 }
 
 void
@@ -53,6 +67,9 @@ ui_end()
     
     // Maybe want to set hot = 0;
     ui_context.hot = 0;
+    
+    // TODO: Not sure if this belongs here
+    ui_context.is_modified = false;
 }
 
 // Api
@@ -454,4 +471,83 @@ ui_set_visibility_changed(Window_Visibility visibility)
 {
     if (visibility == Window_Hidden) ui_context.ui_hidden = true;
     else if (visibility == Window_Shown) ui_context.ui_shown = true;
+}
+
+// These are probably only for windows gui code
+// Until I think of a better way to do it
+// It is non ideal as it is bi-directional data flow
+
+
+char *
+ui_options_get_row(int idx)
+{
+    if (idx < ui_context.count)
+    {
+        return ui_context.options_rows[idx];
+    }
+    
+    return nullptr;
+}
+
+int
+ui_options_get_row_count()
+{
+    return ui_context.count;
+}
+
+void
+ui_options_modify_row(int idx, char *text)
+{
+    size_t len = strlen(text);
+    if (len == 0)
+    {
+        // Only do something an occupied row was cleared
+        if (idx < ui_context.count && ui_context.count != 0)
+        {
+            // Delete row and shuffle other rows
+            int i = idx;
+            for (; i < ui_context.count - 1; ++i)
+            {
+                strcpy(ui_context.options_rows[i], ui_context.options_rows[i+1]);
+            }
+            
+            ui_context.options_rows[i][0] = '\0';
+            
+            ui_context.count -= 1;
+            ui_context.is_modified = true;
+        }
+    }
+    else
+    {
+        // Dont re-add an existing keyword
+        for (int i = 0; i < ui_context.count; ++i)
+        {
+            if (i == idx) continue;
+            if (strcmp(ui_context.options_rows[i], text) == 0) return;
+        }
+        
+        strcpy(ui_context.options_rows[idx], text);
+        if (idx == ui_context.count)
+        {
+            // Creating a new item
+            ui_context.count += 1;
+        }
+        
+        ui_context.is_modified = true;
+    }
+}
+
+typedef char Row[101];
+
+Row *
+ui_options_get_keywords(int *count)
+{
+    *count = ui_context.count;
+    return ui_context.options_rows;
+}
+
+bool
+ui_options_is_modified()
+{
+    return ui_context.is_modified;
 }

@@ -2,6 +2,8 @@
 
 // ver 0.01
 
+// TODO: Look at musl (simple implementation of c and unix libs)
+
 #include <stdint.h>
 #include <limits.h>
 #include <stdio.h>

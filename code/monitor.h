@@ -12,7 +12,6 @@
 static constexpr u32 MaxDailyRecords = 1000;
 static constexpr u32 MaxDays = 1000;
 static constexpr u32 DefaultDayAllocationCount = 30;
-static constexpr i32 MaxKeywordCount = 50;
 static constexpr i32 MaxWebsiteCount = 50;
 
 // u32 can overflows after 50 days when usning milliseconds, this might be ok
@@ -146,7 +145,8 @@ struct Database
     // We use shortname when we iterate records and want to display names
     std::unordered_map<Program_Id, Program_Name> names;
     
-    Keyword keywords[50];
+    Keyword keywords[UI_OPTIONS_MAX_KEYWORD_COUNT];
+    char keyword_buf[UI_OPTIONS_MAX_KEYWORD_COUNT][UI_OPTIONS_MAX_KEYWORD_LEN];
     i32 keyword_count;
     
     u32 next_program_id;      // starts at 0x00000000 zero
@@ -166,4 +166,17 @@ struct Database
     
     Day days[MaxDays];
     i32 day_count;
+};
+
+
+struct
+Monitor_State
+{
+    bool is_initialised;
+    Header header;
+    Database database;
+    Day_View day_view;
+    Font font;
+    Bitmap favicon;
+    time_type accumulated_time;
 };

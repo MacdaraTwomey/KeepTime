@@ -2,6 +2,10 @@
 #define UI_H
 
 #include "graphics.h"
+#include "helper.h"
+
+constexpr int UI_OPTIONS_MAX_KEYWORD_LEN = 100;
+constexpr int UI_OPTIONS_MAX_KEYWORD_COUNT = 100;
 
 typedef u32 UI_Id;
 
@@ -15,6 +19,18 @@ struct UI_Layout
     
     int first_visible_bar;
     int visible_bar_count;
+};
+
+enum Row_State
+{
+    Row_Deleted,
+    Row_Created,
+};
+
+struct Row_Change
+{
+    char keyword[UI_OPTIONS_MAX_KEYWORD_LEN+1];
+    Row_State state;
 };
 
 struct UI_Context
@@ -50,6 +66,12 @@ struct UI_Context
     
     //temp
     int current_graph_scroll;
+    
+    //// for windows gui
+    char options_rows[UI_OPTIONS_MAX_KEYWORD_COUNT][UI_OPTIONS_MAX_KEYWORD_LEN+1];
+    int count;
+    int capacity; // not used right now
+    bool is_modified;
 };
 
 enum Mouse_Button_State

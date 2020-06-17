@@ -185,23 +185,30 @@ u32 make_id(Database *database, Record_Type type)
     return id;
 }
 
-void add_keyword(Database *database, String keyword_str)
+void add_keyword_with_id(Database *database, char *str, Program_Id id)
 {
-    Assert(database->keyword_count < MaxKeywordCount);
-    if (database->keyword_count < MaxKeywordCount)
+    Assert(database->keyword_count < UI_OPTIONS_MAX_KEYWORD_COUNT);
+    if (database->keyword_count < UI_OPTIONS_MAX_KEYWORD_COUNT)
     {
-        // TODO: Handle deletion of keywords
-        Program_Id id = make_id(database, Record_Firefox);
-        Keyword *keyword = &database->keywords[database->keyword_count];
+        Keyword k;
+        k.id = id;
+        k.str = make_string_size_cap(database->keyword_buf[database->keyword_count],
+                                     strlen(str),
+                                     array_count(database->keyword_buf[database->keyword_count]));
+        strcpy(k.str.str, str);
         
-        Assert(keyword->str.str == 0 && keyword->id == 0);
-        keyword->id = id;
-        
-        // TODO Give database/tables their own allocator
-        // For now this string just owns it's own memory
-        keyword->str = copy_alloc_string(keyword_str);
-        
+        database->keywords[database->keyword_count] = k;
         database->keyword_count += 1;
+    }
+}
+
+void add_keyword(Database *database, char *str)
+{
+    Assert(database->keyword_count < UI_OPTIONS_MAX_KEYWORD_COUNT);
+    if (database->keyword_count < UI_OPTIONS_MAX_KEYWORD_COUNT)
+    {
+        Program_Id id = make_id(database, Record_Firefox);
+        add_keyword_with_id(database, str, id);
     }
 }
 
@@ -458,18 +465,6 @@ poll_windows(Database *database, time_type dt)
 }
 
 
-struct
-Monitor_State
-{
-    bool is_initialised;
-    Header header;
-    Database database;
-    Day_View day_view;
-    Font font;
-    Bitmap favicon;
-    time_type accumulated_time;
-};
-
 
 const char *
 day_suffix(int day)
@@ -524,10 +519,12 @@ update(Monitor_State *state, Bitmap *screen_buffer, time_type dt)
         
         state->database = {};
         init_database(&state->database);
-        add_keyword(&state->database, make_string_from_literal("CITS3003"));
-        add_keyword(&state->database, make_string_from_literal("youtube"));
-        add_keyword(&state->database, make_string_from_literal("docs.microsoft"));
-        add_keyword(&state->database, make_string_from_literal("eso-community"));
+        
+        // Keywords must be null terminated when given to platform gui
+        add_keyword(&state->database, "CITS3003");
+        add_keyword(&state->database, "youtube");
+        add_keyword(&state->database, "docs.microsoft");
+        add_keyword(&state->database, "eso-community");
         
         start_new_day(&state->database, floor<date::days>(System_Clock::now()));
         
@@ -539,12 +536,23 @@ update(Monitor_State *state, Bitmap *screen_buffer, time_type dt)
         state->font = create_font("c:\\windows\\fonts\\times.ttf", 28);
         ui_init(screen_buffer, &state->font);
         
+        // TODO: Maybe ui_context.options_rows can take a Keyword,
+        // and whenever we delete or add (modify is the same as delete and add together),
+        // we can make changes to the database.keywords and keep in sync.
+        for (int i = 0; i < state->database.keyword_count; ++i)
+        {
+            // Must be null terminated
+            size_t l = strlen(state->database.keywords[i].str.str);
+            Assert(state->database.keywords[i].str.str[l] == '\0');
+            
+            ui_options_add_keyword(state->database.keywords[i].str.str);
+        }
+        
         for (int i = 0; i < array_count(state->database.ms_icons); ++i)
         {
             HICON ico = LoadIconA(NULL, MAKEINTRESOURCE(32513 + i));
             win32_get_bitmap_from_HICON(ico, &state->database.ms_icons[i]);
         }
-        
         
         state->is_initialised = true;
     }
@@ -581,6 +589,41 @@ update(Monitor_State *state, Bitmap *screen_buffer, time_type dt)
     draw_rectangle(screen_buffer, 0, 0, screen_buffer->width, screen_buffer->height, GREY(255));
     
     ui_begin();
+    
+    // TODO: Very bad way of doing this
+    if (ui_options_is_modified())
+    {
+        Program_Id keyword_ids[UI_OPTIONS_MAX_KEYWORD_COUNT];
+        int count = 0;
+        
+        int current_keyword_count = 0;
+        Row *current_rows = ui_options_get_keywords(&current_keyword_count);
+        
+        // Assign current set of keywords existing ids if they match
+        for (int i = 0; i < database->keyword_count; ++i)
+        {
+            for (int j = 0; j < current_keyword_count; ++j)
+            {
+                char *k = current_rows[i];
+                if (string_equals(database->keywords[i].str, k))
+                {
+                    keyword_ids[j] = database->keywords[i].id;
+                }
+            }
+        }
+        
+        // Re-add updated keywords
+        database->keyword_count = 0;
+        for (int i = 0; i < current_keyword_count; ++i)
+        {
+            char *k = current_rows[i];
+            // deleted keywords are not re-added
+            if (keyword_ids[i] == 0) add_keyword(database, k); // new keyword
+            else add_keyword_with_id(database, k, keyword_ids[i]); // existing keyword
+        }
+        
+        
+    }
     
     date::year_month_day ymd_date {current_date};
     // date:: overrides operator int() etc ...
@@ -627,6 +670,7 @@ update(Monitor_State *state, Bitmap *screen_buffer, time_type dt)
             std::sort(sorted_records, sorted_records + record_count, [](Program_Record &a, Program_Record &b){ return a.duration > b.duration; });
             
             time_type max_duration = sorted_records[0].duration;
+            
             
             ui_graph_begin(270, 80, 650, 400, record_count, gen_id());
             for (i32 i = 0; i < record_count; ++i)

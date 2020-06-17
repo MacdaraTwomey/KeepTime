@@ -556,19 +556,18 @@ INT_PTR CALLBACK AboutDlgProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lPa
             {
                 case LVN_GETDISPINFO:
                 {
-                    if (item < global_options_win.count)
+                    if (item < ui_options_get_row_count())
                     {
-                        display_info->item.pszText = global_options_win.edit[item];
+                        display_info->item.pszText = ui_options_get_row(item);
                     }
                     return TRUE;
                 } break;
                 
                 case NM_CLICK:
-                case NM_DBLCLK:
                 {
                     // item != click_item
                     int click_item = ((LPNMITEMACTIVATE)lParam)->iItem;
-                    if (click_item != -1 && click_item <= global_options_win.count)
+                    if (click_item != -1 && click_item <= ui_options_get_row_count())
                     {
                         ListView_EditLabel(global_options_win.list_view, click_item);
                     }
@@ -577,12 +576,12 @@ INT_PTR CALLBACK AboutDlgProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lPa
                 
                 case LVN_BEGINLABELEDIT:
                 {
-                    if (item <= global_options_win.count)
+                    if (item <= ui_options_get_row_count())
                     {
                         HWND hWndEdit = (HWND)SendMessage(global_options_win.list_view, LVM_GETEDITCONTROL, 0, 0);
                         
                         // Limit the amount of text that can be entered.
-                        SendMessage(hWndEdit, EM_SETLIMITTEXT, (WPARAM)20, 0);
+                        SendMessage(hWndEdit, EM_SETLIMITTEXT, (WPARAM)UI_OPTIONS_MAX_KEYWORD_LEN, 0);
                         
                         //To allow the user to edit the label, return FALSE.
                         //To prevent the user from editing the label, return TRUE.
@@ -605,37 +604,21 @@ INT_PTR CALLBACK AboutDlgProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lPa
                 
                 case LVN_ENDLABELEDIT:
                 {
-                    // Save the new label information
-                    int item = display_info->item.iItem;
-                    if (item != -1 && display_info->item.pszText != NULL)
+                    if (item != -1 &&
+                        item <= ui_options_get_row_count() &&
+                        display_info->item.pszText != NULL)
                     {
-                        size_t len = strlen(display_info->item.pszText);
-                        if (len == 0)
-                        {
-                            // TODO: Shuffle items up and dont add to count/remove count
-                            // clear edit slot?
-                            strcpy(global_options_win.edit[item], "__EMPTY__");
-                            
-                        }
-                        else
-                        {
-                            strcpy(global_options_win.edit[item], display_info->item.pszText);
-                            if (item == global_options_win.count)
-                            {
-                                // Editing last item
-                                global_options_win.count += 1;
-                            }
-                        }
-                        
+                        ui_options_modify_row(item, display_info->item.pszText);
+                        ListView_RedrawItems(global_options_win.list_view, 0, ui_options_get_row_count());
                     }
                     
-                    if (global_options_win.count == global_options_win.capacity)
+                    if (ui_options_get_row_count() == global_options_win.capacity)
                     {
                         LV_ITEM item = {};
                         item.mask = LVIF_TEXT;
-                        item.iItem = global_options_win.count;
+                        item.iItem = ui_options_get_row_count();
                         item.pszText = LPSTR_TEXTCALLBACK;
-                        item.cchTextMax = 49;
+                        item.cchTextMax = UI_OPTIONS_MAX_KEYWORD_LEN;
                         
                         int ss = ListView_InsertItem(global_options_win.list_view, &item);
                         
@@ -658,7 +641,7 @@ INT_PTR CALLBACK AboutDlgProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lPa
                 case ID_NEW_KEYWORD:
                 {
                     SetFocus(global_options_win.list_view);
-                    ListView_EditLabel(global_options_win.list_view, global_options_win.count);
+                    ListView_EditLabel(global_options_win.list_view, ui_options_get_row_count());
                 } break;
             }
             return TRUE;
@@ -671,13 +654,17 @@ INT_PTR CALLBACK AboutDlgProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lPa
     return TRUE;
 }
 
+// Get rows
+// Replace rows (edit)
+// Delete rows
+// Move rows
+
 Options_Window
 create_options_window(HWND parent)
 {
     Options_Window opt_win = {};
     opt_win.is_open = true;
-    opt_win.capacity = 10;
-    opt_win.count = 0;
+    opt_win.capacity = ui_options_get_row_count() + 5;
     
     INITCOMMONCONTROLSEX used_controls = {sizeof(INITCOMMONCONTROLSEX), ICC_LISTVIEW_CLASSES};
     InitCommonControlsEx(&used_controls);
@@ -697,9 +684,8 @@ create_options_window(HWND parent)
                                        WS_VISIBLE | WS_CHILD | WS_BORDER
                                        | LVS_REPORT | LVS_EDITLABELS | WS_EX_CLIENTEDGE |
                                        LVS_NOCOLUMNHEADER | LVS_SINGLESEL,
-                                       20, 20,
-                                       200, // width
-                                       200, // height
+                                       LIST_VIEW_X, LIST_VIEW_Y,
+                                       LIST_VIEW_W, LIST_VIEW_H,
                                        opt_win.dialog,
                                        (HMENU) ID_LISTVIEW,
                                        GetModuleHandle(NULL),
@@ -721,7 +707,7 @@ create_options_window(HWND parent)
     columns.fmt = LVCFMT_CENTER;//LVCFMT_LEFT;  // left align the column
     columns.cx = 180;            // width of the column, in pixels (want this close to control size to side other weird column)
     columns.pszText = 0;
-    columns.cchTextMax = 49;
+    columns.cchTextMax = UI_OPTIONS_MAX_KEYWORD_LEN;
     columns.iSubItem = 0;
     
     // Columns are visible only in report (details) view.
@@ -737,7 +723,7 @@ create_options_window(HWND parent)
         item.mask = LVIF_TEXT;
         item.iItem = i;
         item.pszText = LPSTR_TEXTCALLBACK;
-        item.cchTextMax = 49;
+        item.cchTextMax = UI_OPTIONS_MAX_KEYWORD_LEN;
         
         ListView_InsertItem(opt_win.list_view, &item);
     }
@@ -752,6 +738,37 @@ create_options_window(HWND parent)
     if ((dwStyle & LVS_TYPEMASK) != LVS_REPORT)
         SetWindowLong(opt_win.list_view, GWL_STYLE,
                       (dwStyle & ~LVS_TYPEMASK) | LVS_REPORT);
+    
+    
+    HWND static_t = CreateWindow("STATIC",
+                                 NULL,
+                                 WS_VISIBLE | WS_CHILD | SS_CENTER,
+                                 10,
+                                 10,
+                                 100,
+                                 20,
+                                 opt_win.dialog,
+                                 (HMENU)IDC_STATIC_TEXT,
+                                 GetModuleHandle(NULL),
+                                 NULL);
+    
+    SetWindowText(static_t, "Static Text");
+    HFONT f = CreateFont(20, 0, 0, 0, 0, TRUE, 0, 0, 0, 0, 0, 0, 0, "Times New Roman");
+    SendMessage(static_t, WM_SETFONT, (WPARAM)f, TRUE);
+    
+    if(f) DeleteObject(f);
+    
+    HWND ok_button = CreateWindow("BUTTON",  // Predefined class; Unicode assumed
+                                  "OK",      // Button text
+                                  WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,  // Styles
+                                  10,         // x position
+                                  10,         // y position
+                                  100,        // Button width
+                                  100,        // Button height
+                                  opt_win.dialog,     // Parent window
+                                  NULL,       // No menu.
+                                  GetModuleHandle(NULL),
+                                  NULL);      // Pointer not needed.
     
     return opt_win;
 }
