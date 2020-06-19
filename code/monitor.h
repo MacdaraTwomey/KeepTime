@@ -4,7 +4,6 @@
 #include "graphics.h"
 #include "helper.h"
 #include "monitor_string.h"
-#include "stb_truetype.h"
 
 #include <unordered_map>
 
@@ -13,6 +12,8 @@ static constexpr u32 MaxDailyRecords = 1000;
 static constexpr u32 MaxDays = 1000;
 static constexpr u32 DefaultDayAllocationCount = 30;
 static constexpr i32 MaxWebsiteCount = 50;
+
+#define MAX_KEYWORD_COUNT 100
 
 // u32 can overflows after 50 days when usning milliseconds, this might be ok
 // as we only get this when summing multiple days, but for now KISS.
@@ -145,8 +146,8 @@ struct Database
     // We use shortname when we iterate records and want to display names
     std::unordered_map<Program_Id, Program_Name> names;
     
-    Keyword keywords[UI_OPTIONS_MAX_KEYWORD_COUNT];
-    char keyword_buf[UI_OPTIONS_MAX_KEYWORD_COUNT][UI_OPTIONS_MAX_KEYWORD_LEN];
+    char *keyword_buf[100][100];
+    Keyword keywords[100];
     i32 keyword_count;
     
     u32 next_program_id;      // starts at 0x00000000 zero

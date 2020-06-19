@@ -1,23 +1,93 @@
 
-// Do i need to define this
-//#define IMGUI_IMPL_OPENGL_LOADER_GLEW
-
 #include "imgui.h"
 #include "imgui_impl_sdl.h"
 #include "imgui_impl_opengl3.h"
-
 #include "imgui_freetype.h"
+
+#include "implot.h"
 
 #include "SDl2/SDL.h"
 #include "SDL2/SDL_main.h"
+#include "SDL2/SDL_syswm.h"
 
 #include "GL/glew.h"
 #include "GL/wglew.h"
 
-#include "cian.h"
+#include <windows.h>
+#undef min
+#undef max
 
-#define SCREEN_WIDTH 1240
-#define SCREEN_HEIGHT 720
+#include <commctrl.h>
+#include <AtlBase.h>
+#include <UIAutomation.h>
+#include <shellapi.h>
+#include <shlobj_core.h> // SHDefExtractIconA
+
+#include "cian.h"
+#include "win32_monitor.h"
+#include "resource.h"
+#include "platform.h"
+#include "graphics.h"
+#include "monitor.h"
+
+#include <chrono>
+#include <vector>
+#include <algorithm>
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
+#include <wchar.h>
+
+// TODO: MOVE
+enum Window_Status
+{
+    Window_Just_Visible = 1,
+    Window_Just_Hidden = 2,
+    Window_Visible = 4,
+    Window_Hidden = 8,
+};
+
+#include "utilities.cpp" // xalloc, string copy, concat string, make filepath, get_filename_from_path
+#include "bitmap.cpp"
+#include "win32_monitor.cpp" // needs bitmap functions
+#include "monitor.cpp"
+
+#define CONSOLE_ON 1
+
+static char *global_savefile_path;
+static char *global_debug_savefile_path;
+static bool global_running = true;
+
+
+// NOTE: This is only used for toggling with the tray icon.
+// Use pump messages result to check if visible to avoid the issues with value unexpectly changing.
+// Still counts as visible if minimised to the task bar.
+static NOTIFYICONDATA global_nid = {};
+static Options_Window global_options_win;
+
+#define WINDOW_WIDTH 1240
+#define WINDOW_HEIGHT 720
+
+// -----------------------------------------------------------------
+// TODO:
+// * !!! If GUI is visible don't sleep. But we still want to poll infrequently. So maybe check elapsed poll time.
+// * Remember window width and height
+// * Unicode correctness
+// * Path length correctness
+// * Dynamic window, button layout with resizing
+// * OpenGL graphing?
+// * Stop repeating work getting the firefox URL, maybe use UIAutomation cache?
+
+// * Finalise GUI design (look at task manager and nothings imgui for inspiration)
+// * Make api better/clearer, especially graphics api
+// * BUG: Program time slows down when mouse is moved quickly within window or when a key is held down
+// -----------------------------------------------------------------
+
+// Top bit of id specifies is the 'program' is a normal executable or a website
+// where rest of the bits are the actual id of its name.
+// For websites whenever a user creates a new keyword that keyword gets an id and the id count increases by 1
+// If a keyword is deleted the records with that website id can be given firefox's id.
+
 
 #if 0
 // put this at/around wher ImGui::NewFrame() is
@@ -103,6 +173,17 @@ struct FreeTypeTest
 
 int main(int argc, char* argv[])
 {
+    
+#if CONSOLE_ON
+    HANDLE con_in = win32_create_console();
+#endif
+    
+    // Win32 stuff
+    // TODO: Why don't we need to link ole32.lib?
+    // Call this because we use CoCreateInstance in UIAutomation
+    CoInitializeEx(NULL, COINIT_APARTMENTTHREADED); // equivalent to CoInitialize(NULL)
+    
+    
     if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_TIMER|SDL_INIT_EVENTS) != 0)
     {
         return 1;
@@ -122,12 +203,16 @@ int main(int argc, char* argv[])
     SDL_Window* window = SDL_CreateWindow("Monitor",
                                           SDL_WINDOWPOS_UNDEFINED,
                                           SDL_WINDOWPOS_UNDEFINED,
-                                          SCREEN_WIDTH, SCREEN_HEIGHT,
+                                          WINDOW_WIDTH, WINDOW_HEIGHT,
                                           SDL_WINDOW_OPENGL|SDL_WINDOW_RESIZABLE|SDL_WINDOW_ALLOW_HIGHDPI);
     
     SDL_GLContext gl_context = SDL_GL_CreateContext(window);
     SDL_GL_MakeCurrent(window, gl_context);
     SDL_GL_SetSwapInterval(1); // enable VSync
+    
+    // Don't ifnore special system-specific messages that unhandled
+    // Allows us to get SDL_SYSWMEVENT
+    SDL_EventState(SDL_SYSWMEVENT, SDL_ENABLE);
     
     if (glewInit() != GLEW_OK)
     {
@@ -139,6 +224,7 @@ int main(int argc, char* argv[])
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+    io.IniFilename = NULL; // Disable imgui.ini filecreation
     
     //ImGui::StyleColorsDark();
     //ImGui::StyleColorsClassic();
@@ -164,15 +250,62 @@ int main(int argc, char* argv[])
     // Compare freetype options, and stb_truetype
     //FreeTypeTest freetype_test;
     
-    io.IniFilename = NULL; // Disable imgui.ini filecreation
     
-    // Our state
-    bool show_demo_window = true;
-    ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+    {
+        HWND hwnd = 0;
+        
+        SDL_SysWMinfo info;
+        SDL_VERSION(&info.version); /* initialize info structure with SDL version info */
+        if(SDL_GetWindowWMInfo(window,&info)) {
+            hwnd = info.info.win.window;
+            HINSTANCE instance = info.info.win.hinstance;
+        }
+        
+        // TODO: To maintain compatibility with older and newer versions of shell32.dll while using
+        // current header files may need to check which version of shell32.dll is installed so the
+        // cbSize of NOTIFYICONDATA can be initialised correctly.
+        // https://docs.microsoft.com/en-us/windows/win32/api/shellapi/ns-shellapi-notifyicondataa
+        global_nid = {};
+        global_nid.cbSize = sizeof(NOTIFYICONDATA);
+        global_nid.hWnd = hwnd;
+        global_nid.uID = ID_TRAY_APP_ICON; // // Not sure why we need this
+        global_nid.uFlags = NIF_ICON|NIF_MESSAGE|NIF_TIP;
+        global_nid.uCallbackMessage = CUSTOM_WM_TRAY_ICON;
+        // Recommented you provide 32x32 icon for higher DPI systems
+        // Can use LoadIconMetric to specify correct one with correct settings is used
+        global_nid.hIcon = (HICON)LoadIcon(GetModuleHandle(NULL), MAKEINTRESOURCE(ID_MAIN_ICON));
+        
+        // TODO: This should say "running"
+        TCHAR tooltip[] = {"Tooltip dinosaur"}; // Use max 64 chars
+        strncpy(global_nid.szTip, tooltip, sizeof(tooltip));
+        
+        Shell_NotifyIconA(NIM_ADD, &global_nid);
+    }
     
-    // Main loop
-    bool done = false;
-    while (!done)
+    {
+        char *exe_dir_path = SDL_GetBasePath();
+        global_savefile_path = make_filepath_with_dir(exe_dir_path, "savefile.mpt");
+        if (!global_savefile_path) return 1;
+        global_debug_savefile_path = make_filepath_with_dir(exe_dir_path, "debug_savefile.txt");
+        if (!global_debug_savefile_path) return 1;
+        
+        SDL_free(exe_dir_path);
+    }
+    
+    // test is gui window already open, maybe use FindWindowA(), or use mutex
+    
+    // THis may just be temporary.
+    Monitor_State monitor_state = {};
+    monitor_state.is_initialised = false;
+    
+    Uint32 sdl_flags = SDL_GetWindowFlags(window);
+    u32 window_status = 0;
+    if (sdl_flags & SDL_WINDOW_SHOWN) window_status |= Window_Visible|Window_Just_Visible;
+    else if (sdl_flags & SDL_WINDOW_HIDDEN) window_status |= Window_Hidden|Window_Just_Hidden;
+    
+    auto old_time = Steady_Clock::now();
+    
+    while (global_running)
     {
         // Poll and handle events (inputs, window resize, etc.)
         // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
@@ -184,57 +317,95 @@ int main(int argc, char* argv[])
         {
             ImGui_ImplSDL2_ProcessEvent(&event);
             if (event.type == SDL_QUIT)
-                done = true;
-            if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_CLOSE && event.window.windowID == SDL_GetWindowID(window))
-                done = true;
-            if (event.type == SDL_KEYDOWN && event.key.keysym.scancode == SDL_SCANCODE_ESCAPE) 
-                done = true;
+            {
+                window_status = Window_Just_Hidden|Window_Hidden;
+                global_running = false;
+            }
+            else if (event.type == SDL_WINDOWEVENT) 
+            {
+                switch (event.window.event) {
+                    case SDL_WINDOWEVENT_SHOWN:
+                    {
+                        window_status = Window_Just_Visible|Window_Visible;
+                    } break;
+                    case SDL_WINDOWEVENT_HIDDEN:
+                    {
+                        window_status = Window_Just_Hidden|Window_Hidden;
+                    } break;
+                    case SDL_WINDOWEVENT_CLOSE:
+                    {
+                        window_status = Window_Just_Hidden|Window_Hidden;
+                        global_running = false;
+                        
+                        // win32
+                        Shell_NotifyIconA(NIM_DELETE, &global_nid);
+                    } break;
+                }
+            }
+            else if (event.type == SDL_KEYDOWN && event.key.keysym.scancode == SDL_SCANCODE_ESCAPE) 
+            {
+                global_running = false;
+            }
+            else if (event.type == SDL_SYSWMEVENT)
+            {
+                // Win32 messages unhandled by SDL
+                SDL_SysWMmsg *sys_msg = event.syswm.msg;
+                HWND hwnd = sys_msg->msg.win.hwnd;
+                UINT msg = sys_msg->msg.win.msg;
+                WPARAM wParam = sys_msg->msg.win.wParam;
+                LPARAM lParam = sys_msg->msg.win.lParam;
+                
+                if (msg == CUSTOM_WM_TRAY_ICON) 
+                {
+                    switch (LOWORD(lParam))
+                    {
+                        case WM_RBUTTONUP:
+                        {
+                            // Could open a context menu here with option to quit etc.
+                        } break;
+                        case WM_LBUTTONUP:
+                        {
+                            // NOTE: For now we just toggle with tray icon but, we will in future toggle with X button
+                            u32 win_flags = SDL_GetWindowFlags(window);
+                            if (win_flags & SDL_WINDOW_SHOWN)
+                            {
+                                SDL_HideWindow(window);
+                            }
+                            else
+                            {
+                                SDL_ShowWindow(window);
+                                
+                                // old win32
+                                //ShowWindow(window, SW_SHOW);
+                                //ShowWindow(window, SW_RESTORE); // If window was minimised and hidden, also unminimise
+                                //SetForegroundWindow(window); // Need this to allow 'full focus' on window after showing
+                            }
+                        } break;
+                    }
+                }
+            }
         }
         
+        // Steady clock also accounts for time paused in debugger etc, so can introduce bugs that aren't there normally when debugging.
+        auto new_time = Steady_Clock::now();
+        auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(new_time - old_time);
+        old_time = new_time;
+        time_type dt = diff.count();
         
-        ImGui_ImplOpenGL3_NewFrame();
-        ImGui_ImplSDL2_NewFrame(window);
-        ImGui::NewFrame();
+        // Maybe pass in poll stuff here which would allow us to avoid timer stuff in app layer,
+        // or could call poll windows from app layer, when we recieve a timer elapsed flag.
+        // We might want to change frequency that we poll, so may need platform_change_wakeup_frequency()
+        update(&monitor_state, window, dt, window_status);
         
-        // 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
-        if (show_demo_window)
-            ImGui::ShowDemoWindow(&show_demo_window);
-        
-        // 2. Show a simple window that we create ourselves. We use a Begin/End pair to created a named window.
-        {
-            static float f = 0.0f;
-            static int counter = 0;
-            
-            ImGui::Begin("Main window");
-            int temp_date = 1945;
-            ImGui::Text("1st February, %i", temp_date);
-            if (ImGui::Button("Day", ImVec2(ImGui::GetWindowSize().x*0.3f, 0.0f))) 
-            {
-                counter++;
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("Week", ImVec2(ImGui::GetWindowSize().x*0.3f, 0.0f)))
-            {
-                counter++;
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("Month", ImVec2(ImGui::GetWindowSize().x*0.3f, 0.0f)))
-            {
-                counter++;
-            }
-            ImGui::Text("counter = %d", counter);
-            
-            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-            ImGui::End();
-        }
-        
-        ImGui::Render();
-        glViewport(0, 0, (int)io.DisplaySize.x, (int)io.DisplaySize.y);
-        glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
-        glClear(GL_COLOR_BUFFER_BIT);
-        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        // I'm assuming this does nothing when the window is hidden
         SDL_GL_SwapWindow(window);
     }
+    
+    // Win32 
+    Shell_NotifyIconA(NIM_DELETE, &global_nid);
+    CoUninitialize();
+    FreeConsole();
+    
     
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplSDL2_Shutdown();

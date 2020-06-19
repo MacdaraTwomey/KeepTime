@@ -48,8 +48,9 @@ get_filename_from_path(const char *filepath)
 }
 
 
+// TODO: Use in old win32 code
 char *
-make_filepath(char *exe_path, const char *filename)
+make_filepath_from_fullpath(char *exe_path, const char *filename)
 {
     char *buf = (char *)xalloc(PLATFORM_MAX_PATH_LEN);
     if (!buf)
@@ -74,6 +75,24 @@ make_filepath(char *exe_path, const char *filename)
     {
         return nullptr;
     }
+    
+    return buf;
+}
+
+
+char *
+make_filepath_with_dir(char *dir, const char *filename)
+{
+    // UTF8 when using SDL
+    size_t len = strlen(dir) + strlen(filename) + 1;
+    char *buf = (char *)xalloc(len);
+    if (!buf)
+    {
+        return nullptr;
+    }
+    
+    memcpy(buf, dir, strlen(dir));
+    memcpy(buf + strlen(dir), filename, strlen(filename) + 1);
     
     return buf;
 }

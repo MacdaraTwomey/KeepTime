@@ -3,7 +3,6 @@
 #include "monitor_string.h"
 #include "helper.h"
 
-
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
 
@@ -25,12 +24,7 @@ static_assert(sizeof(date::year_month_day) == sizeof(u32), "");
 #include "platform.h"
 
 #include "draw.cpp"
-#include "bitmap.cpp"
 #include "icon.cpp"    // Deals with win32 icon interface TODO: Move platform dependent parts to win
-
-
-#include "ui.h"
-#include "ui.cpp"
 
 #include "network.cpp"
 
@@ -187,8 +181,8 @@ u32 make_id(Database *database, Record_Type type)
 
 void add_keyword_with_id(Database *database, char *str, Program_Id id)
 {
-    Assert(database->keyword_count < UI_OPTIONS_MAX_KEYWORD_COUNT);
-    if (database->keyword_count < UI_OPTIONS_MAX_KEYWORD_COUNT)
+    Assert(database->keyword_count < MAX_KEYWORD_COUNT);
+    if (database->keyword_count < MAX_KEYWORD_COUNT)
     {
         Keyword k;
         k.id = id;
@@ -204,8 +198,8 @@ void add_keyword_with_id(Database *database, char *str, Program_Id id)
 
 void add_keyword(Database *database, char *str)
 {
-    Assert(database->keyword_count < UI_OPTIONS_MAX_KEYWORD_COUNT);
-    if (database->keyword_count < UI_OPTIONS_MAX_KEYWORD_COUNT)
+    Assert(database->keyword_count < MAX_KEYWORD_COUNT);
+    if (database->keyword_count < MAX_KEYWORD_COUNT)
     {
         Program_Id id = make_id(database, Record_Firefox);
         add_keyword_with_id(database, str, id);
@@ -505,9 +499,144 @@ month_string(int month)
     return months[month];
 }
 
+void render(SDL_Window *window, Database *database, date::sys_days current_date, Day_View *day_view)
+{
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplSDL2_NewFrame(window);
+    ImGui::NewFrame();
+    
+    bool show_demo_window = true;
+    if (show_demo_window)
+        ImGui::ShowDemoWindow(&show_demo_window);
+    
+    {
+        //ImGui::SetNextWindowPos(ImVec2(650, 20), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSize(ImVec2(550, 580), true);
+        
+        ImGui::Begin("Main window");
+        
+        // date:: overrides operator int() etc ...
+        date::year_month_day ymd_date {current_date};
+        int y = int(ymd_date.year());
+        int m = unsigned(ymd_date.month());
+        int d = unsigned(ymd_date.day());
+        
+        ImGui::Text("%i%s %s, %i", d, day_suffix(d), month_string(m), y);
+        
+        static i32 period = 1;
+        if (ImGui::Button("Day", ImVec2(ImGui::GetWindowSize().x*0.3f, 0.0f))) 
+        {
+            period = 1;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Week", ImVec2(ImGui::GetWindowSize().x*0.3f, 0.0f)))
+        {
+            period = 7;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Month", ImVec2(ImGui::GetWindowSize().x*0.3f, 0.0f)))
+        {
+            period = 30;
+        }
+        
+        set_range(day_view, period, current_date);
+        
+        ImGui::BeginChild("Graph");
+        
+        // need child window?
+        ImDrawList* draw_list = ImGui::GetWindowDrawList();
+        
+        //float values[] ={ 62,75,75,29,19,57,24,87,89,30,48,81,33,85,87,45,48,70,58,70,29,43,49,53,59,21,81,32,72,100};
+        
+        
+        Assert(day_view->day_count > 0);
+        Day *today = day_view->days[day_view->day_count-1];
+        
+        if (today->record_count >= 0)
+        {
+            i32 record_count = today->record_count;
+            
+            Program_Record sorted_records[MaxDailyRecords];
+            memcpy(sorted_records, today->records, sizeof(Program_Record) * record_count);
+            
+            std::sort(sorted_records, sorted_records + record_count, [](Program_Record &a, Program_Record &b){ return a.duration > b.duration; });
+            
+            time_type max_duration = sorted_records[0].duration;
+            
+            ImVec2 max_size = ImVec2(ImGui::CalcItemWidth() * 0.85, ImGui::GetFrameHeight());
+            
+            for (i32 i = 0; i < record_count; ++i)
+            {
+                Program_Record &record = sorted_records[i];
+                
+                // TODO: Dont recreate textures...
+                Bitmap *icon = get_icon_from_database(database, record.id);
+                if (icon)
+                {
+                    GLuint image_texture;
+                    glGenTextures(1, &image_texture); // I think this can faiil if out of texture mem
+                    glBindTexture(GL_TEXTURE_2D, image_texture);
+                    
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+                    
+                    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+                    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, icon->width, icon->height, 0, GL_BGRA, GL_UNSIGNED_BYTE, icon->pixels);
+                    
+                    ImGui::Image((ImTextureID)(intptr_t)image_texture, ImVec2((float)icon->width, (float)icon->height));
+                }
+                
+                ImGui::SameLine();
+                ImVec2 p0 = ImGui::GetCursorScreenPos();
+                
+                ImVec2 bar_size = max_size;
+                bar_size.x *= ((float)record.duration / (float)max_duration);
+                
+                if (bar_size.x > 0)
+                {
+                    ImVec2 p1 = ImVec2(p0.x + bar_size.x, p0.y + bar_size.y);
+                    ImU32 col_a = ImGui::GetColorU32(ImVec4(0.0f, 1.0f, 0.0f, 1.0f));
+                    ImU32 col_b = ImGui::GetColorU32(ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
+                    draw_list->AddRectFilledMultiColor(p0, p1, col_a, col_b, col_b, col_a);
+                }
+                
+                char *name = database->names[record.id].short_name.str;
+                double seconds = (double)record.duration / 1000;
+                
+                // Get cursor pos before writing text
+                ImVec2 pos = ImGui::GetCursorScreenPos();
+                
+                // TODO: Limit name length
+                ImGui::Text("%s", name); // TODO: Ensure bars unique id
+                
+                ImGui::SameLine();
+                ImGui::SetCursorPosX(ImGui::GetWindowSize().x * 0.90);
+                ImGui::Text("%.2fs", seconds); // TODO: Ensure bars unique id
+                
+                ImGui::SameLine();
+                ImGui::InvisibleButton("##gradient1", ImVec2(bar_size.x + 10, bar_size.y));
+            }
+        }
+        
+        
+        ImGui::EndChild();
+        
+        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+        ImGui::End();
+    }
+    
+    ImGui::Render();
+    ImGuiIO& io = ImGui::GetIO();
+    glViewport(0, 0, (int)io.DisplaySize.x, (int)io.DisplaySize.y);
+    ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+    glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
+    glClear(GL_COLOR_BUFFER_BIT);
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+}
+
 
 void
-update(Monitor_State *state, Bitmap *screen_buffer, time_type dt)
+update(Monitor_State *state, SDL_Window *window, time_type dt, u32 window_status)
 {
     if (!state->is_initialised)
     {
@@ -531,22 +660,6 @@ update(Monitor_State *state, Bitmap *screen_buffer, time_type dt)
         state->day_view = {};
         
         state->accumulated_time = dt;
-        
-        // TODO: ui gets font instead of state
-        state->font = create_font("c:\\windows\\fonts\\times.ttf", 28);
-        ui_init(screen_buffer, &state->font);
-        
-        // TODO: Maybe ui_context.options_rows can take a Keyword,
-        // and whenever we delete or add (modify is the same as delete and add together),
-        // we can make changes to the database.keywords and keep in sync.
-        for (int i = 0; i < state->database.keyword_count; ++i)
-        {
-            // Must be null terminated
-            size_t l = strlen(state->database.keywords[i].str.str);
-            Assert(state->database.keywords[i].str.str[l] == '\0');
-            
-            ui_options_add_keyword(state->database.keywords[i].str.str);
-        }
         
         for (int i = 0; i < array_count(state->database.ms_icons); ++i)
         {
@@ -579,125 +692,16 @@ update(Monitor_State *state, Bitmap *screen_buffer, time_type dt)
         state->accumulated_time -= poll_window_freq;
     }
     
-    if (ui_was_shown())
+    if (window_status & Window_Just_Visible)
     {
         // Save a freeze frame of the currently saved days.
     }
     
     init_day_view(database, &state->day_view);
     
-    draw_rectangle(screen_buffer, 0, 0, screen_buffer->width, screen_buffer->height, GREY(255));
-    
-    ui_begin();
-    
-    // TODO: Very bad way of doing this
-    if (ui_options_is_modified())
+    if (window_status & Window_Visible)
     {
-        Program_Id keyword_ids[UI_OPTIONS_MAX_KEYWORD_COUNT];
-        int count = 0;
-        
-        int current_keyword_count = 0;
-        Row *current_rows = ui_options_get_keywords(&current_keyword_count);
-        
-        // Assign current set of keywords existing ids if they match
-        for (int i = 0; i < database->keyword_count; ++i)
-        {
-            for (int j = 0; j < current_keyword_count; ++j)
-            {
-                char *k = current_rows[i];
-                if (string_equals(database->keywords[i].str, k))
-                {
-                    keyword_ids[j] = database->keywords[i].id;
-                }
-            }
-        }
-        
-        // Re-add updated keywords
-        database->keyword_count = 0;
-        for (int i = 0; i < current_keyword_count; ++i)
-        {
-            char *k = current_rows[i];
-            // deleted keywords are not re-added
-            if (keyword_ids[i] == 0) add_keyword(database, k); // new keyword
-            else add_keyword_with_id(database, k, keyword_ids[i]); // existing keyword
-        }
-        
-        
-    }
-    
-    date::year_month_day ymd_date {current_date};
-    // date:: overrides operator int() etc ...
-    int y = int(ymd_date.year());
-    int m = unsigned(ymd_date.month());
-    int d = unsigned(ymd_date.day());
-    char text[512];
-    snprintf(text, array_count(text), "%i%s %s, %i", d, day_suffix(d), month_string(m), y);
-    draw_text(screen_buffer, &state->font, text, 26, 53, GREY(0));
-    
-    {
-        static i32 period = 1;
-        ui_button_row_begin(270, 30);
-        
-        if (ui_button("Day"))
-        {
-            period = 1;
-        }
-        if (ui_button("Week"))
-        {
-            period = 7;
-        }
-        if (ui_button("Month"))
-        {
-            period = 30;
-        }
-        
-        set_range(&state->day_view, period, current_date);
-        
-        ui_button_row_end();
-    }
-    
-    {
-        Assert(state->day_view.day_count > 0);
-        Day *today = state->day_view.days[state->day_view.day_count-1];
-        
-        if (today->record_count >= 0)
-        {
-            i32 record_count = today->record_count;
-            
-            Program_Record sorted_records[MaxDailyRecords];
-            memcpy(sorted_records, today->records, sizeof(Program_Record) * record_count);
-            
-            std::sort(sorted_records, sorted_records + record_count, [](Program_Record &a, Program_Record &b){ return a.duration > b.duration; });
-            
-            time_type max_duration = sorted_records[0].duration;
-            
-            
-            ui_graph_begin(270, 80, 650, 400, record_count, gen_id());
-            for (i32 i = 0; i < record_count; ++i)
-            {
-                Program_Record &record = sorted_records[i];
-                float length = ((float)record.duration / max_duration);
-                length += 0.1f; // bump factor
-                if (length > 1.0f) length = 1.0f;
-                
-                char text[512];
-                double duration_seconds = (double)record.duration / 1000;
-                snprintf(text, array_count(text), "%.2fs", duration_seconds);
-                
-                Bitmap *icon = get_icon_from_database(&state->database, record.id);
-                char *name = state->database.names[record.id].short_name.str;
-                ui_graph_bar(length, name, text, icon);
-            }
-            ui_graph_end();
-        }
-    }
-    
-    ui_end();
-    
-    destroy_day_view(&state->day_view);
-    
-    if (ui_was_hidden())
-    {
+        render(window, &state->database, current_date, &state->day_view);
     }
 }
 

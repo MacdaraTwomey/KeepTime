@@ -141,6 +141,7 @@
     <ClCompile Include="..\code\file.cpp" />
     <ClCompile Include="..\code\helper.cpp" />
     <ClCompile Include="..\code\icon.cpp" />
+    <ClCompile Include="..\code\main.cpp" />
     <ClCompile Include="..\code\monitor.cpp" />
     <ClCompile Include="..\code\network.cpp" />
     <ClCompile Include="..\code\ui.cpp" />
