@@ -37,9 +37,11 @@ bool platform_get_firefox_url(Platform_Window window, char *buf, int buf_size, s
 
 bool platform_get_firefox_url2(Platform_Window window, char *buf, int buf_size, size_t *length);
 
-bool platform_get_icon_from_executable(char *path, u32 desired_size, Bitmap *icon_bitmap, bool load_default_on_failure);
+bool platform_get_icon_from_executable(char *path, u32 desired_size, 
+                                       i32 *width, i32 *height, i32 *pitch, u32 **pixels, 
+                                       bool load_default_on_failure);
 
 // Temporary: only here so app can load ms icons
-bool win32_get_bitmap_from_HICON(HICON icon, Bitmap *bitmap);
+bool win32_get_bitmap_data_from_HICON(HICON icon, i32 *width, i32 *height, i32 *pitch, u32 **pixels);
 
 #endif //PLATFORM_H

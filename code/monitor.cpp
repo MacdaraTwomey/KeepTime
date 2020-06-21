@@ -193,24 +193,31 @@ void add_keyword_with_id(Database *database, char *str, Assigned_Id id)
         database->keyword_count += 1;
     }
 }
-
-void add_keyword(Database *database, char *str)
-{
-    Assert(database->keyword_count < MAX_KEYWORD_COUNT);
-    if (database->keyword_count < MAX_KEYWORD_COUNT)
-    {
-        Assigned_Id id = make_id(database, Record_Firefox);
-        add_keyword_with_id(database, str, id);
-    }
-}
 #endif
 
+// optional id pass?
+void add_keyword(Database *database, char *str)
+{
+    Assert(database->keywords.size() < MAX_KEYWORD_COUNT);
+    Assert(strlen(str) < MAX_KEYWORD_LENGTH);
+    if (database->keywords.size() < MAX_KEYWORD_COUNT)
+    {
+        Assigned_Id id = make_id(database, Record_Firefox);
+        
+        Keyword k;
+        strcpy(k.str, str);
+        k.id = id; 
+        database->keywords.push_back(k);
+        //add_keyword_with_id(database, str, id);
+    }
+}
+
 Keyword *
-search_url_for_keywords(String url, Keyword *keywords, i32 keyword_count)
+search_url_for_keywords(String url, std::vector<Keyword> &keywords)
 {
     // TODO: Keep looking through keywords for one that fits better (i.e docs.microsoft vs docs.microsoft/buttons).
-    // TODO: Sort based on common substrings so we don't have to look further.
-    for (i32 i = 0; i < keyword_count; ++i)
+    // TODO: Sort based on common substrings, or alphabetically, so we don't have to look further.
+    for (i32 i = 0; i < keywords.size(); ++i)
     {
         Keyword *keyword = &keywords[i];
         if (search_for_substr(url, 0, keyword->str) != -1)
@@ -318,12 +325,13 @@ get_icon_from_database(Database *database, Assigned_Id id)
                 String path = database->names[id].long_name;
                 if (path.length > 0)
                 {
-                    Bitmap *destination_icon = &database->icons[id];
-                    bool success = platform_get_icon_from_executable(path.str, 32, destination_icon, true);
+                    Bitmap *bitmap = &database->icons[id];
+                    bool success = platform_get_icon_from_executable(path.str, 32, 
+                                                                     &bitmap->width, &bitmap->height, &bitmap->pitch, &bitmap->pixels, true);
                     if (success)
                     {
                         // TODO: Maybe mark old paths that couldn't get correct icon for deletion.
-                        return destination_icon;
+                        return bitmap;
                     }
                 }
             }
@@ -385,8 +393,7 @@ poll_windows(Database *database, time_type dt)
             String url = make_string_size_cap(url_buf, url_len, array_count(url_buf));
             if (url.length > 0)
             {
-#if 0
-                Keyword *keyword = search_url_for_keywords(url, database->keywords, database->keyword_count);
+                Keyword *keyword = search_url_for_keywords(url, database->keywords);
                 if (keyword)
                 {
                     if (database->names.count(keyword->id) == 0)
@@ -401,7 +408,6 @@ poll_windows(Database *database, time_type dt)
                     record_id = keyword->id;
                     add_to_executables = false;
                 }
-#endif
             }
         }
     }
@@ -644,6 +650,8 @@ do_settings_popup(std::vector<Keyword> &keywords, Assigned_Id *next_website_id)
             strcpy(k.str, pending_keywords[i]);
             k.id = pending_keyword_ids[i];
             keywords.push_back(k); 
+            
+            // use add_keyword ?
         }
         
         ImGui::CloseCurrentPopup();
@@ -658,8 +666,7 @@ do_settings_popup(std::vector<Keyword> &keywords, Assigned_Id *next_website_id)
     // TODO: Revert button?
     
 }
-// TODO: Updating of keywords occurs in here so maybe render is a bad name
-void render(SDL_Window *window, Database *database, date::sys_days current_date, Day_View *day_view)
+void draw_ui_and_update_state(SDL_Window *window, Database *database, date::sys_days current_date, Day_View *day_view)
 {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplSDL2_NewFrame(window);
@@ -721,17 +728,17 @@ void render(SDL_Window *window, Database *database, date::sys_days current_date,
     ImGui::Text("%i%s %s, %i", d, day_suffix(d), month_string(m), y);
     
     static i32 period = 1;
-    if (ImGui::Button("Day", ImVec2(ImGui::GetWindowSize().x*0.3f, 0.0f))) 
+    if (ImGui::Button("Day", ImVec2(ImGui::GetWindowSize().x*0.2f, 0.0f))) 
     {
         period = 1;
     }
     ImGui::SameLine();
-    if (ImGui::Button("Week", ImVec2(ImGui::GetWindowSize().x*0.3f, 0.0f)))
+    if (ImGui::Button("Week", ImVec2(ImGui::GetWindowSize().x*0.2f, 0.0f)))
     {
         period = 7;
     }
     ImGui::SameLine();
-    if (ImGui::Button("Month", ImVec2(ImGui::GetWindowSize().x*0.3f, 0.0f)))
+    if (ImGui::Button("Month", ImVec2(ImGui::GetWindowSize().x*0.2f, 0.0f)))
     {
         period = 30;
     }
@@ -740,7 +747,7 @@ void render(SDL_Window *window, Database *database, date::sys_days current_date,
     
     // To allow frame border
     ImGuiWindowFlags child_flags = 0;
-    ImGui::BeginChildFrame(55, ImVec2(ImGui::GetWindowSize().x * 0.5, ImGui::GetWindowSize().y * 0.7), child_flags);
+    ImGui::BeginChildFrame(55, ImVec2(ImGui::GetWindowSize().x * 0.9, ImGui::GetWindowSize().y * 0.7), child_flags);
     //ImGui::BeginChild("Graph");
     
     ImDrawList* draw_list = ImGui::GetWindowDrawList();
@@ -766,6 +773,11 @@ void render(SDL_Window *window, Database *database, date::sys_days current_date,
             Record &record = sorted_records[i];
             
             // TODO: Dont recreate textures...
+            // TODO: Clipping of images (glScissor?) look at impl_OpenGL3
+            
+            // Maybe use glActiveTexture with GL_TEXTURE1 (as i think font uses texture 0 maybe) i dont know how this works really
+            
+            // TODO: Check if pos of bar or image will be clipped entirely, and maybe skip rest of loop
             Bitmap *icon = get_icon_from_database(database, record.id);
             if (icon)
             {
@@ -787,7 +799,6 @@ void render(SDL_Window *window, Database *database, date::sys_days current_date,
             
             ImVec2 bar_size = max_size;
             bar_size.x *= ((float)record.duration / (float)max_duration);
-            
             if (bar_size.x > 0)
             {
                 ImVec2 p1 = ImVec2(p0.x + bar_size.x, p0.y + bar_size.y);
@@ -847,19 +858,11 @@ update(Monitor_State *state, SDL_Window *window, time_type dt, u32 window_status
         
         init_database(&state->database);
         
-#if 0
         // Keywords must be null terminated when given to platform gui
         add_keyword(&state->database, "CITS3003");
         add_keyword(&state->database, "youtube");
         add_keyword(&state->database, "docs.microsoft");
         add_keyword(&state->database, "eso-community");
-#endif
-        
-        // TODO: DOESIS ID INVALID GARGABGE?
-        state->database.keywords.push_back({"CITS3003", state->database.next_website_id++});
-        state->database.keywords.push_back({"youtube", state->database.next_website_id++});
-        state->database.keywords.push_back({"docs.microsoft", state->database.next_website_id++});
-        state->database.keywords.push_back({"eso-community", state->database.next_website_id++});
         
         start_new_day(&state->database, floor<date::days>(System_Clock::now()));
         
@@ -870,15 +873,14 @@ update(Monitor_State *state, SDL_Window *window, time_type dt, u32 window_status
         for (int i = 0; i < array_count(state->database.ms_icons); ++i)
         {
             HICON ico = LoadIconA(NULL, MAKEINTRESOURCE(32513 + i));
-            win32_get_bitmap_from_HICON(ico, &state->database.ms_icons[i]);
+            Bitmap *bitmap = &state->database.ms_icons[i];
+            win32_get_bitmap_data_from_HICON(ico, &bitmap->width, &bitmap->height, &bitmap->pitch, &bitmap->pixels);
         }
         
         state->is_initialised = true;
     }
     
     Database *database = &state->database;
-    
-    // TODO: Separate platform and icon code in icon.cpp
     
     // TODO: Just use google or duckduckgo service for now
     
@@ -907,7 +909,7 @@ update(Monitor_State *state, SDL_Window *window, time_type dt, u32 window_status
     
     if (window_status & Window_Visible)
     {
-        render(window, &state->database, current_date, &state->day_view);
+        draw_ui_and_update_state(window, &state->database, current_date, &state->day_view);
     }
 }
 

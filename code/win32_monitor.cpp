@@ -303,10 +303,9 @@ platform_get_firefox_url(Platform_Window window, char *buf, int buf_size, size_t
 
 
 bool
-win32_get_bitmap_from_HICON(HICON icon, Bitmap *bitmap)
+win32_get_bitmap_data_from_HICON(HICON icon, i32 *width, i32 *height, i32 *pitch, u32 **pixels)
 {
     bool success = false;
-    *bitmap = {};
     
     // TODO: Get icon from UWP:
     // Process is wrapped in a parent process, and can't extract icons from the child, not sure about parent
@@ -336,45 +335,53 @@ win32_get_bitmap_from_HICON(HICON icon, Bitmap *bitmap)
             int result_2 = GetObject(and_mask_handle, sizeof(BITMAP), &and_mask) == sizeof(BITMAP);
             if (result_1 && result_2)
             {
-                init_bitmap(bitmap, colour_mask.bmWidth, colour_mask.bmHeight);
-                success = true;
-                
-                bool32 had_alpha = false;
-                u32 *dest = bitmap->pixels;
-                u8 *src_row = (u8 *)colour_mask.bmBits + (colour_mask.bmWidthBytes * (colour_mask.bmHeight-1));
-                for (int y = 0; y < colour_mask.bmHeight; ++y)
+                *width = colour_mask.bmWidth;
+                *height = colour_mask.bmHeight;
+                *pitch = *width * 4;
+                *pixels = (u32 *)malloc(*pitch * *height);
+                if (*pixels)
                 {
-                    u32 *src = (u32 *)src_row;
-                    for (int x = 0; x < colour_mask.bmWidth; ++x)
-                    {
-                        u32 col = *src++;
-                        *dest++ = col;
-                        had_alpha |= A_COMP(col);
-                    }
+                    memset(*pixels, 0, *pitch * *height);
                     
-                    src_row -= colour_mask.bmWidthBytes;
-                }
-                
-                // Some icons have no set alpha channel in the colour mask, so specify it in the and mask.
-                if (!had_alpha)
-                {
-                    int and_mask_pitch = and_mask.bmWidthBytes;
-                    u32 *dest = bitmap->pixels;
-                    u8 *src_row = (u8 *)and_mask.bmBits + (and_mask.bmWidthBytes * (and_mask.bmHeight-1));
-                    for (int y = 0; y < and_mask.bmHeight; ++y)
+                    bool32 had_alpha = false;
+                    u32 *dest = *pixels;
+                    u8 *src_row = (u8 *)colour_mask.bmBits + (colour_mask.bmWidthBytes * (colour_mask.bmHeight-1));
+                    for (int y = 0; y < colour_mask.bmHeight; ++y)
                     {
-                        u8 *src = src_row;
-                        for (int x = 0; x < and_mask_pitch; ++x)
+                        u32 *src = (u32 *)src_row;
+                        for (int x = 0; x < colour_mask.bmWidth; ++x)
                         {
-                            for (int i = 7; i >= 0; --i)
-                            {
-                                if (!(src[x] & (1 << i))) *dest |= 0xFF000000;
-                                dest++;
-                            }
+                            u32 col = *src++;
+                            *dest++ = col;
+                            had_alpha |= A_COMP(col);
                         }
                         
-                        src_row -= and_mask_pitch;
+                        src_row -= colour_mask.bmWidthBytes;
                     }
+                    
+                    // Some icons have no set alpha channel in the colour mask, so specify it in the and mask.
+                    if (!had_alpha)
+                    {
+                        int and_mask_pitch = and_mask.bmWidthBytes;
+                        u32 *dest = *pixels;
+                        u8 *src_row = (u8 *)and_mask.bmBits + (and_mask.bmWidthBytes * (and_mask.bmHeight-1));
+                        for (int y = 0; y < and_mask.bmHeight; ++y)
+                        {
+                            u8 *src = src_row;
+                            for (int x = 0; x < and_mask_pitch; ++x)
+                            {
+                                for (int i = 7; i >= 0; --i)
+                                {
+                                    if (!(src[x] & (1 << i))) *dest |= 0xFF000000;
+                                    dest++;
+                                }
+                            }
+                            
+                            src_row -= and_mask_pitch;
+                        }
+                    }
+                    
+                    success = true;
                 }
             }
         }
@@ -390,7 +397,8 @@ win32_get_bitmap_from_HICON(HICON icon, Bitmap *bitmap)
 }
 
 bool
-platform_get_icon_from_executable(char *path, u32 desired_size, Bitmap *icon_bitmap,
+platform_get_icon_from_executable(char *path, u32 desired_size, 
+                                  i32 *width, i32 *height, i32 *pitch, u32 **pixels, 
                                   bool load_default_on_failure = true)
 {
     // path must be null terminated
@@ -414,11 +422,11 @@ platform_get_icon_from_executable(char *path, u32 desired_size, Bitmap *icon_bit
     bool success = false;
     if (icon_handle)
     {
-        success = win32_get_bitmap_from_HICON(icon_handle, icon_bitmap);
+        success = win32_get_bitmap_data_from_HICON(icon_handle, width, height, pitch, pixels);
     }
     else if (small_icon_handle)
     {
-        success = win32_get_bitmap_from_HICON(small_icon_handle, icon_bitmap);
+        success = win32_get_bitmap_data_from_HICON(small_icon_handle, width, height, pitch, pixels);
     }
     
     if (icon_handle) DestroyIcon(icon_handle);
