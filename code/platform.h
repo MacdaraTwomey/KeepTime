@@ -6,6 +6,14 @@
 static constexpr i32 PLATFORM_MAX_PATH_LEN = 2000;
 static constexpr i32 PLATFORM_MAX_URL_LEN  = 2000;
 
+enum Window_Status
+{
+    Window_Just_Visible = 1,
+    Window_Just_Hidden = 2,
+    Window_Visible = 4,
+    Window_Hidden = 8,
+};
+
 struct Platform_Window
 {
     HWND handle;
@@ -21,13 +29,13 @@ struct Platform_Window
 //   3. Pass Poll_Window_Result with all necessary names/urls to app on avery update, only cantain valid names
 //      when timer has elapsed (similar to previous just app doesn't call just recieves when it needs it).
 
+Platform_Window platform_get_active_window();
+
 bool platform_get_program_from_window(Platform_Window window, char *buf, size_t *length);
 
 bool platform_get_firefox_url(Platform_Window window, char *buf, int buf_size, size_t *length);
 
 bool platform_get_firefox_url2(Platform_Window window, char *buf, int buf_size, size_t *length);
-
-Platform_Window platform_get_active_window();
 
 bool platform_get_icon_from_executable(char *path, u32 desired_size, Bitmap *icon_bitmap, bool load_default_on_failure);
 

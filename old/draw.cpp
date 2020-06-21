@@ -3,13 +3,6 @@
 #include "graphics.h"
 #include <algorithm>
 
-template<class T>
-constexpr const T& clamp( const T& v, const T& lo, const T& hi )
-{
-    Assert(!(hi < lo));
-    return (v < lo) ? lo : (hi < v) ? hi : v;
-}
-
 int
 text_width(char *text, Font *font)
 {

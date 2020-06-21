@@ -24,11 +24,11 @@
 #include <shlobj_core.h> // SHDefExtractIconA
 
 #include "cian.h"
-#include "win32_monitor.h"
-#include "resource.h"
-#include "platform.h"
-#include "graphics.h"
 #include "monitor.h"
+#include "graphics.h"
+#include "platform.h"
+
+#include "resource.h"
 
 #include <chrono>
 #include <vector>
@@ -38,32 +38,21 @@
 #include <stdio.h>
 #include <wchar.h>
 
-// TODO: MOVE
-enum Window_Status
-{
-    Window_Just_Visible = 1,
-    Window_Just_Hidden = 2,
-    Window_Visible = 4,
-    Window_Hidden = 8,
-};
-
 #include "utilities.cpp" // xalloc, string copy, concat string, make filepath, get_filename_from_path
 #include "bitmap.cpp"
-#include "win32_monitor.cpp" // needs bitmap functions
 #include "monitor.cpp"
+#include "win32_monitor.cpp" // needs bitmap functions
 
-#define CONSOLE_ON 1
+#define CONSOLE_ON 0
 
 static char *global_savefile_path;
 static char *global_debug_savefile_path;
 static bool global_running = true;
 
-
 // NOTE: This is only used for toggling with the tray icon.
 // Use pump messages result to check if visible to avoid the issues with value unexpectly changing.
 // Still counts as visible if minimised to the task bar.
 static NOTIFYICONDATA global_nid = {};
-static Options_Window global_options_win;
 
 #define WINDOW_WIDTH 1240
 #define WINDOW_HEIGHT 720
@@ -74,20 +63,9 @@ static Options_Window global_options_win;
 // * Remember window width and height
 // * Unicode correctness
 // * Path length correctness
-// * Dynamic window, button layout with resizing
-// * OpenGL graphing?
 // * Stop repeating work getting the firefox URL, maybe use UIAutomation cache?
 
-// * Finalise GUI design (look at task manager and nothings imgui for inspiration)
-// * Make api better/clearer, especially graphics api
-// * BUG: Program time slows down when mouse is moved quickly within window or when a key is held down
 // -----------------------------------------------------------------
-
-// Top bit of id specifies is the 'program' is a normal executable or a website
-// where rest of the bits are the actual id of its name.
-// For websites whenever a user creates a new keyword that keyword gets an id and the id count increases by 1
-// If a keyword is deleted the records with that website id can be given firefox's id.
-
 
 #if 0
 // put this at/around wher ImGui::NewFrame() is
@@ -178,12 +156,6 @@ int main(int argc, char* argv[])
     HANDLE con_in = win32_create_console();
 #endif
     
-    // Win32 stuff
-    // TODO: Why don't we need to link ole32.lib?
-    // Call this because we use CoCreateInstance in UIAutomation
-    CoInitializeEx(NULL, COINIT_APARTMENTTHREADED); // equivalent to CoInitialize(NULL)
-    
-    
     if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_TIMER|SDL_INIT_EVENTS) != 0)
     {
         return 1;
@@ -199,7 +171,6 @@ int main(int argc, char* argv[])
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
     
-    
     SDL_Window* window = SDL_CreateWindow("Monitor",
                                           SDL_WINDOWPOS_UNDEFINED,
                                           SDL_WINDOWPOS_UNDEFINED,
@@ -209,10 +180,6 @@ int main(int argc, char* argv[])
     SDL_GLContext gl_context = SDL_GL_CreateContext(window);
     SDL_GL_MakeCurrent(window, gl_context);
     SDL_GL_SetSwapInterval(1); // enable VSync
-    
-    // Don't ifnore special system-specific messages that unhandled
-    // Allows us to get SDL_SYSWMEVENT
-    SDL_EventState(SDL_SYSWMEVENT, SDL_ENABLE);
     
     if (glewInit() != GLEW_OK)
     {
@@ -241,46 +208,62 @@ int main(int argc, char* argv[])
     unsigned int flags = ImGuiFreeType::NoHinting;
     ImGuiFreeType::BuildFontAtlas(io.Fonts, flags);
     io.Fonts->Build();
-    //io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
     
     // Setup Platform/Renderer bindings
     ImGui_ImplSDL2_InitForOpenGL(window, gl_context);
     ImGui_ImplOpenGL3_Init("#version 130");
     
-    // Compare freetype options, and stb_truetype
+    // TODO: Compare freetype options, and stb_truetype
     //FreeTypeTest freetype_test;
     
-    
+#if defined(_WIN32)
     {
-        HWND hwnd = 0;
+        // Don't ignore special system-specific messages that unhandled (allows us to get SDL_SYSWMEVENT events)
+        SDL_EventState(SDL_SYSWMEVENT, SDL_ENABLE);
+        
+        // TODO: Why don't we need to link ole32.lib?
+        // Call this because we use CoCreateInstance in UIAutomation
+        CoInitializeEx(NULL, COINIT_APARTMENTTHREADED); // equivalent to CoInitialize(NULL)
         
         SDL_SysWMinfo info;
         SDL_VERSION(&info.version); /* initialize info structure with SDL version info */
         if(SDL_GetWindowWMInfo(window,&info)) {
-            hwnd = info.info.win.window;
+            HWND hwnd = info.info.win.window;
             HINSTANCE instance = info.info.win.hinstance;
+            
+            // TODO: Does SDL automatically set icon to icon inside executable, or is that windows,
+            // Should we set icon manually?
+#if 0
+            HICON h_icon = (HICON)LoadIcon(GetModuleHandle(NULL), MAKEINTRESOURCE(ID_MAIN_ICON));
+            if (h_icon)
+            {
+                SendMessage(hwnd, WM_SETICON, ICON_BIG, (LPARAM)h_icon);
+                SendMessage(hwnd, WM_SETICON, ICON_SMALL, (LPARAM)h_icon); // ??? both???
+            }
+#endif
+            
+            // TODO: To maintain compatibility with older and newer versions of shell32.dll while using
+            // current header files may need to check which version of shell32.dll is installed so the
+            // cbSize of NOTIFYICONDATA can be initialised correctly.
+            // https://docs.microsoft.com/en-us/windows/win32/api/shellapi/ns-shellapi-notifyicondataa
+            global_nid = {};
+            global_nid.cbSize = sizeof(NOTIFYICONDATA);
+            global_nid.hWnd = hwnd;
+            global_nid.uID = ID_TRAY_APP_ICON; // // Not sure why we need this
+            global_nid.uFlags = NIF_ICON|NIF_MESSAGE|NIF_TIP;
+            global_nid.uCallbackMessage = CUSTOM_WM_TRAY_ICON;
+            // Recommented you provide 32x32 icon for higher DPI systems
+            // Can use LoadIconMetric to specify correct one with correct settings is used
+            global_nid.hIcon = (HICON)LoadIcon(GetModuleHandle(NULL), MAKEINTRESOURCE(ID_MAIN_ICON));
+            
+            // TODO: This should say "running"
+            TCHAR tooltip[] = {"Tooltip dinosaur"}; // Use max 64 chars
+            strncpy(global_nid.szTip, tooltip, sizeof(tooltip));
+            
+            Shell_NotifyIconA(NIM_ADD, &global_nid);
         }
-        
-        // TODO: To maintain compatibility with older and newer versions of shell32.dll while using
-        // current header files may need to check which version of shell32.dll is installed so the
-        // cbSize of NOTIFYICONDATA can be initialised correctly.
-        // https://docs.microsoft.com/en-us/windows/win32/api/shellapi/ns-shellapi-notifyicondataa
-        global_nid = {};
-        global_nid.cbSize = sizeof(NOTIFYICONDATA);
-        global_nid.hWnd = hwnd;
-        global_nid.uID = ID_TRAY_APP_ICON; // // Not sure why we need this
-        global_nid.uFlags = NIF_ICON|NIF_MESSAGE|NIF_TIP;
-        global_nid.uCallbackMessage = CUSTOM_WM_TRAY_ICON;
-        // Recommented you provide 32x32 icon for higher DPI systems
-        // Can use LoadIconMetric to specify correct one with correct settings is used
-        global_nid.hIcon = (HICON)LoadIcon(GetModuleHandle(NULL), MAKEINTRESOURCE(ID_MAIN_ICON));
-        
-        // TODO: This should say "running"
-        TCHAR tooltip[] = {"Tooltip dinosaur"}; // Use max 64 chars
-        strncpy(global_nid.szTip, tooltip, sizeof(tooltip));
-        
-        Shell_NotifyIconA(NIM_ADD, &global_nid);
     }
+#endif // if _WIN32
     
     {
         char *exe_dir_path = SDL_GetBasePath();
@@ -337,8 +320,9 @@ int main(int argc, char* argv[])
                         window_status = Window_Just_Hidden|Window_Hidden;
                         global_running = false;
                         
-                        // win32
+#if defined(_WIN32)
                         Shell_NotifyIconA(NIM_DELETE, &global_nid);
+#endif
                     } break;
                 }
             }
@@ -374,11 +358,7 @@ int main(int argc, char* argv[])
                             else
                             {
                                 SDL_ShowWindow(window);
-                                
-                                // old win32
-                                //ShowWindow(window, SW_SHOW);
-                                //ShowWindow(window, SW_RESTORE); // If window was minimised and hidden, also unminimise
-                                //SetForegroundWindow(window); // Need this to allow 'full focus' on window after showing
+                                SDL_RaiseWindow(window);
                             }
                         } break;
                     }
@@ -401,11 +381,11 @@ int main(int argc, char* argv[])
         SDL_GL_SwapWindow(window);
     }
     
-    // Win32 
+#if defined(_WIN32)
     Shell_NotifyIconA(NIM_DELETE, &global_nid);
     CoUninitialize();
     FreeConsole();
-    
+#endif
     
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplSDL2_Shutdown();

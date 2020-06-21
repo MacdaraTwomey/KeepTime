@@ -1,4 +1,20 @@
 
+#include <windows.h>
+#undef min
+#undef max
+
+#define ID_TRAY_APP_ICON 1001
+#define CUSTOM_WM_TRAY_ICON (WM_USER + 1)
+
+// https://docs.microsoft.com/en-us/cpp/build/reference/manifestdependency-specify-manifest-dependencies?view=vs-2019
+// #pragma comment(linker, "\"/manifestdependency:type='Win32' name='Test.Research.SampleAssembly' version='6.0.0.0' processorArchitecture='X86' publicKeyToken='0000000000000000' language='*'\"")
+
+struct Process_Ids
+{
+    DWORD parent;
+    DWORD child;
+};
+
 HANDLE
 win32_create_console()
 {
@@ -21,7 +37,7 @@ platform_get_active_window()
 {
     // TODO: Use GetShellWindow GetShellWindow to detect when not doing anything on desktop, if foreground == desktop etc
     
-#ifdef CYCLE
+#ifdef RECORD_ALL_ACTIVE_WINDOWS
     
     static HWND queue[100];
     static int count = 0;

@@ -11,7 +11,7 @@
 
 :: ..\imgui\imgui_demo.cpp just for Imgui::showDemoWindow()
 
-set DefineFlags=-DCYCLE
+set DefineFlags=-DMONITOR_DEBUG -DRECORD_ALL_ACTIVE_WINDOWS
 
 set LinkedLibraries=..\curl_7.69.1\x64_debug_dll_MDd\libcurl_debug.lib ..\SDL2\SDL2.lib ..\SDL2\SDL2main.lib ..\GLEW21\glew32.lib ..\freetype\freetype.lib opengl32.lib user32.lib shell32.lib Gdi32.lib Comctl32.lib
 
@@ -28,7 +28,7 @@ pushd build
 :: rc icon.rc
 
 :: Build monitor with imgui dll
-cl %DefineFlags% %SourceFiles% %IncludeDirs% /FC -W2 /EHsc -nologo  -Zi  /link %LinkedLibraries% ..\imgui\imgui.lib icon.res /subsystem:windows /out:monitor.exe
+cl %DefineFlags% %SourceFiles% %IncludeDirs% /FC -W2 /MTd /EHsc -nologo  -Zi  /link %LinkedLibraries% ..\imgui\imgui.lib icon.res /subsystem:windows /out:monitor.exe
 
 :: BUILD ALL FILES
 :: cl %DefineFlags% %SourceFiles% %ImguiSourceFiles% %IncludeDirs% /FC -W2 /EHsc -nologo  -Zi  /link %LinkedLibraries% icon.res /subsystem:windows /out:monitor.exe

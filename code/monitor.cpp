@@ -1,10 +1,8 @@
 #include <unordered_map>
 
+#include "cian.h"
 #include "monitor_string.h"
 #include "helper.h"
-
-#define STB_TRUETYPE_IMPLEMENTATION
-#include "stb_truetype.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -23,7 +21,6 @@ static_assert(sizeof(date::year_month_day) == sizeof(u32), "");
 #include "monitor.h"
 #include "platform.h"
 
-#include "draw.cpp"
 #include "icon.cpp"    // Deals with win32 icon interface TODO: Move platform dependent parts to win
 
 #include "network.cpp"
@@ -38,7 +35,7 @@ start_new_day(Database *database, date::sys_days date)
     Day *days = database->days;
     
     Day new_day = {};
-    new_day.records = (Program_Record *)xalloc(sizeof(Program_Record) * MaxDailyRecords);
+    new_day.records = (Record *)xalloc(sizeof(Record) * MaxDailyRecords);
     new_day.record_count = 0;
     new_day.date = date;
     
@@ -68,10 +65,10 @@ init_day_view(Database *database, Day_View *day_view)
     // Copy the state of the current day
     if (current_mutable_day.record_count > 0)
     {
-        Program_Record *records = (Program_Record *)xalloc(sizeof(Program_Record) * current_mutable_day.record_count);
+        Record *records = (Record *)xalloc(sizeof(Record) * current_mutable_day.record_count);
         memcpy(records,
                current_mutable_day.records,
-               sizeof(Program_Record) * current_mutable_day.record_count);
+               sizeof(Record) * current_mutable_day.record_count);
         day_view->last_day_.records = records;
     }
     else
@@ -138,8 +135,8 @@ destroy_day_view(Day_View *day_view)
 void init_database(Database *database)
 {
     *database = {};
-    database->programs = std::unordered_map<String, Program_Id>(30);
-    database->names = std::unordered_map<Program_Id, Program_Name>(80);
+    database->programs = std::unordered_map<String, Assigned_Id>(30);
+    database->names = std::unordered_map<Assigned_Id, Program_Name>(80);
     
     // TODO: Maybe disallow 0
     database->next_program_id = 0;
@@ -179,7 +176,8 @@ u32 make_id(Database *database, Record_Type type)
     return id;
 }
 
-void add_keyword_with_id(Database *database, char *str, Program_Id id)
+#if 0
+void add_keyword_with_id(Database *database, char *str, Assigned_Id id)
 {
     Assert(database->keyword_count < MAX_KEYWORD_COUNT);
     if (database->keyword_count < MAX_KEYWORD_COUNT)
@@ -201,10 +199,11 @@ void add_keyword(Database *database, char *str)
     Assert(database->keyword_count < MAX_KEYWORD_COUNT);
     if (database->keyword_count < MAX_KEYWORD_COUNT)
     {
-        Program_Id id = make_id(database, Record_Firefox);
+        Assigned_Id id = make_id(database, Record_Firefox);
         add_keyword_with_id(database, str, id);
     }
 }
+#endif
 
 Keyword *
 search_url_for_keywords(String url, Keyword *keywords, i32 keyword_count)
@@ -295,7 +294,7 @@ update_days_records(Day *day, u32 id, time_type dt)
 
 
 Bitmap *
-get_icon_from_database(Database *database, Program_Id id)
+get_icon_from_database(Database *database, Assigned_Id id)
 {
     if (is_firefox(id))
     {
@@ -364,7 +363,7 @@ poll_windows(Database *database, time_type dt)
     // string_to_lower(&program_name);
     
     // Maybe disallow 0 as a valid id so this initialisation makes more sense
-    Program_Id record_id = 0;
+    Assigned_Id record_id = 0;
     
     bool program_is_firefox = string_equals(program_name, "firefox");
     bool add_to_executables = true;
@@ -386,6 +385,7 @@ poll_windows(Database *database, time_type dt)
             String url = make_string_size_cap(url_buf, url_len, array_count(url_buf));
             if (url.length > 0)
             {
+#if 0
                 Keyword *keyword = search_url_for_keywords(url, database->keywords, database->keyword_count);
                 if (keyword)
                 {
@@ -401,6 +401,7 @@ poll_windows(Database *database, time_type dt)
                     record_id = keyword->id;
                     add_to_executables = false;
                 }
+#endif
             }
         }
     }
@@ -410,7 +411,7 @@ poll_windows(Database *database, time_type dt)
     {
         if (!database->added_firefox)
         {
-            Program_Id new_id = make_id(database, Record_Exe);
+            Assigned_Id new_id = make_id(database, Record_Exe);
             
             Program_Name names;
             names.long_name = copy_alloc_string(full_path);
@@ -431,7 +432,7 @@ poll_windows(Database *database, time_type dt)
     {
         if (database->programs.count(program_name) == 0)
         {
-            Program_Id new_id = make_id(database, Record_Exe);
+            Assigned_Id new_id = make_id(database, Record_Exe);
             
             Program_Name names;
             names.long_name = copy_alloc_string(full_path);
@@ -499,6 +500,165 @@ month_string(int month)
     return months[month];
 }
 
+s32
+remove_duplicate_and_empty_keyword_strings(char (*keywords)[MAX_KEYWORD_LENGTH])
+{
+    // NOTE: This assumes that keywords that are 'empty' should have no garbage data (dear imgu needs to set
+    // empty array slots to '\0';
+    s32 total_count = 0;
+    for (s32 l = 0, r = MAX_KEYWORD_COUNT - 1; l < r;)
+    {
+        if (keywords[l][0] == '\0') // is empty string
+        {
+            if (keywords[r][0] == '\0')
+            {
+                r--;
+            }
+            else
+            {
+                strcpy(keywords[l], keywords[r]);
+                total_count += 1;
+                l++;
+                r--;
+            }
+        }
+        else
+        {
+            l++;
+            total_count += 1;
+        }
+    }
+    
+#if MONITOR_DEBUG
+    // TODO: THIS IS A TEST
+    for (s32 i = 0; i < total_count; ++i)
+    {
+        Assert(keywords[i][0] != '\0');
+    }
+#endif
+    
+    // remove dups
+    for (s32 i = 0; i < total_count; ++i)
+    {
+        for (s32 j = i + 1; j < total_count; ++j)
+        {
+            if (strcmp(keywords[i], keywords[j]) == 0)
+            {
+                strcpy(keywords[i], keywords[total_count-1]);
+                total_count -= 1;
+                
+                // Re-search from same index (with new string)
+                i -= 1;
+                break;
+            }
+        }
+    }
+    
+    return total_count;
+}
+
+void
+do_settings_popup(std::vector<Keyword> &keywords, Assigned_Id *next_website_id)
+{
+    // TODO: Remove or don't allow
+    // - all spaces strings
+    // - leading/trailing whitespace
+    // - spaces in words
+    // - unicode characters (just disallow pasting maybe)
+    // NOTE:
+    // - Put incorrect format text items in red, and have a red  '* error message...' next to "Keywords"
+    
+    static char pending_keywords[MAX_KEYWORD_COUNT][MAX_KEYWORD_LENGTH];
+    static Assigned_Id pending_keyword_ids[MAX_KEYWORD_COUNT];
+    //static s32 pending_keyword_count = 0;
+    static const s32 input_box_count = 100;
+    
+    if (ImGui::IsWindowAppearing()) 
+    {
+        Assert(keywords.size() <= MAX_KEYWORD_COUNT);
+        for (s32 i = 0; i < MAX_KEYWORD_COUNT; ++i)
+        {
+            if (i < keywords.size()) 
+                strcpy(pending_keywords[i], keywords[i].str);
+            else
+                memset(pending_keywords[i], 0, MAX_KEYWORD_LENGTH);
+        }
+    }
+    
+    // When enter is pressed the item is not active the same frame
+    //bool active = ImGui::IsItemActive();
+    // TODO: Does SetKeyboardFocusHere() break if box is clipped?
+    //if (give_focus == i) ImGui::SetKeyboardFocusHere();
+    
+    ImGui::Text("Keywords");
+    ImGui::BeginChild("List", ImVec2(ImGui::GetWindowWidth()*0.9, ImGui::GetWindowHeight() * 0.6f));
+    ImGui::PushItemWidth(ImGui::GetWindowWidth() * 0.90f);
+    for (s32 i = 0; i < input_box_count; ++i)
+    {
+        ImGui::PushID(i);
+        bool enter_pressed = ImGui::InputText("", pending_keywords[i], array_count(pending_keywords[i]));
+        ImGui::PopID();
+    }
+    ImGui::PopItemWidth();
+    ImGui::EndChild();
+    
+    ImGui::Separator();
+    ImGui::Spacing();
+    s32 give_focus = -1;
+    if (ImGui::Button("Add keyword..."))
+    {
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Ok"))
+    {
+        s32 new_keyword_count = remove_duplicate_and_empty_keyword_strings(pending_keywords);
+        
+        // scan all keywords for match
+        for (int i = 0; i < new_keyword_count; ++i)
+        {
+            bool got_an_id = false;
+            for (int j = 0; j < keywords.size(); ++j)
+            {
+                if (strcmp(pending_keywords[i], keywords[j].str) == 0)
+                {
+                    // Get match's id
+                    pending_keyword_ids[i] = keywords[j].id;
+                    got_an_id = true;
+                    break;
+                }
+            }
+            
+            if (!got_an_id) 
+            {
+                // Assign a new ID for keywords that might be new 
+                // NOTE: The keyword might not neccesarily be new as even if not in keywords array it could be saved in file previously.
+                pending_keyword_ids[i] = *next_website_id++;
+            }
+        }
+        
+        keywords.clear();
+        keywords.reserve(new_keyword_count);
+        for (int i = 0; i < new_keyword_count; ++i)
+        {
+            Keyword k;
+            strcpy(k.str, pending_keywords[i]);
+            k.id = pending_keyword_ids[i];
+            keywords.push_back(k); 
+        }
+        
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Cancel"))
+    {
+        // Don't update keywords
+        ImGui::CloseCurrentPopup();
+    }
+    
+    // TODO: Revert button?
+    
+}
+// TODO: Updating of keywords occurs in here so maybe render is a bad name
 void render(SDL_Window *window, Database *database, date::sys_days current_date, Day_View *day_view)
 {
     ImGui_ImplOpenGL3_NewFrame();
@@ -509,121 +669,160 @@ void render(SDL_Window *window, Database *database, date::sys_days current_date,
     if (show_demo_window)
         ImGui::ShowDemoWindow(&show_demo_window);
     
+    ImGuiStyle& style = ImGui::GetStyle();
+    //style.FrameRounding = 0.0f; // 0 to 12 ? 
+    // style.GrabRounding = style.FrameRounding; // Make GrabRounding always the same value as FrameRounding
+    style.WindowBorderSize = 1.0f; // or 1.0
+    style.FrameBorderSize = 1.0f;
+    style.PopupBorderSize = 1.0f;
+    style.ChildBorderSize = 2.0f;
+    style.WindowRounding = 0.0f;
+    
+    ImGuiWindowFlags flags = 
+        ImGuiWindowFlags_NoTitleBar
+        |ImGuiWindowFlags_NoMove
+        |ImGuiWindowFlags_NoScrollbar
+        |ImGuiWindowFlags_NoCollapse
+        |ImGuiWindowFlags_NoSavedSettings
+        |ImGuiWindowFlags_MenuBar
+        |ImGuiWindowFlags_NoResize;
+    
+    ImGui::SetNextWindowPos(ImVec2(0, 0), true);
+    ImGui::SetNextWindowSize(ImVec2(550, 690), true);
+    ImGui::Begin("Main window", nullptr, flags);
+    
+    bool open_settings = false;
+    if (ImGui::BeginMenuBar())
     {
-        //ImGui::SetNextWindowPos(ImVec2(650, 20), ImGuiCond_FirstUseEver);
-        ImGui::SetNextWindowSize(ImVec2(550, 580), true);
-        
-        ImGui::Begin("Main window");
-        
-        // date:: overrides operator int() etc ...
-        date::year_month_day ymd_date {current_date};
-        int y = int(ymd_date.year());
-        int m = unsigned(ymd_date.month());
-        int d = unsigned(ymd_date.day());
-        
-        ImGui::Text("%i%s %s, %i", d, day_suffix(d), month_string(m), y);
-        
-        static i32 period = 1;
-        if (ImGui::Button("Day", ImVec2(ImGui::GetWindowSize().x*0.3f, 0.0f))) 
+        if (ImGui::BeginMenu("Settings##menu"))
         {
-            period = 1;
+            // NOTE: Id might be different because nexted in menu stack, so might be label + menu
+            open_settings = true;
+            ImGui::EndMenu();
         }
-        ImGui::SameLine();
-        if (ImGui::Button("Week", ImVec2(ImGui::GetWindowSize().x*0.3f, 0.0f)))
-        {
-            period = 7;
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Month", ImVec2(ImGui::GetWindowSize().x*0.3f, 0.0f)))
-        {
-            period = 30;
-        }
-        
-        set_range(day_view, period, current_date);
-        
-        ImGui::BeginChild("Graph");
-        
-        // need child window?
-        ImDrawList* draw_list = ImGui::GetWindowDrawList();
-        
-        //float values[] ={ 62,75,75,29,19,57,24,87,89,30,48,81,33,85,87,45,48,70,58,70,29,43,49,53,59,21,81,32,72,100};
-        
-        
-        Assert(day_view->day_count > 0);
-        Day *today = day_view->days[day_view->day_count-1];
-        
-        if (today->record_count >= 0)
-        {
-            i32 record_count = today->record_count;
-            
-            Program_Record sorted_records[MaxDailyRecords];
-            memcpy(sorted_records, today->records, sizeof(Program_Record) * record_count);
-            
-            std::sort(sorted_records, sorted_records + record_count, [](Program_Record &a, Program_Record &b){ return a.duration > b.duration; });
-            
-            time_type max_duration = sorted_records[0].duration;
-            
-            ImVec2 max_size = ImVec2(ImGui::CalcItemWidth() * 0.85, ImGui::GetFrameHeight());
-            
-            for (i32 i = 0; i < record_count; ++i)
-            {
-                Program_Record &record = sorted_records[i];
-                
-                // TODO: Dont recreate textures...
-                Bitmap *icon = get_icon_from_database(database, record.id);
-                if (icon)
-                {
-                    GLuint image_texture;
-                    glGenTextures(1, &image_texture); // I think this can faiil if out of texture mem
-                    glBindTexture(GL_TEXTURE_2D, image_texture);
-                    
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-                    
-                    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-                    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, icon->width, icon->height, 0, GL_BGRA, GL_UNSIGNED_BYTE, icon->pixels);
-                    
-                    ImGui::Image((ImTextureID)(intptr_t)image_texture, ImVec2((float)icon->width, (float)icon->height));
-                }
-                
-                ImGui::SameLine();
-                ImVec2 p0 = ImGui::GetCursorScreenPos();
-                
-                ImVec2 bar_size = max_size;
-                bar_size.x *= ((float)record.duration / (float)max_duration);
-                
-                if (bar_size.x > 0)
-                {
-                    ImVec2 p1 = ImVec2(p0.x + bar_size.x, p0.y + bar_size.y);
-                    ImU32 col_a = ImGui::GetColorU32(ImVec4(0.0f, 1.0f, 0.0f, 1.0f));
-                    ImU32 col_b = ImGui::GetColorU32(ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
-                    draw_list->AddRectFilledMultiColor(p0, p1, col_a, col_b, col_b, col_a);
-                }
-                
-                char *name = database->names[record.id].short_name.str;
-                double seconds = (double)record.duration / 1000;
-                
-                // Get cursor pos before writing text
-                ImVec2 pos = ImGui::GetCursorScreenPos();
-                
-                // TODO: Limit name length
-                ImGui::Text("%s", name); // TODO: Ensure bars unique id
-                
-                ImGui::SameLine();
-                ImGui::SetCursorPosX(ImGui::GetWindowSize().x * 0.90);
-                ImGui::Text("%.2fs", seconds); // TODO: Ensure bars unique id
-                
-                ImGui::SameLine();
-                ImGui::InvisibleButton("##gradient1", ImVec2(bar_size.x + 10, bar_size.y));
-            }
-        }
-        
-        
-        ImGui::EndChild();
-        
-        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-        ImGui::End();
+        ImGui::EndMenuBar();
     }
+    if (open_settings)
+        ImGui::OpenPopup("Settings");
+    
+    ImGui::SetNextWindowSize(ImVec2(300, 600));
+    if (ImGui::BeginPopupModal("Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        do_settings_popup(database->keywords, &database->next_website_id);
+        ImGui::EndPopup(); // only close if BeginPopupModal returns true
+    }
+    
+    // date:: overrides operator int() etc ...
+    date::year_month_day ymd_date {current_date};
+    int y = int(ymd_date.year());
+    int m = unsigned(ymd_date.month());
+    int d = unsigned(ymd_date.day());
+    
+    ImGui::Text("%i%s %s, %i", d, day_suffix(d), month_string(m), y);
+    
+    static i32 period = 1;
+    if (ImGui::Button("Day", ImVec2(ImGui::GetWindowSize().x*0.3f, 0.0f))) 
+    {
+        period = 1;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Week", ImVec2(ImGui::GetWindowSize().x*0.3f, 0.0f)))
+    {
+        period = 7;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Month", ImVec2(ImGui::GetWindowSize().x*0.3f, 0.0f)))
+    {
+        period = 30;
+    }
+    
+    set_range(day_view, period, current_date);
+    
+    // To allow frame border
+    ImGuiWindowFlags child_flags = 0;
+    ImGui::BeginChildFrame(55, ImVec2(ImGui::GetWindowSize().x * 0.5, ImGui::GetWindowSize().y * 0.7), child_flags);
+    //ImGui::BeginChild("Graph");
+    
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+    
+    Assert(day_view->day_count > 0);
+    Day *today = day_view->days[day_view->day_count-1];
+    
+    if (today->record_count >= 0)
+    {
+        i32 record_count = today->record_count;
+        
+        Record sorted_records[MaxDailyRecords];
+        memcpy(sorted_records, today->records, sizeof(Record) * record_count);
+        
+        std::sort(sorted_records, sorted_records + record_count, [](Record &a, Record &b){ return a.duration > b.duration; });
+        
+        time_type max_duration = sorted_records[0].duration;
+        
+        ImVec2 max_size = ImVec2(ImGui::CalcItemWidth() * 0.85, ImGui::GetFrameHeight());
+        
+        for (i32 i = 0; i < record_count; ++i)
+        {
+            Record &record = sorted_records[i];
+            
+            // TODO: Dont recreate textures...
+            Bitmap *icon = get_icon_from_database(database, record.id);
+            if (icon)
+            {
+                GLuint image_texture;
+                glGenTextures(1, &image_texture); // I think this can faiil if out of texture mem
+                glBindTexture(GL_TEXTURE_2D, image_texture);
+                
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+                
+                glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, icon->width, icon->height, 0, GL_BGRA, GL_UNSIGNED_BYTE, icon->pixels);
+                
+                ImGui::Image((ImTextureID)(intptr_t)image_texture, ImVec2((float)icon->width, (float)icon->height));
+            }
+            
+            ImGui::SameLine();
+            ImVec2 p0 = ImGui::GetCursorScreenPos();
+            
+            ImVec2 bar_size = max_size;
+            bar_size.x *= ((float)record.duration / (float)max_duration);
+            
+            if (bar_size.x > 0)
+            {
+                ImVec2 p1 = ImVec2(p0.x + bar_size.x, p0.y + bar_size.y);
+                ImU32 col_a = ImGui::GetColorU32(ImVec4(0.0f, 1.0f, 0.0f, 1.0f));
+                ImU32 col_b = ImGui::GetColorU32(ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
+                draw_list->AddRectFilledMultiColor(p0, p1, col_a, col_b, col_b, col_a);
+            }
+            
+            // This is a hash table search
+            char *name = database->names[record.id].short_name.str;
+            
+            double seconds = (double)record.duration / 1000;
+            
+            // Get cursor pos before writing text
+            ImVec2 pos = ImGui::GetCursorScreenPos();
+            
+            // TODO: Limit name length
+            ImGui::Text("%s", name); // TODO: Ensure bars unique id
+            
+            ImGui::SameLine();
+            ImGui::SetCursorPosX(ImGui::GetWindowSize().x * 0.90);
+            ImGui::Text("%.2fs", seconds); // TODO: Ensure bars unique id
+            
+            ImGui::SameLine();
+            ImGui::InvisibleButton("##gradient1", ImVec2(bar_size.x + 10, bar_size.y));
+        }
+    }
+    
+    
+    ImGui::EndChild();
+    
+    
+    ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+    ImGui::End();
+    
     
     ImGui::Render();
     ImGuiIO& io = ImGui::GetIO();
@@ -646,14 +845,21 @@ update(Monitor_State *state, SDL_Window *window, time_type dt, u32 window_status
         *state = {};
         state->header = {};
         
-        state->database = {};
         init_database(&state->database);
         
+#if 0
         // Keywords must be null terminated when given to platform gui
         add_keyword(&state->database, "CITS3003");
         add_keyword(&state->database, "youtube");
         add_keyword(&state->database, "docs.microsoft");
         add_keyword(&state->database, "eso-community");
+#endif
+        
+        // TODO: DOESIS ID INVALID GARGABGE?
+        state->database.keywords.push_back({"CITS3003", state->database.next_website_id++});
+        state->database.keywords.push_back({"youtube", state->database.next_website_id++});
+        state->database.keywords.push_back({"docs.microsoft", state->database.next_website_id++});
+        state->database.keywords.push_back({"eso-community", state->database.next_website_id++});
         
         start_new_day(&state->database, floor<date::days>(System_Clock::now()));
         

@@ -12,8 +12,8 @@ static constexpr u32 MaxDailyRecords = 1000;
 static constexpr u32 MaxDays = 1000;
 static constexpr u32 DefaultDayAllocationCount = 30;
 static constexpr i32 MaxWebsiteCount = 50;
-
-#define MAX_KEYWORD_COUNT 100
+static constexpr i32 MAX_KEYWORD_COUNT = 100;
+static constexpr i32 MAX_KEYWORD_LENGTH = 101;
 
 // u32 can overflows after 50 days when usning milliseconds, this might be ok
 // as we only get this when summing multiple days, but for now KISS.
@@ -52,7 +52,7 @@ struct Header
     // [][][][][][][][][][] <- records
 };
 
-typedef u32 Program_Id;
+typedef u32 Assigned_Id;
 
 // custom specialization of std::hash can be injected in namespace std
 namespace std
@@ -74,9 +74,9 @@ namespace std
         }
     };
     
-    template<> struct std::hash<Program_Id>
+    template<> struct std::hash<Assigned_Id>
     {
-        std::size_t operator()(Program_Id const& id) const noexcept
+        std::size_t operator()(Assigned_Id const& id) const noexcept
         {
             // Probably fine for program ids (start at 0)
             return (size_t)id;
@@ -86,15 +86,15 @@ namespace std
 }
 
 
-struct Program_Record
+struct Record
 {
-    Program_Id id;
+    Assigned_Id id;
     time_type duration;
 };
 
 struct Day
 {
-    Program_Record *records;
+    Record *records;
     u32 record_count;
     date::sys_days date;
 };
@@ -122,8 +122,8 @@ enum Record_Type
 
 struct Keyword
 {
-    String str;
-    Program_Id id;
+    char str[MAX_KEYWORD_LENGTH];
+    Assigned_Id id;
 };
 
 struct Program_Name
@@ -138,23 +138,23 @@ struct Program_Name
 
 struct Database
 {
-    std::unordered_map<String, Program_Id> programs;
+    // This is used to quickly Assigned_Idable paths -> ID
+    // Don't need a corresponding one for websites as we have to test agains all keywords anyway
+    std::unordered_map<String, Assigned_Id> programs;
     
     // Contains websites matching a keyword and programs
     // We use long_name as a path to load icons from executables
-    // We use long_name as a url to download favicon from website
+    // We use long_nameAssigned_Idto download favicon from website
     // We use shortname when we iterate records and want to display names
-    std::unordered_map<Program_Id, Program_Name> names;
+    std::unordered_map<Assigned_Id, Program_Name> names;
     
-    char *keyword_buf[100][100];
-    Keyword keywords[100];
-    i32 keyword_count;
+    Assigned_Id next_program_id;      // starts at 0x00000000 zero
+    Assigned_Id next_website_id;      // starts at 0x80000000 top bit set
     
-    u32 next_program_id;      // starts at 0x00000000 zero
-    u32 next_website_id;      // starts at 0x80000000 top bit set
+    std::vector<Keyword> keywords;
     
     // Temporary
-    Program_Id firefox_id;
+    Assigned_Id firefox_id;
     bool added_firefox;
     
     // Can have:
@@ -177,7 +177,6 @@ Monitor_State
     Header header;
     Database database;
     Day_View day_view;
-    Font font;
     Bitmap favicon;
     time_type accumulated_time;
 };

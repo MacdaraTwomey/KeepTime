@@ -97,6 +97,7 @@ make_filepath_with_dir(char *dir, const char *filename)
     return buf;
 }
 
+#if 0
 inline V2i
 operator-(V2i a)
 {
@@ -171,3 +172,4 @@ grow(Rect rect, int amount)
 {
     return shrink(rect, -amount);
 }
+#endif
