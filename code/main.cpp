@@ -40,8 +40,8 @@
 
 #include "utilities.cpp" // xalloc, string copy, concat string, make filepath, get_filename_from_path
 #include "bitmap.cpp"
-#include "monitor.cpp"
 #include "win32_monitor.cpp" // needs bitmap functions
+#include "monitor.cpp"
 
 #define CONSOLE_ON 0
 

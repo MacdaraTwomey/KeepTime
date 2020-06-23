@@ -12,7 +12,10 @@ patterns = {
 };
 
 load_paths = {
-  {  { {".", .relative = true, .recursive = true, } }, .os = "win"},
+  {  { {".", .relative = true, .recursive = false, },
+	   {"code", .relative = true, .recursive = false, },
+       {"build", .relative = true, .recursive = false, },
+       {"imgui", .relative = true, .recursive = false, } }, .os = "win"},
 };
 
 command_list = {

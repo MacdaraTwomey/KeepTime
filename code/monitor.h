@@ -99,6 +99,11 @@ struct Day
     date::sys_days date;
 };
 
+// TODO: Make day view look at original array(s) of days (and records)
+// and just copy current day to new array and append new data to that.
+// Currently we do the opposite, by copying last day and appending new data to original.
+// So when UI opened be just instantly copy current day and while UI is open append to it,
+// allowing as many read only views as needed to be made.
 struct Day_View
 {
     // Must pass by reference because of pointer to last day
@@ -123,10 +128,14 @@ enum Record_Type
 struct Keyword
 {
     char str[MAX_KEYWORD_LENGTH];
+    //char buf[MAX_KEYWORD_LENGTH];
+    
+    // String str;
+    
     Assigned_Id id;
 };
 
-struct Program_Name
+struct Program_Info
 {
     // TODO: Check that full paths saved to file are valid, and update if possible.
     // (full url, keyword) or
@@ -134,19 +143,29 @@ struct Program_Name
     
     String long_name; // this must be null terminated because passed to curl as url or OS as a path
     String short_name;
+    i32 icon_index;   // -1 means not loaded
+};
+
+struct Icon_Asset
+{
+    // how to get back to icon_index if this is deleted
+    
+    // Do I even need to keep CPU side textures around after giving to GPU
+    Bitmap bitmap;
+    u32 texture_handle;
 };
 
 struct Database
 {
     // This is used to quickly Assigned_Idable paths -> ID
     // Don't need a corresponding one for websites as we have to test agains all keywords anyway
-    std::unordered_map<String, Assigned_Id> programs;
+    std::unordered_map<String, Assigned_Id> program_id_table;
     
-    // Contains websites matching a keyword and programs
+    // Contains websites and programs
     // We use long_name as a path to load icons from executables
     // We use long_nameAssigned_Idto download favicon from website
     // We use shortname when we iterate records and want to display names
-    std::unordered_map<Assigned_Id, Program_Name> names;
+    std::unordered_map<Assigned_Id, Program_Info> names;
     
     Assigned_Id next_program_id;      // starts at 0x00000000 zero
     Assigned_Id next_website_id;      // starts at 0x80000000 top bit set
@@ -160,15 +179,20 @@ struct Database
     // Can have:
     // - a path (updated or not) with no corresponding bitmap (either not loaded or unable to be loaded)
     // - a path (updated or not) with a bitmap
-    Bitmap icons[200]; // Loaded on demand
-    Bitmap website_icons[200]; // Loaded on demand
+    //Bitmap icons[200]; // Loaded on demand
+    //Bitmap website_icons[200]; // Loaded on demand
     
-    Bitmap ms_icons[5];
+    // loaded at startup
+    i32 default_icon_index;
+    
+    u32 icon_count;
+    Icon_Asset icons[200];
+    
+    // Bitmap ms_icons[5];
     
     Day days[MaxDays];
     i32 day_count;
 };
-
 
 struct
 Monitor_State

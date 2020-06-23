@@ -15,6 +15,38 @@ struct Process_Ids
     DWORD child;
 };
 
+// TODO: NOt sure where to put this
+u32
+opengl_create_texture(Database *database, Bitmap bitmap)
+{
+    // Returns index of icon asset in asset array
+    
+    GLuint image_texture;
+    glGenTextures(1, &image_texture); // I think this can fail if out of texture mem
+    
+    // Binds the texture name (uint) to the target (GL_TEXTURE_2D), breaking the previous binding, the
+    // texture assumes its target (becomes a GL_TEXTURE_2D).
+    // While a texture is bound, GL operations on the target to which it is bound affect the bound texture.
+    // Once created, a named texture may be re-bound to its same original target as often as needed. It is usually much faster to use glBindTexture to bind an existing named texture to one of the texture targets than it is to reload the texture image using glTexImage2D,
+    
+    // Not sure if needed
+    //glActiveTexture(GL_TEXTURE0);
+    
+    glBindTexture(GL_TEXTURE_2D, image_texture);
+    
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    
+    // Not sure if needed (probably not)
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+    
+    // TODO: Maybe change from GL_BGRA (only the default on windows for icons probably)
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, bitmap.width, bitmap.height, 0, GL_BGRA, GL_UNSIGNED_BYTE, bitmap.pixels);
+    
+    return image_texture;
+}
+
+
 HANDLE
 win32_create_console()
 {
@@ -398,8 +430,7 @@ win32_get_bitmap_data_from_HICON(HICON icon, i32 *width, i32 *height, i32 *pitch
 
 bool
 platform_get_icon_from_executable(char *path, u32 desired_size, 
-                                  i32 *width, i32 *height, i32 *pitch, u32 **pixels, 
-                                  bool load_default_on_failure = true)
+                                  i32 *width, i32 *height, i32 *pitch, u32 **pixels)
 {
     // path must be null terminated
     
@@ -409,14 +440,16 @@ platform_get_icon_from_executable(char *path, u32 desired_size,
     // TODO: maybe just use extract icon, or manually extract to avoid shellapi.h maybe shell32.dll
     if(SHDefExtractIconA(path, 0, 0, &icon_handle, &small_icon_handle, desired_size) != S_OK)
     {
+        
+#if MONITOR_DEBUG
         // NOTE: Show me that path was actually wrong and it wasn't just failed icon extraction.
         // If we can load the executable, it means we probably should be able to get the icon
         //Assert(!LoadLibraryA(path)); // TODO: Enable this when we support UWP icons
-        if (load_default_on_failure)
-        {
-            icon_handle = LoadIconA(NULL, IDI_APPLICATION);
-            if (!icon_handle) return false;
-        }
+        icon_handle = LoadIconA(NULL, IDI_APPLICATION);
+        if (!icon_handle) return false;
+#else
+        return false;
+#endif
     }
     
     bool success = false;
@@ -530,3 +563,4 @@ for (int i = 0; i < array_count(names); ++i, ++col)
         return false;
     }
 #endif
+    
