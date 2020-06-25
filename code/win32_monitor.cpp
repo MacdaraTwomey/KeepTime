@@ -462,6 +462,7 @@ platform_get_icon_from_executable(char *path, u32 desired_size,
         success = win32_get_bitmap_data_from_HICON(small_icon_handle, width, height, pitch, pixels);
     }
     
+    // NOTE: Don't need to destroy LoadIcon icons I'm pretty sure, but SHDefExtractIconA does need to be destroyed
     if (icon_handle) DestroyIcon(icon_handle);
     if (small_icon_handle) DestroyIcon(small_icon_handle);
     return success;

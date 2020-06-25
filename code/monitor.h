@@ -9,11 +9,11 @@
 
 // TODO: Think of better way than just having error prone max amounts.
 static constexpr u32 MaxDailyRecords = 1000;
-static constexpr u32 MaxDays = 1000;
+static constexpr u32 MaxDays = 1000; // temporary
 static constexpr u32 DefaultDayAllocationCount = 30;
-static constexpr i32 MaxWebsiteCount = 50;
+static constexpr i32 MaxWebsiteCount = 50; // this used?
 static constexpr i32 MAX_KEYWORD_COUNT = 100;
-static constexpr i32 MAX_KEYWORD_LENGTH = 101;
+static constexpr i32 MAX_KEYWORD_SIZE = 101;
 
 // u32 can overflows after 50 days when usning milliseconds, this might be ok
 // as we only get this when summing multiple days, but for now KISS.
@@ -92,6 +92,25 @@ struct Record
     time_type duration;
 };
 
+// Days (and records) are:
+//  - append only
+//  - only last day modified
+//  - saved to file
+//  - any day may be checked up on
+//  - contiguous set is iterated over
+//  - new set of days is merged in
+
+// could use linked list of large blocks to add records to and dyn array of day to point at records
+// each block can have a header with info about its records (if needed)
+
+// to make a day view just copy days array (that can be used read only)
+// and make last day of original days dyn array point to a new block, which can later be merged
+
+// Biggest difficulties may be:
+// - serialising, where each days pointer will have to be relatived to its corresponding
+//   block to create an overall record index (this is made easier by the fact that days are sequential)
+// - Merging and day view creation
+
 struct Day
 {
     Record *records;
@@ -127,11 +146,8 @@ enum Record_Type
 
 struct Keyword
 {
-    char str[MAX_KEYWORD_LENGTH];
-    //char buf[MAX_KEYWORD_LENGTH];
-    
-    // String str;
-    
+    // Null terminated
+    String str;
     Assigned_Id id;
 };
 
@@ -143,6 +159,8 @@ struct Program_Info
     
     String long_name; // this must be null terminated because passed to curl as url or OS as a path
     String short_name;
+    
+    // I don't really want this here
     i32 icon_index;   // -1 means not loaded
 };
 
@@ -167,10 +185,10 @@ struct Database
     // We use shortname when we iterate records and want to display names
     std::unordered_map<Assigned_Id, Program_Info> names;
     
-    Assigned_Id next_program_id;      // starts at 0x00000000 zero
+    // dont like passing database to give this to the settings code
+    // 0 is illegal
+    Assigned_Id next_program_id;      // starts at 0x00000000 1
     Assigned_Id next_website_id;      // starts at 0x80000000 top bit set
-    
-    std::vector<Keyword> keywords;
     
     // Temporary
     Assigned_Id firefox_id;
@@ -188,10 +206,37 @@ struct Database
     u32 icon_count;
     Icon_Asset icons[200];
     
-    // Bitmap ms_icons[5];
-    
     Day days[MaxDays];
     i32 day_count;
+};
+
+
+struct Misc_Options
+{
+    // These may want to be different datatypes (tradeoff file IO ease vs imgui datatypes conversion)
+    
+    // u16 day_start_time;  // Default 0        // Changing this won't affect previously saved records
+    u16 poll_start_time; // Default 0 (if start == end, always poll)
+    u16 poll_end_time;   // Default 0
+    bool16 run_at_system_startup;   // Default 0
+    u32 poll_frequency_milliseconds;    // Default 1000
+};
+
+struct Edit_Settings
+{
+    // This array can have blank strings representing empty input boxes in between valid strings
+    char pending[MAX_KEYWORD_COUNT][MAX_KEYWORD_SIZE];
+    s32 input_box_count;
+    Misc_Options misc_options;
+    int start_time_item;
+    int end_time_item;
+    bool update_settings;
+};
+
+struct Settings
+{
+    std::vector<Keyword> keywords;
+    Misc_Options misc_options;
 };
 
 struct
@@ -200,7 +245,10 @@ Monitor_State
     bool is_initialised;
     Header header;
     Database database;
+    
+    Settings settings;
+    Edit_Settings *edit_settings; // allocated when needed
+    
     Day_View day_view;
-    Bitmap favicon;
     time_type accumulated_time;
 };
