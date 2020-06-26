@@ -366,9 +366,11 @@ int main(int argc, char* argv[])
             }
         }
         
+        // TODO: NOTE: The vsync swap interval seems to affect the speed at which times diverge, with lower frame rates having a lower divergence.
+        
         // Steady clock also accounts for time paused in debugger etc, so can introduce bugs that aren't there normally when debugging.
         auto new_time = Steady_Clock::now();
-        auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(new_time - old_time);
+        auto diff = std::chrono::duration_cast<std::chrono::nanoseconds>(new_time - old_time);
         old_time = new_time;
         time_type dt = diff.count();
         

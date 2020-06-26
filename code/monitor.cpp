@@ -45,124 +45,152 @@ load_icon_and_add_to_database(Database *database, Bitmap bitmap)
     return icon_index;
 }
 
-void
-start_new_day(Database *database, date::sys_days date)
+Block *
+new_block(Block *head)
 {
-    Assert(database);
-    Assert(database->days);
-    
-    Day *days = database->days;
-    
+    Block *block = (Block *)calloc(1, BLOCK_SIZE);
+    block->next = head;
+    block->count = 0;
+    block->full = false;
+    return block;
+}
+
+void
+start_new_day(Day_List *day_list, date::sys_days date)
+{
+    // day points to next free space
     Day new_day = {};
-    new_day.records = (Record *)xalloc(sizeof(Record) * MaxDailyRecords);
     new_day.record_count = 0;
     new_day.date = date;
     
-    database->day_count += 1;
-    database->days[database->day_count-1] = new_day;
+    if (day_list->blocks->count == BLOCK_MAX_RECORDS)
+    {
+        day_list->blocks = new_block(day_list->blocks);
+        new_day.records = day_list->blocks->records;
+    }
+    else
+    {
+        new_day.records = &day_list->blocks->records[day_list->blocks->count];
+    }
+    
+    day_list->days.push_back(new_day);
 }
 
-
 void
-update_days_records(Day *day, Assigned_Id id, time_type dt)
+add_or_update_record(Day_List *day_list, App_Id id, time_type dt)
 {
-    Assert(id != 0);
+    // Assumes a day's records are sequential in memory
+    Assert(day_list->days.size() > 0);
     
-	for (u32 i = 0; i < day->record_count; ++i)
+    Day *cur_day = &day_list->days.back();
+    for (u32 i = 0; i < cur_day->record_count; ++i)
 	{
-		if (id == day->records[i].id)
+		if (id == cur_day->records[i].id)
 		{
-			day->records[i].duration += dt;
+			cur_day->records[i].duration += dt;
 			return;
 		}
 	}
     
-	Assert(day->record_count < MaxDailyRecords);
-	day->records[day->record_count] = { id, dt };
-	day->record_count += 1;
+    // Add a new record 
+    // If no room in current block and move days from one block to a new block (keeping them sequential)
+    if (day_list->blocks->count + 1 > BLOCK_MAX_RECORDS)
+    {
+        Record *day_start_in_old_block = cur_day->records;
+        
+        // Update old block
+        day_list->blocks->count -= cur_day->record_count;
+        day_list->blocks->full = true;
+        
+        day_list->blocks = new_block(day_list->blocks);
+        day_list->blocks->count += cur_day->record_count;
+        
+        // Copy old and a new records to new block
+        cur_day->records = day_list->blocks->records;
+        memcpy(cur_day->records, day_start_in_old_block, cur_day->record_count * sizeof(Record));
+        cur_day->records += cur_day->record_count;
+    }
+    
+    // Add new record to block
+    cur_day->records[cur_day->record_count] = Record{ id, dt };
+    cur_day->record_count += 1;
+    day_list->blocks->count += 1;
+}
+
+Day_View
+get_day_view(Day_List *day_list)
+{
+    Day_View day_view = {};
+    //day_view.start_date = start_date;
+    //call  set range...
+    //day_view.period = initial_period;
+    //day_view.accumulate = (period == 1) ? false : true;
+    
+    // If no records this might allocate 0 bytes (probably fine)
+    Day *cur_day = &day_list->days.back();
+    day_view.copy_of_current_days_records = (Record *)calloc(1, cur_day->record_count * sizeof(Record));
+    memcpy(day_view.copy_of_current_days_records, cur_day->records, cur_day->record_count * sizeof(Record));
+    
+    // copy vector
+    day_view.days = day_list->days;
+    day_view.days.back().records = day_view.copy_of_current_days_records;
+    
+    return day_view;
 }
 
 void
-get_view_of_days(Day *days, i32 day_count, Day_View *day_view)
+set_day_view_range(Day_View *day_view, date::sys_days start_date, date::sys_days end_date)
 {
-    // Don't view the last day (it may still change)
-    Assert(day_count > 0);
-    i32 immutable_day_count = day_count-1;
-    for (i32 i = 0; i < immutable_day_count; ++i)
+    // TODO:
+#if 0
+    Assert(day_view->days.size() > 0);
+    Assert(start_date >= end_date);
+    
+    // date::sys_days start_date = current_date - date::days{period - 1};
+    
+    i32 end_range = -1;
+    i32 start_range = -1;
+    
+    bool have_end = false;
+    for (i32 day_index = day_view->days.size() - 1; day_index >= 0; --day_index)
     {
-        day_view->days[i] = &days[i];
-    }
-    
-    Day &current_mutable_day = days[day_count-1];
-    
-    day_view->last_day_ = current_mutable_day;
-    
-    // Copy the state of the current day
-    if (current_mutable_day.record_count > 0)
-    {
-        Record *records = (Record *)xalloc(sizeof(Record) * current_mutable_day.record_count);
-        memcpy(records,
-               current_mutable_day.records,
-               sizeof(Record) * current_mutable_day.record_count);
-        day_view->last_day_.records = records;
-    }
-    else
-    {
-        day_view->last_day_.records = nullptr;
-    }
-    
-    day_view->day_count = day_count;
-    
-    // Point last day at copied day owned by view
-    // View must be passed by reference for this to be used
-    day_view->days[day_count-1] = &day_view->last_day_;
-    
-    day_view->start_range = 0;
-    day_view->range_count = day_view->day_count;
-    day_view->accumulate = false;
-}
-
-// TODO: Consider reworking this
-void
-set_range(Day_View *day_view, i32 period, date::sys_days current_date)
-{
-    // From start date until today
-    if (day_view->day_count > 0)
-    {
-        date::sys_days start_date = current_date - date::days{period - 1};
-        
-        i32 end_range = day_view->day_count-1;
-        i32 start_range = end_range;
-        i32 start_search = std::max(0, end_range - (period-1));
-        
-        i32 range_count = 1;
-        for (i32 day_index = start_search; day_index <= end_range; ++day_index)
+        date::sys_days d = day_view->days[day_index].date;
+        if (d <= end_date && !have_end)
         {
-            if (day_view->days[day_index]->date >= start_date)
-            {
-                start_range = day_index;
-                break;
-            }
+            end_range = day_index;
+            have_end = true;
         }
-        
-        day_view->start_range = start_range;
-        day_view->range_count = range_count;
-        day_view->accumulate = (period == 1) ? false : true;
+        if (d >= start_date)
+        {
+            // Start should be found after end range
+            start_range = day_index;
+            Assert(have_end);
+            break;
+        }
     }
-    else
+    
+    
+    if (start_range == day_view->days.size() - 1 && start_date != day_view->days[day_index].date;)
     {
-        Assert(0);
+        day_view->has_records = false;
     }
+#endif
+    
+    //day_view->start_range = start_range;
+    //day_view->range_count = range_count;
+    //day_view->accumulate = (start_date == end_date);
 }
 
+
 void
-destroy_day_view(Day_View *day_view)
+free_day_view(Day_View *day_view)
 {
-    Assert(day_view);
-    if (day_view->last_day_.records)
+    if (day_view->copy_of_current_days_records)
     {
-        free(day_view->last_day_.records);
+        free(day_view->copy_of_current_days_records);
     }
+    
+    // TODO: Should I deallocate day_view->days memory? (probably)
     *day_view = {};
 }
 
@@ -170,8 +198,8 @@ destroy_day_view(Day_View *day_view)
 void init_database(Database *database)
 {
     *database = {};
-    database->program_id_table = std::unordered_map<String, Assigned_Id>(30);
-    database->names = std::unordered_map<Assigned_Id, Program_Info>(80);
+    database->id_table = std::unordered_map<String, App_Id>(30);
+    database->app_names = std::unordered_map<App_Id, App_Info>(80);
     
     database->next_program_id = 1;
     database->next_website_id = 1 << 31;
@@ -179,6 +207,9 @@ void init_database(Database *database)
     database->firefox_id = 0;
     database->added_firefox = false;
     
+    database->day_list = {};
+    database->day_list.blocks = new_block(nullptr);
+    start_new_day(&database->day_list, floor<date::days>(System_Clock::now()));
     
 #if 0
     for (int i = 0; i < array_count(state->database.ms_icons); ++i)
@@ -204,6 +235,7 @@ void init_database(Database *database)
     
     database->default_icon_index = load_icon_and_add_to_database(database, bitmap);
 }
+
 
 bool is_exe(u32 id)
 {
@@ -237,7 +269,7 @@ u32 make_id(Database *database, Record_Type type)
     return id;
 }
 
-void add_keyword(std::vector<Keyword> &keywords, Database *database, char *str, Assigned_Id id = 0)
+void add_keyword(std::vector<Keyword> &keywords, Database *database, char *str, App_Id id = 0)
 {
     Assert(keywords.size() < MAX_KEYWORD_COUNT);
     Assert(strlen(str) < MAX_KEYWORD_SIZE);
@@ -245,7 +277,7 @@ void add_keyword(std::vector<Keyword> &keywords, Database *database, char *str, 
     
     if (keywords.size() < MAX_KEYWORD_COUNT)
     {
-        Assigned_Id assigned_id = id != 0 ? id : make_id(database, Record_Firefox);
+        App_Id assigned_id = id != 0 ? id : make_id(database, Record_Firefox);
         
         Keyword k;
         k.str = copy_alloc_string(str);
@@ -264,6 +296,8 @@ search_url_for_keywords(String url, std::vector<Keyword> &keywords)
         Keyword *keyword = &keywords[i];
         if (search_for_substr(url, 0, keyword->str) != -1)
         {
+			// TODO: When we match keyword move it to the front of array, 
+			// maybe shuffle others down to avoid first and last being swapped and re-swapped repeatedly.
             return keyword;
         }
     }
@@ -325,7 +359,7 @@ get_favicon_from_website(String url)
 }
 
 Icon_Asset *
-get_icon_asset(Database *database, Assigned_Id id)
+get_icon_asset(Database *database, App_Id id)
 {
     if (is_firefox(id))
     {
@@ -336,8 +370,8 @@ get_icon_asset(Database *database, Assigned_Id id)
     
     if (is_exe(id))
     {
-        Assert(database->names.count(id) > 0);
-        Program_Info &program_info = database->names[id];
+        Assert(database->app_names.count(id) > 0);
+        App_Info &program_info = database->app_names[id];
         if (program_info.icon_index == -1)
         {
             Assert(program_info.long_name.length > 0);
@@ -369,29 +403,30 @@ get_icon_asset(Database *database, Assigned_Id id)
 
 // TODO: Do we need/want dt here, (but on error we would prefer to do nothing, and not return anything though)
 // maybe want to split up update_days
-void
-poll_windows(Database *database, Settings *settings, time_type dt)
+App_Id
+poll_windows(Database *database, Settings *settings)
 {
+	App_Id record_id = 0;
+    
     char buf[2000];
     size_t len = 0;
     
     Platform_Window window = platform_get_active_window();
-    if (!window.is_valid) return;
+    if (!window.is_valid) return 0;
     
     // If this failed it might be a desktop or other things like alt-tab screen or something
     bool got_path = platform_get_program_from_window(window, buf, &len);
-    if (!got_path) return;
+    if (!got_path) return 0;
     
     String full_path = make_string_size_cap(buf, len, array_count(buf));
-    String program_name   = get_filename_from_path(full_path);
-    if (program_name.length == 0) return;
+    String program_name = get_filename_from_path(full_path);
+    if (program_name.length == 0) return 0;
     
     remove_extension(&program_name);
-    if (program_name.length == 0) return;
+    if (program_name.length == 0) return 0;
     
     // string_to_lower(&program_name);
     
-    Assigned_Id record_id = 0;
     
     bool program_is_firefox = string_equals(program_name, "firefox");
     bool add_to_executables = true;
@@ -416,16 +451,17 @@ poll_windows(Database *database, Settings *settings, time_type dt)
                 Keyword *keyword = search_url_for_keywords(url, settings->keywords);
                 if (keyword)
                 {
-                    if (database->names.count(keyword->id) == 0)
+                    if (database->app_names.count(keyword->id) == 0)
                     {
-                        Program_Info names;
+                        App_Info names;
                         names.long_name = copy_alloc_string(url);
                         names.short_name = copy_alloc_string(keyword->str);
                         names.icon_index = -1;
                         
-                        database->names.insert({keyword->id, names});
+                        database->app_names.insert({keyword->id, names});
                     }
                     
+					// If this url had a keyword then was removed, may be listed in day's records twice with different ids
                     record_id = keyword->id;
                     add_to_executables = false;
                 }
@@ -433,23 +469,23 @@ poll_windows(Database *database, Settings *settings, time_type dt)
         }
     }
     
-    // Temporary, for when we get firefox website, before we have added firefox program
+    // @Temporary, for when we get firefox website, before we have added firefox program
     if (program_is_firefox && !add_to_executables)
     {
         if (!database->added_firefox)
         {
-            Assigned_Id new_id = make_id(database, Record_Exe);
+            App_Id new_id = make_id(database, Record_Exe);
             
-            Program_Info names;
+            App_Info names;
             names.long_name = copy_alloc_string(full_path);
             names.short_name = copy_alloc_string(program_name);
             names.icon_index = -1;
             
-            database->names.insert({new_id, names});
+            database->app_names.insert({new_id, names});
             
             // These don't share the same strings for now
             String name_2 = copy_alloc_string(program_name);
-            database->program_id_table.insert({name_2, new_id});
+            database->id_table.insert({name_2, new_id});
             
             database->firefox_id = new_id;
             database->added_firefox = true;
@@ -458,35 +494,31 @@ poll_windows(Database *database, Settings *settings, time_type dt)
     
     if (add_to_executables)
     {
-        if (database->program_id_table.count(program_name) == 0)
+        if (database->id_table.count(program_name) == 0)
         {
-            Assigned_Id new_id = make_id(database, Record_Exe);
+            App_Id new_id = make_id(database, Record_Exe);
             
-            Program_Info names;
+            App_Info names;
             names.long_name = copy_alloc_string(full_path);
             names.short_name = copy_alloc_string(program_name);
             names.icon_index = -1;
             
-            database->names.insert({new_id, names});
+            database->app_names.insert({new_id, names});
             
             // These don't share the same strings for now
             String name_2 = copy_alloc_string(program_name);
-            database->program_id_table.insert({name_2, new_id});
+            database->id_table.insert({name_2, new_id});
             
             record_id = new_id;
         }
         else
         {
             // get record id
-            record_id = database->program_id_table[program_name];
+            record_id = database->id_table[program_name];
         }
     }
     
-    Assert(database->day_count > 0);
-    Day *current_day = &database->days[database->day_count-1];
-    
-    Assert(record_id != 0);
-    update_days_records(current_day, record_id, dt);
+	return record_id;
 }
 
 const char *
@@ -593,7 +625,7 @@ update_settings(Edit_Settings *edit_settings, Settings *settings, Database *data
     // Empty input boxes are just zeroed array
     i32 pending_count = remove_duplicate_and_empty_keyword_strings(edit_settings->pending);
     
-    Assigned_Id pending_keyword_ids[MAX_KEYWORD_COUNT] = {};
+    App_Id pending_keyword_ids[MAX_KEYWORD_COUNT] = {};
     
     // scan all keywords for match
     for (int i = 0; i < pending_count; ++i)
@@ -784,7 +816,7 @@ void draw_ui_and_update_state(SDL_Window *window, Monitor_State *state, Database
 		| ImGuiWindowFlags_NoResize;
     
 	ImGui::SetNextWindowPos(ImVec2(0, 0), true);
-	ImGui::SetNextWindowSize(ImVec2(550, 690), true);
+	ImGui::SetNextWindowSize(ImVec2(850, 690), true);
 	ImGui::Begin("Main window", nullptr, flags);
     
 	bool open_settings = false;
@@ -861,19 +893,19 @@ void draw_ui_and_update_state(SDL_Window *window, Monitor_State *state, Database
         period = 30;
     }
     
-    set_range(day_view, period, current_date);
+    //set_range(day_view, period, current_date);
     
     // To allow frame border
     ImGuiWindowFlags child_flags = 0;
     ImGui::BeginChildFrame(55, ImVec2(ImGui::GetWindowSize().x * 0.9, ImGui::GetWindowSize().y * 0.7), child_flags);
-    //ImGui::BeginChild("Graph");
     
     ImDrawList* draw_list = ImGui::GetWindowDrawList();
     
-    Assert(day_view->day_count > 0);
-    Day *today = day_view->days[day_view->day_count - 1];
+    Day *today = &day_view->days.back();
     
-    if (today->record_count >= 0)
+    time_type sum_duration = 0;
+    
+    if (today->record_count > 0)
     {
         i32 record_count = today->record_count;
         
@@ -890,8 +922,17 @@ void draw_ui_and_update_state(SDL_Window *window, Monitor_State *state, Database
         {
             Record &record = sorted_records[i];
             
-            // TODO: Check if pos of bar or image will be clipped entirely, and maybe skip rest of loop
-            Icon_Asset *icon = get_icon_asset(database, record.id);
+            // DEBUG:
+            Icon_Asset *icon = 0;
+            if (record.id == 0)
+            {
+                icon = database->icons + database->default_icon_index;
+            }
+            else
+            {
+                // TODO: Check if pos of bar or image will be clipped entirely, and maybe skip rest of loop
+                icon = get_icon_asset(database, record.id);
+            }
             
             // Don't need to bind texture before this because imgui binds it before draw call
             ImGui::Image((ImTextureID)(intptr_t)icon->texture_handle, ImVec2((float)icon->bitmap.width, (float)icon->bitmap.height));
@@ -909,8 +950,20 @@ void draw_ui_and_update_state(SDL_Window *window, Monitor_State *state, Database
                 draw_list->AddRectFilledMultiColor(p0, p1, col_a, col_b, col_b, col_a);
             }
             
+            // try with and without id == 0 record
+            sum_duration += record.duration;
+            
             // This is a hash table search
-            char *name = database->names[record.id].short_name.str;
+            // DEBUG
+            char *name = "sdfsdf";
+            if (record.id == 0)
+            {
+                name = "Not polled time";
+            }
+            else
+            {
+                name = database->app_names[record.id].short_name.str;
+            }
             
             double seconds = (double)record.duration / 1000;
             
@@ -933,6 +986,40 @@ void draw_ui_and_update_state(SDL_Window *window, Monitor_State *state, Database
     ImGui::EndChild();
     
     
+    float red[] = {255.0f, 0, 0};
+    float black[] = {0, 0, 0};
+    
+    double total_runtime_seconds = (double)state->total_runtime / 1000;
+    double sum_duration_seconds = (double)sum_duration / 1000;
+    auto now = Steady_Clock::now();
+    time_type start_time = std::chrono::duration_cast<std::chrono::milliseconds>(now - state->startup_time).count();
+    double time_since_startup_seconds = (double)start_time / 1000;
+    
+    double diff_seconds2 = (double)(start_time - sum_duration) / 1000;
+    
+    
+    ImGui::Text("Total runtime:        %.5fs", total_runtime_seconds);
+    ImGui::Text("Sum duration:        %.5fs", sum_duration_seconds);
+    
+    
+    ImGui::SameLine();
+    memcpy((void *)style.Colors, red, 3 * sizeof(float));
+    ImGui::Text("diff: %llu", state->total_runtime - sum_duration);
+    memcpy((void *)style.Colors, black, 3 * sizeof(float));
+    
+    
+    ImGui::Text("time since startup: %.5fs", time_since_startup_seconds);
+    
+    ImGui::SameLine();
+    memcpy((void *)style.Colors, red, 3 * sizeof(float));
+    ImGui::Text("diff between time since startup and sum duration: %.5fs", diff_seconds2);
+    memcpy((void *)style.Colors, black, 3 * sizeof(float));
+    
+    
+    
+    
+    
+    
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
     ImGui::End();
     
@@ -944,26 +1031,19 @@ void draw_ui_and_update_state(SDL_Window *window, Monitor_State *state, Database
     glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
     glClear(GL_COLOR_BUFFER_BIT);
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-}
-
-
-
+    
 #if 0
-if (duration_seconds < 60)
-{
-    // Seconds
-}
-else if (duration_seconds < 3600)
-{
-    // Minutes
-    snprintf(text, array_count(text), "%llum", duration_seconds / 60);
-}
-else
-{
-    // Hours
-    snprintf(text, array_count(text), "%lluh", duration_seconds / 3600);
-}
+    if (duration_seconds < 60)
+        // Seconds
+        else if (duration_seconds < 3600)
+        // Minutes
+        snprintf(text, array_count(text), "%llum", duration_seconds / 60);
+    else
+        // Hours
+        snprintf(text, array_count(text), "%lluh", duration_seconds / 3600);
 #endif
+    
+}
 
 
 void
@@ -983,7 +1063,7 @@ update(Monitor_State *state, SDL_Window *window, time_type dt, u32 window_status
         options.poll_start_time = 11;
         options.poll_end_time = 22;
         options.run_at_system_startup = true;
-        options.poll_frequency_milliseconds = 1000;
+        options.poll_frequency_milliseconds = 100;
         
         state->settings.misc_options = options;
         
@@ -993,11 +1073,9 @@ update(Monitor_State *state, SDL_Window *window, time_type dt, u32 window_status
         add_keyword(state->settings.keywords, &state->database, "docs.microsoft");
         add_keyword(state->settings.keywords, &state->database, "eso-community");
         
-        start_new_day(&state->database, floor<date::days>(System_Clock::now()));
-        
-        state->day_view = {};
-        
-        state->accumulated_time = dt;
+        state->accumulated_time = 0;
+        state->total_runtime = 0;
+        state->startup_time = Steady_Clock::now();
         
         state->is_initialised = true;
     }
@@ -1008,25 +1086,50 @@ update(Monitor_State *state, SDL_Window *window, time_type dt, u32 window_status
     
     if (window_status & Window_Just_Hidden)
     {
-        // merge new days and free day view, maybe also free ui resources
+        // delete day view (if exists)
     }
     
     date::sys_days current_date = floor<date::days>(System_Clock::now());
     
-    
-    if (current_date != database->days[state->database.day_count-1].date)
+    if (current_date != database->day_list.days.back().date)
     {
-        start_new_day(database, current_date);
+        start_new_day(&database->day_list, current_date);
     }
     
-    // Maybe better if this is all integer arithmetic
-    // 1000ms per 1s
+    // TODO: Probably want to use wall clock time not cpu time
+    // or maybe store everything in ticks, and only convert to time when it needs to be displayed
+    //    - works fine as long user is on the same comp 9else you have to convert saved ticks to account for           
+    //      different tick/sec of new computer (this is doable, but can also ignore this conversion and just say 
+    //      use one computer for now).
+    
+    // TODO: I think i am losing time, when adding durations (which is what the dts are), or
+    // maybe its just a problem of adding milliseconds, and should instead use nanoseconds
+    
+    // nanoseconds per year = 3.1556952E+16
+    // u64 =  1.8446744e+19 (which is hundreds of years in nanos)
+    
+    // problem std::nanoseconds etc is a signed integral type of at least 64 bits
+    // and i am using u64 to store duration
+    
+    // TODO: Also compare steady clock time since startup to system clock in ui
+    
     state->accumulated_time += dt;
+    state->total_runtime += dt;
     time_type poll_window_freq = 100;
     if (state->accumulated_time >= poll_window_freq)
     {
-        poll_windows(database, &state->settings, state->accumulated_time);
-        state->accumulated_time -= poll_window_freq;
+        App_Id id = poll_windows(database, &state->settings);
+		if (id != 0)
+		{
+			add_or_update_record(&database->day_list, id, state->accumulated_time);
+		}
+        else
+        {
+            // debug to account for no time records
+            add_or_update_record(&database->day_list, 0, state->accumulated_time);
+        }
+		
+        state->accumulated_time = 0;
     }
     
     if (window_status & Window_Just_Visible)
@@ -1036,12 +1139,14 @@ update(Monitor_State *state, SDL_Window *window, time_type dt, u32 window_status
         // setup day view and 
     }
     
-    get_view_of_days(database->days, database->day_count, &state->day_view);
+    Day_View day_view = get_day_view(&database->day_list);
     
     if (window_status & Window_Visible)
     {
-        draw_ui_and_update_state(window, state, database, current_date, &state->day_view);
+        draw_ui_and_update_state(window, state, database, current_date, &day_view);
     }
+    
+	free_day_view(&day_view);
     
 }
 
