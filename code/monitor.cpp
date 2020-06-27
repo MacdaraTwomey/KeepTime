@@ -567,6 +567,37 @@ day_suffix(int day)
 	}
 }
 
+bool 
+is_leap_year(int year)
+{
+    // if year is a integer multiple of 4 (except for years evenly divisible by 100, which are not leap years unless evenly divisible by 400)
+    return ((year % 4 == 0) && !(year % 100 == 0)) || (year % 400 == 0);
+}
+
+int 
+days_in_month(int month, int year)
+{
+    switch (month)
+    {
+        case 1: case 3: case 5:
+        case 7: case 8: case 10:
+        case 12:
+        return 31;
+        
+        case 4: case 6:
+        case 9: case 11:
+        return 30;
+        
+        case 2:
+        if (is_leap_year(year))
+            return 29;
+        else
+            return 28;
+    }
+    
+    return 0;
+}
+
 const char *
 month_string(int month)
 {
@@ -968,16 +999,20 @@ void draw_ui_and_update_state(SDL_Window *window, Monitor_State *state, Database
             
             //current_date = date::month{5}/27/2020;
             
+            // NOTE: TODO: Not getting the correct time it is 12:53 28/6/2020, ui says it is 27/6/2020
+            
             auto ymd = date::year_month_day{current_date};
-            auto first_day = date::year_month_weekday{current_date - date::days{unsigned(ymd.day()) - 1}};
-            auto wd = first_day.weekday();
-            s32 skipped_spots = wd.c_encoding() - 1;
+            int year = int(ymd.year());
+            int month = unsigned(ymd.month());
+            int day = unsigned(ymd.day());
+            
+            auto first_day = date::year_month_weekday{current_date - date::days{day - 1}};
+            s32 skipped_spots = first_day.weekday().c_encoding() - 1; // first day of month has 0 missed spots
+            s32 days_in_month_count = days_in_month(month, year);
+            
             Assert(first_day.index() == 1);
-            //s32 days_in_month = days_in_month();
             
-            ImGui::Text("Skipped spots %i", skipped_spots);
-            
-            ImGui::Columns(7, "mycolumns", false);  // 3-ways, no border
+            ImGui::Columns(7, "mycolumns", false);  // no border
             for (int i = 0; i < array_count(weekdays); i++)
             {
                 ImGui::Text(weekdays[i]);
@@ -989,9 +1024,19 @@ void draw_ui_and_update_state(SDL_Window *window, Monitor_State *state, Database
             {
                 ImGui::NextColumn();
             }
-            for (int i = 0; i < days_in_month; i++)
+            
+            bool selected[31] = {};
+            selected[day - 1] = true;
+            ImGuiSelectableFlags flags = 0;
+            for (int i = 0; i < days_in_month_count; i++)
             {
-                if (ImGui::Selectable(labels[i])) {}
+                if (i + 1 > day) flags |= ImGuiSelectableFlags_Disabled;
+                
+                if (ImGui::Selectable(labels[i], &selected[i], flags)) 
+                {
+                    // close calendar and say selected this one
+                    
+                }
                 ImGui::NextColumn();
             }
             
@@ -1004,11 +1049,11 @@ void draw_ui_and_update_state(SDL_Window *window, Monitor_State *state, Database
     {
         
         date::year_month_day ymd_date{ current_date };
-        int y = int(ymd_date.year());
-        int m = unsigned(ymd_date.month());
-        int d = unsigned(ymd_date.day());
+        int year = int(ymd_date.year());
+        int month = unsigned(ymd_date.month());
+        int day = unsigned(ymd_date.day());
         
-        ImGui::Text("%i%s %s, %i", d, day_suffix(d), month_string(m), y);
+        ImGui::Text("%i%s %s, %i", day, day_suffix(day), month_string(month), year);
         if (ImGui::Button("Day", ImVec2(ImGui::GetWindowSize().x*0.2f, 0.0f)))
         {
             s32 period = 1;
