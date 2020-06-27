@@ -142,43 +142,60 @@ void
 set_day_view_range(Day_View *day_view, date::sys_days start_date, date::sys_days end_date)
 {
     // TODO:
-#if 0
     Assert(day_view->days.size() > 0);
     Assert(start_date >= end_date);
     
-    // date::sys_days start_date = current_date - date::days{period - 1};
-    
-    i32 end_range = -1;
     i32 start_range = -1;
+    i32 end_range = -1;
     
-    bool have_end = false;
-    for (i32 day_index = day_view->days.size() - 1; day_index >= 0; --day_index)
+    if (start_date > day_view->days.back().date ||
+        end_date < day_view->days[0].date)
     {
-        date::sys_days d = day_view->days[day_index].date;
-        if (d <= end_date && !have_end)
+        day_view->has_days = false;
+    }
+    else
+    {
+        bool have_end = false;
+        if (start_date < day_view->days[0].date)
         {
-            end_range = day_index;
+            start_range = 0;
+        }
+        if (end_date > day_view->days.back().date)
+        {
+            end_range = day_view->days.size() - 1;
             have_end = true;
         }
-        if (d >= start_date)
+        
+        for (i32 day_index = day_view->days.size() - 1; day_index >= 0; --day_index)
         {
-            // Start should be found after end range
-            start_range = day_index;
-            Assert(have_end);
-            break;
+            date::sys_days d = day_view->days[day_index].date;
+            if (d <= end_date && !have_end)
+            {
+                end_range = day_index;
+                have_end = true;
+            }
+            if (d <= start_date)
+            {
+                // We are guarenteed to have a smaller date, or have already set start_range to 0
+                if (d < start_date) start_range = day_index + 1;
+                else if (d == start_date) start_range = day_index;
+                break;
+            }
         }
+        
+        
+        Assert(have_end);
+        Assert(start_range != -1);
+        Assert(end_range != -1);
+        
+        day_view->has_days = true;
     }
     
-    
-    if (start_range == day_view->days.size() - 1 && start_date != day_view->days[day_index].date;)
-    {
-        day_view->has_records = false;
-    }
-#endif
-    
-    //day_view->start_range = start_range;
-    //day_view->range_count = range_count;
-    //day_view->accumulate = (start_date == end_date);
+    day_view->start_date = start_date;
+    day_view->end_date = end_date;
+    day_view->start_range = start_range;
+    day_view->end_range = end_range;
+    //range_count = range_count;
 }
 
 
@@ -678,40 +695,89 @@ do_settings_popup(Edit_Settings *edit_settings)
 {
     bool open = true;
     
-	// TODO: Remove or don't allow
-	// - all spaces strings
-	// - leading/trailing whitespace
-	// - spaces in words
-	// - unicode characters (just disallow pasting maybe)
-	// NOTE:
-	// - Put incorrect format text items in red, and have a red  '* error message...' next to "Keywords"
+    float keywords_child_height = ImGui::GetWindowHeight() * 0.6f;
+    float keywords_child_width = ImGui::GetWindowWidth() * 0.5f;
+    
+    // TODO: Remove or don't allow
+    // - all spaces strings
+    // - leading/trailing whitespace
+    // - spaces in words
+    // - unicode characters (just disallow pasting maybe)
+    // NOTE:
+    // - Put incorrect format text items in red, and have a red  '* error message...' next to "Keywords"
     
     // IF we get lots of kinds of settings (not ideal), can use tabs
     
-	// When enter is pressed the item is not active the same frame
-	//bool active = ImGui::IsItemActive();
-	// TODO: Does SetKeyboardFocusHere() break if box is clipped?
-	//if (give_focus == i) ImGui::SetKeyboardFocusHere();
+    // When enter is pressed the item is not active the same frame
+    //bool active = ImGui::IsItemActive();
+    // TODO: Does SetKeyboardFocusHere() break if box is clipped?
+    //if (give_focus == i) ImGui::SetKeyboardFocusHere();
     
+    // TODO: Copy windows (look at Everything.exe settings) ui style and white on grey colour scheme
+    
+    // For coloured text
+    //
+    //ImGui::TextColored(ImVec4(1,1,0,1), "Sailor");
+    //
+    
+    ImGui::Text("Keyword list:");
+    ImGui::SameLine();
     HelpMarker("As with every widgets in dear imgui, we never modify values unless there is a user interaction.\nYou can override the clamping limits by using CTRL+Click to input a value.");
-	ImGui::Text("Keywords");
     
+    //ImVec2 start_pos = ImGui::GetCursorScreenPos();
+    //ImGui::SetCursorScreenPos(ImVec2(start_pos.x, start_pos.y + keywords_child_height));
+    
+    //ImGui::SetCursorScreenPos(start_pos);
+    
+    
+    s32 give_focus = -1;
+    if (ImGui::Button("Add..."))
     {
-        ImGui::BeginChild("List", ImVec2(ImGui::GetWindowWidth()*0.5, ImGui::GetWindowHeight() * 0.6f));
-        ImGui::PushItemWidth(ImGui::GetWindowWidth() * 0.90f);
-        for (s32 i = 0; i < edit_settings->input_box_count; ++i)
+        for (int i = 0; i < MAX_KEYWORD_COUNT; ++i)
         {
-            ImGui::PushID(i);
-            bool enter_pressed = ImGui::InputText("", edit_settings->pending[i], array_count(edit_settings->pending[i]));
-            ImGui::PopID();
+            if (edit_settings->pending[i][0] == '\0')
+            {
+                give_focus = i;
+                break;
+            }
         }
-        ImGui::PopItemWidth();
-        ImGui::EndChild();
     }
     
     {
+        
+        //ImGui::BeginChild("List", ImVec2(ImGui::GetWindowWidth()*0.5, ImGui::GetWindowHeight() * 0.6f));
+        
+        // This just pushes some style vars, calls BeginChild, then pops them
+        ImGuiWindowFlags child_flags = 0;
+        ImGui::BeginChildFrame(222, ImVec2(keywords_child_width, keywords_child_height), child_flags);
+        
+        ImGui::PushItemWidth(ImGui::GetWindowWidth() * .9f);
+        for (s32 i = 0; i < edit_settings->input_box_count; ++i)
+        {
+            ImGui::PushID(i);
+            
+            if (i == give_focus)
+            {
+                ImGui::SetKeyboardFocusHere();
+                give_focus = -1;
+            }
+            bool enter_pressed = ImGui::InputText("", edit_settings->pending[i], array_count(edit_settings->pending[i]));
+            
+            ImGui::PopID();
+        }
+        ImGui::PopItemWidth();
+        ImGui::EndChildFrame();
+    }
+    
+    //PushStyleColor();
+    //PopStyleColor();
+    
+    {
         ImGui::SameLine();
-        ImGui::BeginChild("Misc Options", ImVec2(ImGui::GetWindowWidth()*0.5, ImGui::GetWindowHeight() * 0.6));
+        //ImGui::BeginChild("Misc Options", ImVec2(keywords_child_width, keywords_child_height));
+        
+        ImGuiWindowFlags child_flags = 0;
+        ImGui::BeginChildFrame(111, ImVec2(keywords_child_width, keywords_child_height), child_flags);
         
         ImGui::PushItemWidth(ImGui::GetWindowWidth() * 0.30f);
         // TODO: Do i need to use bool16 for this (this is workaround)
@@ -720,20 +786,21 @@ do_settings_popup(Edit_Settings *edit_settings)
         edit_settings->misc_options.run_at_system_startup = selected;
         
         // ImGuiInputTextFlags_CharsDecimal ?
-        int freq = (int)edit_settings->misc_options.poll_frequency_milliseconds;
-        ImGui::InputInt("Update frequency ms", &freq); // maybe a slider is better
+        int freq = (int)(edit_settings->misc_options.poll_frequency_microseconds / MICROSECS_PER_SEC);
+        ImGui::InputInt("Update frequency (s)", &freq); // maybe a slider is better
         
-        ImGui::SliderInt("Update frequency ms##2", &freq, 1000, 10000, "%dms");
+        // maybe put buttons on the slider too
+        ImGui::SliderInt("Update frequency (s)##2", &freq, 1, 1000, "%dms");
         
         // Only if valid number
-        if (freq < 1000)
+        if (freq < 1 && freq < 1000)
         {
             ImGui::SameLine();
             ImGui::Text("Frequency must be between 1000 and whatever");
         }
         
         // TODO: Save setting, but dont change later maybe? Dont allow close settings?
-        edit_settings->misc_options.poll_frequency_milliseconds = freq;
+        edit_settings->misc_options.poll_frequency_microseconds = freq;
         
         char *times[] = {
             "12:00 AM",
@@ -742,27 +809,26 @@ do_settings_popup(Edit_Settings *edit_settings)
             "etc..."
         };
         
-        // returns true for frame that an option is selected
-        bool ss = ImGui::Combo("Monitor start time", &edit_settings->start_time_item, times, array_count(times));
-        bool ss22 = ImGui::Combo("Monitor end time", &edit_settings->end_time_item, times, array_count(times));
-        
-        // I think this is right
-        edit_settings->misc_options.poll_start_time = edit_settings->start_time_item * 15;
-        edit_settings->misc_options.poll_end_time = edit_settings->end_time_item * 15;
+        // So late night usage still counts towards previous day
+        if (ImGui::Combo("New day start time", &edit_settings->day_start_time_item, times, array_count(times)))
+        {
+            edit_settings->misc_options.day_start_time = edit_settings->day_start_time_item * 15;
+        }
+        if (ImGui::Combo("Start tracking time", &edit_settings->poll_start_time_item, times, array_count(times)))
+        {
+            edit_settings->misc_options.poll_start_time = edit_settings->poll_start_time_item * 15;
+        }
+        if (ImGui::Combo("Finish tracking time", &edit_settings->poll_end_time_item, times, array_count(times)))
+        {
+            edit_settings->misc_options.poll_end_time = edit_settings->poll_end_time_item * 15;
+        }
         
         ImGui::PopItemWidth();
-        
-        ImGui::EndChild();
+        ImGui::EndChildFrame();
     }
     
+    
     {
-        ImGui::Separator();
-        ImGui::Spacing();
-        s32 give_focus = -1;
-        if (ImGui::Button("Add keyword..."))
-        {
-        }
-        ImGui::SameLine();
         if (ImGui::Button("Ok"))
         {
             edit_settings->update_settings = true;
@@ -783,6 +849,7 @@ do_settings_popup(Edit_Settings *edit_settings)
         }
     }
     
+    
     // TODO: Revert button?
     return open;
 }
@@ -798,13 +865,13 @@ void draw_ui_and_update_state(SDL_Window *window, Monitor_State *state, Database
 		ImGui::ShowDemoWindow(&show_demo_window);
     
 	ImGuiStyle& style = ImGui::GetStyle();
-	//style.FrameRounding = 0.0f; // 0 to 12 ? 
+	style.FrameRounding = 0.0f; // 0 to 12 ? 
 	style.WindowBorderSize = 1.0f; // or 1.0
-	// style.GrabRounding = style.FrameRounding; // Make GrabRounding always the same value as FrameRounding
+    style.GrabRounding = style.FrameRounding; // Make GrabRounding always the same value as FrameRounding
 	style.FrameBorderSize = 1.0f;
 	style.PopupBorderSize = 1.0f;
-	style.ChildBorderSize = 1.0f;
-	//style.WindowRounding = 0.0f;
+	style.ChildBorderSize = 0.0f;
+	style.WindowRounding = 0.0f;
     
 	ImGuiWindowFlags flags =
 		ImGuiWindowFlags_NoTitleBar
@@ -848,8 +915,8 @@ void draw_ui_and_update_state(SDL_Window *window, Monitor_State *state, Database
             state->edit_settings->misc_options = state->settings.misc_options;
             
             // TODO: Should be a better way than this
-            state->edit_settings->start_time_item = state->settings.misc_options.poll_start_time / 15;
-            state->edit_settings->end_time_item = state->settings.misc_options.poll_end_time / 15;
+            state->edit_settings->poll_start_time_item = state->settings.misc_options.poll_start_time / 15;
+            state->edit_settings->poll_end_time_item = state->settings.misc_options.poll_end_time / 15;
             
             Assert(state->settings.keywords.size() <= MAX_KEYWORD_COUNT);
             for (s32 i = 0; i < state->settings.keywords.size(); ++i)
@@ -869,31 +936,114 @@ void draw_ui_and_update_state(SDL_Window *window, Monitor_State *state, Database
         ImGui::EndPopup(); // only close if BeginPopupModal returns true
     }
     
-    // date:: overrides operator int() etc ...
-    date::year_month_day ymd_date{ current_date };
-    int y = int(ymd_date.year());
-    int m = unsigned(ymd_date.month());
-    int d = unsigned(ymd_date.day());
-    
-    ImGui::Text("%i%s %s, %i", d, day_suffix(d), month_string(m), y);
-    
-    static i32 period = 1;
-    if (ImGui::Button("Day", ImVec2(ImGui::GetWindowSize().x*0.2f, 0.0f)))
     {
-        period = 1;
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Week", ImVec2(ImGui::GetWindowSize().x*0.2f, 0.0f)))
-    {
-        period = 7;
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Month", ImVec2(ImGui::GetWindowSize().x*0.2f, 0.0f)))
-    {
-        period = 30;
+        if (ImGui::Button("Calendar Button"))
+        {
+            ImGui::OpenPopup("Calendar");
+        }
+        
+        ImVec2 calendar_size = ImVec2(270,300);
+        ImGui::SetNextWindowSize(calendar_size);
+        if (ImGui::BeginPopup("Calendar"))
+        {
+            char *weekdays[] = {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"};
+            char *labels[] = {
+                "1","2","3","4","5","6","7","8","9","10",
+                "11","12","13","14","15","16","17","18","19","20",
+                "21","22","23","24","25","26","27","28","29","30",
+                "31"};
+            
+            ImGuiStyle& style = ImGui::GetStyle();
+            style.SelectableTextAlign = ImVec2(1.0f, 0.0f); // make calendar numbers right aligned
+            
+            auto pos = ImGui::GetCursorScreenPos();
+            pos.x += calendar_size.x * 0.135f;
+            ImGui::SetCursorScreenPos(pos);
+            ImGui::Button("<"); ImGui::SameLine(); 
+            ImGui::Text("45th maytember");
+            ImGui::SameLine(); ImGui::Button(">"); 
+            
+            // year (e.g. 2015), month (1-12), day of the week (0 thru 6), index in the range [1, 5] indicating if this is the first, second, etc. weekday of the indicated month.
+            // Saturday is wd = 6, Sunday is 0, monday is 1
+            
+            //current_date = date::month{5}/27/2020;
+            
+            auto ymd = date::year_month_day{current_date};
+            auto first_day = date::year_month_weekday{current_date - date::days{unsigned(ymd.day()) - 1}};
+            auto wd = first_day.weekday();
+            s32 skipped_spots = wd.c_encoding() - 1;
+            Assert(first_day.index() == 1);
+            //s32 days_in_month = days_in_month();
+            
+            ImGui::Text("Skipped spots %i", skipped_spots);
+            
+            ImGui::Columns(7, "mycolumns", false);  // 3-ways, no border
+            for (int i = 0; i < array_count(weekdays); i++)
+            {
+                ImGui::Text(weekdays[i]);
+                ImGui::NextColumn();
+            }
+            ImGui::Separator();
+            
+            for (int i = 0; i < skipped_spots; i++)
+            {
+                ImGui::NextColumn();
+            }
+            for (int i = 0; i < days_in_month; i++)
+            {
+                if (ImGui::Selectable(labels[i])) {}
+                ImGui::NextColumn();
+            }
+            
+            style.SelectableTextAlign = ImVec2(0.0f, 0.0f);
+            
+            ImGui::EndPopup();
+        }
     }
     
-    //set_range(day_view, period, current_date);
+    {
+        
+        date::year_month_day ymd_date{ current_date };
+        int y = int(ymd_date.year());
+        int m = unsigned(ymd_date.month());
+        int d = unsigned(ymd_date.day());
+        
+        ImGui::Text("%i%s %s, %i", d, day_suffix(d), month_string(m), y);
+        if (ImGui::Button("Day", ImVec2(ImGui::GetWindowSize().x*0.2f, 0.0f)))
+        {
+            s32 period = 1;
+            
+            date::sys_days start_date = current_date - date::days{period - 1};
+            set_day_view_range(day_view, start_date, current_date);
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Week", ImVec2(ImGui::GetWindowSize().x*0.2f, 0.0f)))
+        {
+            s32 period = 7;
+            
+            date::sys_days start_date = current_date - date::days{period - 1};
+            set_day_view_range(day_view, start_date, current_date);
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Month", ImVec2(ImGui::GetWindowSize().x*0.2f, 0.0f)))
+        {
+            s32 period = 30;
+            
+            date::sys_days start_date = current_date - date::days{period - 1};
+            set_day_view_range(day_view, start_date, current_date);
+        }
+#if 1
+        ImGui::SameLine();
+        if (ImGui::Button("Next day", ImVec2(ImGui::GetWindowSize().x*0.2f, 0.0f)))
+        {
+            state->extra_days += 1;
+            
+            // because it hasn't been updated yet
+            //current_date += date::days{state->extra_days};
+            //set_day_view_range(day_view, start_date, current_date);
+        }
+#endif
+    }
     
     // To allow frame border
     ImGuiWindowFlags child_flags = 0;
@@ -905,7 +1055,7 @@ void draw_ui_and_update_state(SDL_Window *window, Monitor_State *state, Database
     
     time_type sum_duration = 0;
     
-    if (today->record_count > 0)
+    if (day_view->has_days && today->record_count > 0)
     {
         i32 record_count = today->record_count;
         
@@ -965,7 +1115,7 @@ void draw_ui_and_update_state(SDL_Window *window, Monitor_State *state, Database
                 name = database->app_names[record.id].short_name.str;
             }
             
-            double seconds = (double)record.duration / 1000;
+            double seconds = (double)record.duration / MICROSECS_PER_SEC;
             
             // Get cursor pos before writing text
             ImVec2 pos = ImGui::GetCursorScreenPos();
@@ -989,13 +1139,15 @@ void draw_ui_and_update_state(SDL_Window *window, Monitor_State *state, Database
     float red[] = {255.0f, 0, 0};
     float black[] = {0, 0, 0};
     
-    double total_runtime_seconds = (double)state->total_runtime / 1000;
-    double sum_duration_seconds = (double)sum_duration / 1000;
-    auto now = Steady_Clock::now();
-    time_type start_time = std::chrono::duration_cast<std::chrono::milliseconds>(now - state->startup_time).count();
-    double time_since_startup_seconds = (double)start_time / 1000;
+    double total_runtime_seconds = (double)state->total_runtime / 1000000;
+    double sum_duration_seconds = (double)sum_duration / 1000000;
     
-    double diff_seconds2 = (double)(start_time - sum_duration) / 1000;
+    auto now = win32_get_time();
+    auto start_time = win32_get_microseconds_elapsed(state->startup_time, now, global_performance_frequency);
+    
+    double time_since_startup_seconds = (double)start_time / 1000000;
+    
+    double diff_seconds2 = (double)(start_time - sum_duration) / 1000000;
     
     
     ImGui::Text("Total runtime:        %.5fs", total_runtime_seconds);
@@ -1060,10 +1212,11 @@ update(Monitor_State *state, SDL_Window *window, time_type dt, u32 window_status
         init_database(&state->database);
         
         Misc_Options options = {};
-        options.poll_start_time = 11;
-        options.poll_end_time = 22;
+        options.day_start_time = 0;
+        options.poll_start_time = 0;
+        options.poll_end_time = 0;
         options.run_at_system_startup = true;
-        options.poll_frequency_milliseconds = 100;
+        options.poll_frequency_microseconds = 10000;
         
         state->settings.misc_options = options;
         
@@ -1073,9 +1226,13 @@ update(Monitor_State *state, SDL_Window *window, time_type dt, u32 window_status
         add_keyword(state->settings.keywords, &state->database, "docs.microsoft");
         add_keyword(state->settings.keywords, &state->database, "eso-community");
         
+        // maybe allow comma seperated keywords
+        // https://www.hero.com/specials/hi&=yes
+        // hero, specials
+        
         state->accumulated_time = 0;
         state->total_runtime = 0;
-        state->startup_time = Steady_Clock::now();
+        state->startup_time = win32_get_time();
         
         state->is_initialised = true;
     }
@@ -1089,33 +1246,16 @@ update(Monitor_State *state, SDL_Window *window, time_type dt, u32 window_status
         // delete day view (if exists)
     }
     
-    date::sys_days current_date = floor<date::days>(System_Clock::now());
+    date::sys_days current_date = floor<date::days>(System_Clock::now()) + date::days{state->extra_days};;
     
     if (current_date != database->day_list.days.back().date)
     {
         start_new_day(&database->day_list, current_date);
     }
     
-    // TODO: Probably want to use wall clock time not cpu time
-    // or maybe store everything in ticks, and only convert to time when it needs to be displayed
-    //    - works fine as long user is on the same comp 9else you have to convert saved ticks to account for           
-    //      different tick/sec of new computer (this is doable, but can also ignore this conversion and just say 
-    //      use one computer for now).
-    
-    // TODO: I think i am losing time, when adding durations (which is what the dts are), or
-    // maybe its just a problem of adding milliseconds, and should instead use nanoseconds
-    
-    // nanoseconds per year = 3.1556952E+16
-    // u64 =  1.8446744e+19 (which is hundreds of years in nanos)
-    
-    // problem std::nanoseconds etc is a signed integral type of at least 64 bits
-    // and i am using u64 to store duration
-    
-    // TODO: Also compare steady clock time since startup to system clock in ui
-    
     state->accumulated_time += dt;
     state->total_runtime += dt;
-    time_type poll_window_freq = 100;
+    time_type poll_window_freq = 10000;
     if (state->accumulated_time >= poll_window_freq)
     {
         App_Id id = poll_windows(database, &state->settings);
@@ -1141,12 +1281,15 @@ update(Monitor_State *state, SDL_Window *window, time_type dt, u32 window_status
     
     Day_View day_view = get_day_view(&database->day_list);
     
+    date::sys_days start_date = current_date;
+    set_day_view_range(&day_view, start_date, current_date);
+    
     if (window_status & Window_Visible)
     {
         draw_ui_and_update_state(window, state, database, current_date, &day_view);
     }
     
-	free_day_view(&day_view);
+    free_day_view(&day_view);
     
 }
 

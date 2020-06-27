@@ -3,6 +3,12 @@
 #undef min
 #undef max
 
+#include <commctrl.h>
+#include <AtlBase.h>
+#include <UIAutomation.h>
+#include <shellapi.h>
+#include <shlobj_core.h> // SHDefExtractIconA
+
 #define ID_TRAY_APP_ICON 1001
 #define CUSTOM_WM_TRAY_ICON (WM_USER + 1)
 
@@ -14,6 +20,26 @@ struct Process_Ids
     DWORD parent;
     DWORD child;
 };
+
+LARGE_INTEGER
+win32_get_time()
+{
+    LARGE_INTEGER now;
+    QueryPerformanceCounter(&now);
+    return now;
+}
+
+// TODO: I would rather not pass in perf_freq (maybe make a global in this file)
+s64
+win32_get_microseconds_elapsed(LARGE_INTEGER start, LARGE_INTEGER end, s64 performance_frequency)
+{
+    LARGE_INTEGER microseconds;
+    microseconds.QuadPart = end.QuadPart - start.QuadPart;
+    microseconds.QuadPart *= 1000000; // microseconds per second
+    microseconds.QuadPart /= performance_frequency; // ticks per second
+    return microseconds.QuadPart;
+}
+
 
 // TODO: NOt sure where to put this
 u32

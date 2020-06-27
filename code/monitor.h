@@ -16,9 +16,11 @@ static constexpr i32 MaxWebsiteCount = 50; // this used?
 static constexpr i32 MAX_KEYWORD_COUNT = 100;
 static constexpr i32 MAX_KEYWORD_SIZE = 101;
 
+static constexpr i32 MICROSECS_PER_SEC = 1000000;
+
 // u32 can overflows after 50 days when usning milliseconds, this might be ok
 // as we only get this when summing multiple days, but for now KISS.
-typedef u64 time_type;
+typedef s64 time_type;
 typedef u32 App_Id;
 
 // Steady clock typically uses system startup time as epoch, and system clock uses systems epoch like 1970-1-1 00:00
@@ -76,7 +78,7 @@ struct Record
 {
     // Id could be made 64 bit and record would be the same size
     App_Id id;
-    time_type duration;
+    time_type duration; // microseconds
 };
 
 // Days (and records) are:
@@ -121,12 +123,16 @@ struct Day_List
 struct Day_View
 {
     std::vector<Day> days;
-    //date::sys_days start_date;
-    //date::sys_days end_date;
-    //i32 start_range;
-    //i32 end_range;
-    //bool accumulate;
-    //bool has_records;
+    
+    // Start and end dates can be out of range of actual stored days
+    // the indexes point to the closest actual stored days
+    // start_date < == > days[start_index].date  
+    // end_date < == > days[end_index].date
+    date::sys_days start_date;
+    date::sys_days end_date;
+    i32 start_range;
+    i32 end_range;
+    bool has_days;
     Record *copy_of_current_days_records;
 };
 
@@ -209,13 +215,14 @@ struct Misc_Options
 {
     // TODO: These may want to be different datatypes (tradeoff file IO ease vs imgui datatypes conversion)
     
-    // time is in minute 0 to minute 1439 of day (60*24)
+    // In minute of the day 0-1439
+    u16 day_start_time;  // Changing this won't trigger conversion of previously saved records
+    u16 poll_start_time; // Default 0 (12:00AM) (if start == end, always poll)
+    u16 poll_end_time;   // Default 0 (12:00AM)
     
-    // u16 day_start_time;  // Default 0        // Changing this won't affect previously saved records
-    u16 poll_start_time; // Default 0 (if start == end, always poll)
-    u16 poll_end_time;   // Default 0
-    bool16 run_at_system_startup;   // Default 0
-    u32 poll_frequency_milliseconds;    // Default 1000
+    bool16 run_at_system_startup;   
+    u32 poll_frequency_microseconds;   
+    
 };
 
 struct Edit_Settings
@@ -224,8 +231,9 @@ struct Edit_Settings
     char pending[MAX_KEYWORD_COUNT][MAX_KEYWORD_SIZE];
     s32 input_box_count;
     Misc_Options misc_options;
-    int start_time_item;
-    int end_time_item;
+    int day_start_time_item;
+    int poll_start_time_item;
+    int poll_end_time_item;
     bool update_settings;
 };
 
@@ -246,6 +254,9 @@ Monitor_State
     Edit_Settings *edit_settings; // allocated when needed
     
     time_type accumulated_time;
+    
+    // debug temporary
     time_type total_runtime;
-    std::chrono::time_point<Steady_Clock> startup_time;
+    LARGE_INTEGER startup_time;
+    s32 extra_days;
 };

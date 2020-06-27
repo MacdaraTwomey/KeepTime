@@ -4,8 +4,6 @@
 #include "imgui_impl_opengl3.h"
 #include "imgui_freetype.h"
 
-#include "implot.h"
-
 #include "SDl2/SDL.h"
 #include "SDL2/SDL_main.h"
 #include "SDL2/SDL_syswm.h"
@@ -16,12 +14,6 @@
 #include <windows.h>
 #undef min
 #undef max
-
-#include <commctrl.h>
-#include <AtlBase.h>
-#include <UIAutomation.h>
-#include <shellapi.h>
-#include <shlobj_core.h> // SHDefExtractIconA
 
 #include "cian.h"
 #include "monitor.h"
@@ -38,6 +30,9 @@
 #include <stdio.h>
 #include <wchar.h>
 
+// temporarily used by monitor
+static s64 global_performance_frequency; // win32
+
 #include "utilities.cpp" // xalloc, string copy, concat string, make filepath, get_filename_from_path
 #include "bitmap.cpp"
 #include "win32_monitor.cpp" // needs bitmap functions
@@ -48,6 +43,7 @@
 static char *global_savefile_path;
 static char *global_debug_savefile_path;
 static bool global_running = true;
+
 
 // NOTE: This is only used for toggling with the tray icon.
 // Use pump messages result to check if visible to avoid the issues with value unexpectly changing.
@@ -218,6 +214,11 @@ int main(int argc, char* argv[])
     
 #if defined(_WIN32)
     {
+        LARGE_INTEGER frequency;
+        QueryPerformanceFrequency(&frequency);
+        global_performance_frequency = frequency.QuadPart;
+        
+        
         // Don't ignore special system-specific messages that unhandled (allows us to get SDL_SYSWMEVENT events)
         SDL_EventState(SDL_SYSWMEVENT, SDL_ENABLE);
         
@@ -286,7 +287,7 @@ int main(int argc, char* argv[])
     if (sdl_flags & SDL_WINDOW_SHOWN) window_status |= Window_Visible|Window_Just_Visible;
     else if (sdl_flags & SDL_WINDOW_HIDDEN) window_status |= Window_Hidden|Window_Just_Hidden;
     
-    auto old_time = Steady_Clock::now();
+    auto old_time = win32_get_time();
     
     while (global_running)
     {
@@ -369,15 +370,14 @@ int main(int argc, char* argv[])
         // TODO: NOTE: The vsync swap interval seems to affect the speed at which times diverge, with lower frame rates having a lower divergence.
         
         // Steady clock also accounts for time paused in debugger etc, so can introduce bugs that aren't there normally when debugging.
-        auto new_time = Steady_Clock::now();
-        auto diff = std::chrono::duration_cast<std::chrono::nanoseconds>(new_time - old_time);
+        auto new_time = win32_get_time();
+        s64 dt_microseconds = win32_get_microseconds_elapsed(old_time, new_time, global_performance_frequency);
         old_time = new_time;
-        time_type dt = diff.count();
         
         // Maybe pass in poll stuff here which would allow us to avoid timer stuff in app layer,
         // or could call poll windows from app layer, when we recieve a timer elapsed flag.
         // We might want to change frequency that we poll, so may need platform_change_wakeup_frequency()
-        update(&monitor_state, window, dt, window_status);
+        update(&monitor_state, window, dt_microseconds, window_status);
         
         // I'm assuming this does nothing when the window is hidden
         SDL_GL_SwapWindow(window);
