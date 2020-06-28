@@ -28,9 +28,24 @@ typedef u32 App_Id;
 // A Time Point is a duration of time that has passed since a clocks epoch
 // A Duration consists of a span of time, defined as a number of ticks of some time unit (e.g. 12 ticks in millisecond unit)
 // On windows Steady clock is based on QueryPerformanceCounter
+
 //using Steady_Clock = std::chrono::steady_clock;
-using Steady_Clock = std::chrono::steady_clock;
-using System_Clock = std::chrono::system_clock;
+using System_Clock = std::chrono::system_clock; // gives according to utc time
+
+date::sys_days
+get_localtime()
+{
+    time_t rawtime;
+    time( &rawtime );
+    
+    struct tm *info;
+    //int tm_mday;        /* day of the month, range 1 to 31  */
+    //int tm_mon;         /* month, range 0 to 11             */
+    //int tm_year;        /* The number of years since 1900   */
+    info = localtime( &rawtime );
+    auto now = date::sys_days{date::month{(unsigned)(info->tm_mon + 1)}/date::day{(unsigned)info->tm_mday}/date::year{info->tm_year + 1900}};
+    return now;
+}
 
 struct Header
 {
@@ -243,6 +258,13 @@ struct Settings
     Misc_Options misc_options;
 };
 
+struct Calendar_State
+{
+    date::year_month_weekday first_day_of_month;
+    date::sys_days selected_date;
+    //bool closed;
+};
+
 struct
 Monitor_State
 {
@@ -252,6 +274,8 @@ Monitor_State
     
     Settings settings;
     Edit_Settings *edit_settings; // allocated when needed
+    
+    Calendar_State calendar_state;
     
     time_type accumulated_time;
     

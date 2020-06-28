@@ -30,6 +30,8 @@
 #include <stdio.h>
 #include <wchar.h>
 
+#include "IconsMaterialDesign.h"
+
 // temporarily used by monitor
 static s64 global_performance_frequency; // win32
 
@@ -197,9 +199,31 @@ int main(int argc, char* argv[])
     //io.Fonts->AddFontFromFileTTF("c:\\dev\\projects\\monitor\\fonts\\Karla-Regular.ttf", 16.0f);
     //io.Fonts->AddFontFromFileTTF("c:\\dev\\projects\\monitor\\fonts\\Roboto-Medium.ttf", 16.0f);
     //io.Fonts->AddFontFromFileTTF("c:\\dev\\projects\\monitor\\fonts\\Cousine-Regular.ttf", 16.0f);
-    io.Fonts->AddFontFromFileTTF("c:\\windows\\fonts\\seguisym.ttf", 22.0f);
     //io.Fonts->AddFontFromFileTTF("c:\\windows\\fonts\\times.ttf", 16.0f);
     //io.Fonts->AddFontDefault();
+    
+    
+    // Can also just add desired ranges/glyphs
+#if 0
+    ImVector<ImWchar> ranges;
+    ImFontGlyphRangesBuilder builder;
+    builder.AddText("Hello world");                        // Add a string (here "Hello world" contains 7 unique characters)
+    builder.AddChar(0x7262);                               // Add a specific character
+    builder.AddRanges(io.Fonts->GetGlyphRangesJapanese()); // Add one of the default ranges
+    builder.BuildRanges(&ranges);                          // Build the final result (ordered ranges with all the unique characters submitted)
+    
+    io.Fonts->AddFontFromFileTTF("myfontfile.ttf", size_in_pixels, NULL, ranges.Data);
+    io.Fonts->Build();   
+#endif
+    
+    io.Fonts->AddFontFromFileTTF("c:\\windows\\fonts\\seguisym.ttf", 22.0f);
+    
+    static const ImWchar icons_ranges[] = { ICON_MIN_MD, ICON_MAX_MD, 0 };
+    ImFontConfig icons_config; 
+    icons_config.MergeMode = true; 
+    icons_config.PixelSnapH = true;
+    icons_config.GlyphOffset = ImVec2(0, 4); // move glyphs down or else they render too high
+    ImFont *MD_font = io.Fonts->AddFontFromFileTTF("c:\\dev\\projects\\monitor\\build\\MaterialIcons-Regular.ttf", 22.0f, &icons_config, icons_ranges);
     
     unsigned int flags = ImGuiFreeType::NoHinting;
     ImGuiFreeType::BuildFontAtlas(io.Fonts, flags);
@@ -296,6 +320,10 @@ int main(int argc, char* argv[])
         // - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application.
         // - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main application.
         // Generally you may always pass all inputs to dear imgui, and hide them from your application based on those two flags.
+        
+        // clear just visible, just hidden flags
+        window_status = window_status & (Window_Visible | Window_Hidden);
+        
         SDL_Event event;
         while (SDL_PollEvent(&event))
         {
