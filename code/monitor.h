@@ -27,11 +27,13 @@ typedef u32 App_Id;
 // Clocks have a starting point (epoch) and tick rate (e.g. 1 tick per second)
 // A Time Point is a duration of time that has passed since a clocks epoch
 // A Duration consists of a span of time, defined as a number of ticks of some time unit (e.g. 12 ticks in millisecond unit)
-// On windows Steady clock is based on QueryPerformanceCounter
 
-//using Steady_Clock = std::chrono::steady_clock;
+// System clock gives time in UTC (which means system clock doesn't need to be reset when PC travels the world)
+// Can translate sys_time into local time when needed for human consumption
+// For now I will just store everything as local time
 using System_Clock = std::chrono::system_clock; // gives according to utc time
 
+// May want store date in seconds rather than days since epoch
 date::sys_days
 get_localtime()
 {
@@ -206,6 +208,7 @@ struct Database
     App_Id next_website_id;      // starts at 0x80000000 top bit set
     
     // Temporary, maybe
+    // Should use another Material Design or Font Awesome icon to represent all websites (maybe globe icon)
     App_Id firefox_id;
     bool added_firefox;
     
@@ -261,8 +264,7 @@ struct Settings
 struct Calendar_State
 {
     date::year_month_weekday first_day_of_month;
-    date::sys_days selected_date;
-    //bool closed;
+    date::sys_days selected_date; // address of this is used for imgui id
 };
 
 struct
@@ -272,10 +274,11 @@ Monitor_State
     Header header;
     Database database;
     
+    // persists ui open/closes
     Settings settings;
     Edit_Settings *edit_settings; // allocated when needed
-    
-    Calendar_State calendar_state;
+    Calendar_State calendar_date_range_start;
+    Calendar_State calendar_date_range_end;
     
     time_type accumulated_time;
     

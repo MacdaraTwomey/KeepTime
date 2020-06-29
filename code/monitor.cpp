@@ -24,12 +24,6 @@ static_assert(sizeof(date::year_month_day) == sizeof(u32), "");
 
 #define ICON_SIZE 32
 
-// TODO: When finished leave asserts and make them write to a log file instead of calling debugbreak()
-// TODO: Don't hardcode sizes, make it a multiple of font size maybe
-
-// Cost of rendering imgui is generally lower than the cost of building the ui elements - "Omar"
-// can use array textures maybe, GL_TEXTURE_2D_ARRAY texture target. Textures must be same size
-
 i32
 load_icon_and_add_to_database(Database *database, Bitmap bitmap)
 {
@@ -543,6 +537,7 @@ poll_windows(Database *database, Settings *settings)
 void
 update(Monitor_State *state, SDL_Window *window, time_type dt, u32 window_status)
 {
+    date::sys_days current_date = get_localtime(); // + date::days{state->extra_days};;
     if (!state->is_initialised)
     {
         //remove(global_savefile_path);
@@ -566,7 +561,8 @@ update(Monitor_State *state, SDL_Window *window, time_type dt, u32 window_status
         add_keyword(state->settings.keywords, &state->database, "CITS3003");
         add_keyword(state->settings.keywords, &state->database, "youtube");
         add_keyword(state->settings.keywords, &state->database, "docs.microsoft");
-        add_keyword(state->settings.keywords, &state->database, "eso-community");
+        add_keyword(state->settings.keywords, &state->database, "google");
+        add_keyword(state->settings.keywords, &state->database, "github");
         
         // maybe allow comma seperated keywords
         // https://www.hero.com/specials/hi&=yes
@@ -576,7 +572,10 @@ update(Monitor_State *state, SDL_Window *window, time_type dt, u32 window_status
         state->total_runtime = 0;
         state->startup_time = win32_get_time();
         
-        state->calendar_state.selected_date = date::month{5}/27/2020; // debug
+        state->calendar_date_range_start.selected_date = current_date;
+        state->calendar_date_range_start.first_day_of_month = current_date;
+        state->calendar_date_range_end.selected_date = current_date;
+        state->calendar_date_range_end.first_day_of_month = current_date;
         
         state->is_initialised = true;
     }
@@ -590,18 +589,12 @@ update(Monitor_State *state, SDL_Window *window, time_type dt, u32 window_status
         // delete day view (if exists)
     }
     
-    // System clock gives time in UTC (which means system clock doesn't need to be reset when PC travels the world)
-    // Can translate sys_time into local time when needed for human consumption
-    // For now I will just store everything as local time
-    date::sys_days current_date = get_localtime();// + date::days{state->extra_days};;
-    auto ymd = date::year_month_day{floor<date::days>(System_Clock::now())};
-    int sel_year = int(ymd.year());
-    int sel_month = unsigned(ymd.month());
-    int sel_day = unsigned(ymd.day());
     if (current_date != database->day_list.days.back().date)
     {
         start_new_day(&database->day_list, current_date);
     }
+    
+    // maybe start_new_day equivalent for day view (without adding records) just to keep track of current day for ui
     
     state->accumulated_time += dt;
     state->total_runtime += dt;
@@ -627,8 +620,6 @@ update(Monitor_State *state, SDL_Window *window, time_type dt, u32 window_status
         // Save a freeze frame of the currently saved days.
         
         // setup day view and 
-        state->calendar_state.selected_date = current_date;
-        state->calendar_state.first_day_of_month = current_date;
     }
     
     Day_View day_view = get_day_view(&database->day_list);

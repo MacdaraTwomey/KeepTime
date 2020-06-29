@@ -3,7 +3,7 @@
 Icon_Asset * get_icon_asset(Database *database, App_Id id);
 void add_keyword(std::vector<Keyword> &keywords, Database *database, char *str, App_Id id);
 void set_day_view_range(Day_View *day_view, date::sys_days start_date, date::sys_days end_date);
-
+bool is_exe(u32 id);
 
 const char *
 day_suffix(int day)
@@ -191,200 +191,185 @@ HelpMarker(const char* desc)
 bool
 do_settings_popup(Edit_Settings *edit_settings)
 {
-    bool open = true;
+    bool finished = false;
     
     float keywords_child_height = ImGui::GetWindowHeight() * 0.6f;
     float keywords_child_width = ImGui::GetWindowWidth() * 0.5f;
     
-    // TODO: Remove or don't allow
-    // - all spaces strings
-    // - leading/trailing whitespace
-    // - spaces in words
-    // - unicode characters (just disallow pasting maybe)
-    // NOTE:
-    // - Put incorrect format text items in red, and have a red  '* error message...' next to "Keywords"
-    
-    // IF we get lots of kinds of settings (not ideal), can use tabs
-    
-    // When enter is pressed the item is not active the same frame
-    //bool active = ImGui::IsItemActive();
-    // TODO: Does SetKeyboardFocusHere() break if box is clipped?
-    //if (give_focus == i) ImGui::SetKeyboardFocusHere();
-    
-    // TODO: Copy windows (look at Everything.exe settings) ui style and white on grey colour scheme
-    
-    // For coloured text
-    //
-    //ImGui::TextColored(ImVec4(1,1,0,1), "Sailor");
-    //
-    
-    ImGui::Text("Keyword list:");
-    ImGui::SameLine();
-    HelpMarker("As with every widgets in dear imgui, we never modify values unless there is a user interaction.\nYou can override the clamping limits by using CTRL+Click to input a value.");
-    
-    //ImVec2 start_pos = ImGui::GetCursorScreenPos();
-    //ImGui::SetCursorScreenPos(ImVec2(start_pos.x, start_pos.y + keywords_child_height));
-    
-    //ImGui::SetCursorScreenPos(start_pos);
-    
-    
-    s32 give_focus = -1;
-    if (ImGui::Button("Add..."))
+    // TODO: Make variables for settings window and child windows width height, 
+    // and maybe base off users monitor w/h
+    // TODO: 800 is probably too big for some screens (make this dynamic)
+    ImGui::SetNextWindowSize(ImVec2(850, 600));
+    if (ImGui::BeginPopupModal("Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize))
     {
-        for (int i = 0; i < MAX_KEYWORD_COUNT; ++i)
-        {
-            if (edit_settings->pending[i][0] == '\0')
-            {
-                give_focus = i;
-                break;
-            }
-        }
-    }
-    
-    {
+        // TODO: Remove or don't allow
+        // - all spaces strings
+        // - leading/trailing whitespace
+        // - spaces in words
+        // - unicode characters (just disallow pasting maybe)
+        // NOTE:
+        // - Put incorrect format text items in red, and have a red  '* error message...' next to "Keywords"
         
-        //ImGui::BeginChild("List", ImVec2(ImGui::GetWindowWidth()*0.5, ImGui::GetWindowHeight() * 0.6f));
+        // IF we get lots of kinds of settings (not ideal), can use tabs
         
-        // This just pushes some style vars, calls BeginChild, then pops them
-        ImGuiWindowFlags child_flags = 0;
-        ImGui::BeginChildFrame(222, ImVec2(keywords_child_width, keywords_child_height), child_flags);
+        // When enter is pressed the item is not active the same frame
+        //bool active = ImGui::IsItemActive();
+        // TODO: Does SetKeyboardFocusHere() break if box is clipped?
+        //if (give_focus == i) ImGui::SetKeyboardFocusHere();
         
-        ImGui::PushItemWidth(ImGui::GetWindowWidth() * .9f);
-        for (s32 i = 0; i < edit_settings->input_box_count; ++i)
-        {
-            ImGui::PushID(i);
-            
-            if (i == give_focus)
-            {
-                ImGui::SetKeyboardFocusHere();
-                give_focus = -1;
-            }
-            bool enter_pressed = ImGui::InputText("", edit_settings->pending[i], array_count(edit_settings->pending[i]));
-            
-            ImGui::PopID();
-        }
-        ImGui::PopItemWidth();
-        ImGui::EndChildFrame();
-    }
-    
-    //PushStyleColor();
-    //PopStyleColor();
-    
-    {
+        // TODO: Copy windows (look at Everything.exe settings) ui style and white on grey colour scheme
+        
+        // For coloured text
+        //
+        //ImGui::TextColored(ImVec4(1,1,0,1), "Sailor");
+        //
+        
+        ImGui::Text("Keyword list:");
         ImGui::SameLine();
-        //ImGui::BeginChild("Misc Options", ImVec2(keywords_child_width, keywords_child_height));
+        HelpMarker("As with every widgets in dear imgui, we never modify values unless there is a user interaction.\nYou can override the clamping limits by using CTRL+Click to input a value.");
         
-        ImGuiWindowFlags child_flags = 0;
-        ImGui::BeginChildFrame(111, ImVec2(keywords_child_width, keywords_child_height), child_flags);
+        //ImVec2 start_pos = ImGui::GetCursorScreenPos();
+        //ImGui::SetCursorScreenPos(ImVec2(start_pos.x, start_pos.y + keywords_child_height));
         
-        ImGui::PushItemWidth(ImGui::GetWindowWidth() * 0.30f);
-        // TODO: Do i need to use bool16 for this (this is workaround)
-        bool selected = edit_settings->misc_options.run_at_system_startup;
-        ImGui::Checkbox("Run at startup", &selected);
-        edit_settings->misc_options.run_at_system_startup = selected;
+        //ImGui::SetCursorScreenPos(start_pos);
         
-        // ImGuiInputTextFlags_CharsDecimal ?
-        int freq = (int)(edit_settings->misc_options.poll_frequency_microseconds / MICROSECS_PER_SEC);
-        ImGui::InputInt("Update frequency (s)", &freq); // maybe a slider is better
+        s32 give_focus = -1;
+        if (ImGui::Button("Add..."))
+        {
+            for (int i = 0; i < MAX_KEYWORD_COUNT; ++i)
+            {
+                if (edit_settings->pending[i][0] == '\0')
+                {
+                    give_focus = i;
+                    break;
+                }
+            }
+        }
         
-        // maybe put buttons on the slider too
-        ImGui::SliderInt("Update frequency (s)##2", &freq, 1, 1000, "%dms");
+        {
+            //ImGui::BeginChild("List", ImVec2(ImGui::GetWindowWidth()*0.5, ImGui::GetWindowHeight() * 0.6f));
+            
+            // This just pushes some style vars, calls BeginChild, then pops them
+            ImGuiWindowFlags child_flags = 0;
+            ImGui::BeginChildFrame(222, ImVec2(keywords_child_width, keywords_child_height), child_flags);
+            
+            ImGui::PushItemWidth(ImGui::GetWindowWidth() * .9f);
+            for (s32 i = 0; i < edit_settings->input_box_count; ++i)
+            {
+                ImGui::PushID(i);
+                
+                if (i == give_focus)
+                {
+                    ImGui::SetKeyboardFocusHere();
+                    give_focus = -1;
+                }
+                bool enter_pressed = ImGui::InputText("", edit_settings->pending[i], array_count(edit_settings->pending[i]));
+                
+                ImGui::PopID();
+            }
+            ImGui::PopItemWidth();
+            ImGui::EndChildFrame();
+        }
         
-        // Only if valid number
-        if (freq < 1 && freq < 1000)
+        //PushStyleColor();
+        //PopStyleColor();
+        
         {
             ImGui::SameLine();
-            ImGui::Text("Frequency must be between 1000 and whatever");
-        }
-        
-        // TODO: Save setting, but dont change later maybe? Dont allow close settings?
-        edit_settings->misc_options.poll_frequency_microseconds = freq;
-        
-        char *times[] = {
-            "12:00 AM",
-            "12:15 AM",
-            "12:30 AM",
-            "etc..."
-        };
-        
-        // So late night usage still counts towards previous day
-        if (ImGui::Combo("New day start time", &edit_settings->day_start_time_item, times, array_count(times)))
-        {
-            edit_settings->misc_options.day_start_time = edit_settings->day_start_time_item * 15;
-        }
-        if (ImGui::Combo("Start tracking time", &edit_settings->poll_start_time_item, times, array_count(times)))
-        {
-            edit_settings->misc_options.poll_start_time = edit_settings->poll_start_time_item * 15;
-        }
-        if (ImGui::Combo("Finish tracking time", &edit_settings->poll_end_time_item, times, array_count(times)))
-        {
-            edit_settings->misc_options.poll_end_time = edit_settings->poll_end_time_item * 15;
-        }
-        
-        ImGui::PopItemWidth();
-        ImGui::EndChildFrame();
-    }
-    
-    
-    {
-        if (ImGui::Button("Ok"))
-        {
-            edit_settings->update_settings = true;
-            ImGui::CloseCurrentPopup();
-            open = false;
+            //ImGui::BeginChild("Misc Options", ImVec2(keywords_child_width, keywords_child_height));
             
-            // if (invalid settings) make many saying
-            // "invalid settings"
-            // [cancel][close settings without saving]
+            ImGuiWindowFlags child_flags = 0;
+            ImGui::BeginChildFrame(111, ImVec2(keywords_child_width, keywords_child_height), child_flags);
+            
+            ImGui::PushItemWidth(ImGui::GetWindowWidth() * 0.30f);
+            // TODO: Do i need to use bool16 for this (this is workaround)
+            bool selected = edit_settings->misc_options.run_at_system_startup;
+            ImGui::Checkbox("Run at startup", &selected);
+            edit_settings->misc_options.run_at_system_startup = selected;
+            
+            // ImGuiInputTextFlags_CharsDecimal ?
+            int freq = (int)(edit_settings->misc_options.poll_frequency_microseconds / MICROSECS_PER_SEC);
+            ImGui::InputInt("Update frequency (s)", &freq); // maybe a slider is better
+            
+            // maybe put buttons on the slider too
+            ImGui::SliderInt("Update frequency (s)##2", &freq, 1, 1000, "%dms");
+            
+            // Only if valid number
+            if (freq < 1 && freq < 1000)
+            {
+                ImGui::SameLine();
+                ImGui::Text("Frequency must be between 1000 and whatever");
+            }
+            
+            // TODO: Save setting, but dont change later maybe? Dont allow close settings?
+            edit_settings->misc_options.poll_frequency_microseconds = freq;
+            
+            char *times[] = {
+                "12:00 AM",
+                "12:15 AM",
+                "12:30 AM",
+                "etc..."
+            };
+            
+            // So late night usage still counts towards previous day
+            if (ImGui::Combo("New day start time", &edit_settings->day_start_time_item, times, array_count(times)))
+            {
+                edit_settings->misc_options.day_start_time = edit_settings->day_start_time_item * 15;
+            }
+            if (ImGui::Combo("Start tracking time", &edit_settings->poll_start_time_item, times, array_count(times)))
+            {
+                edit_settings->misc_options.poll_start_time = edit_settings->poll_start_time_item * 15;
+            }
+            if (ImGui::Combo("Finish tracking time", &edit_settings->poll_end_time_item, times, array_count(times)))
+            {
+                edit_settings->misc_options.poll_end_time = edit_settings->poll_end_time_item * 15;
+            }
+            
+            ImGui::PopItemWidth();
+            ImGui::EndChildFrame();
         }
-        ImGui::SameLine();
-        if (ImGui::Button("Cancel"))
+        
         {
-            // Don't update keywords
-            edit_settings->update_settings = false;
-            ImGui::CloseCurrentPopup();
-            open = false;
+            if (ImGui::Button("Ok"))
+            {
+                edit_settings->update_settings = true;
+                ImGui::CloseCurrentPopup();
+                finished= true;
+                
+                // if (invalid settings) make many saying
+                // "invalid settings"
+                // [cancel][close settings without saving]
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Cancel"))
+            {
+                // Don't update keywords
+                edit_settings->update_settings = false;
+                ImGui::CloseCurrentPopup();
+                finished= true;
+            }
         }
+        
+        ImGui::EndPopup(); // only close if BeginPopupModal returns true
     }
-    
     
     // TODO: Revert button?
-    return open;
+    return finished;
 }
 
-bool
-do_calendar(Calendar_State *calendar_state)
+void
+do_calendar(Calendar_State *calendar)
 {
     // TODO: Decide best date types to use, to minimise conversions and make cleaner
     
-    // maybe only allow selection between days we actually have
+    // maybe only allow selection between days we actually have, or at least limit to current date
     
-    bool open = true;
-    
-    ImVec2 calendar_size = ImVec2(270,300);
+    ImVec2 calendar_size = ImVec2(300,300);
     ImGui::SetNextWindowSize(calendar_size);
     if (ImGui::BeginPopup("Calendar"))
     {
-        if (ImGui::IsWindowAppearing())
-        {
-            // TODO: This is called twice on appear
-            
-            // Selected date should already be set
-            
-            // Want to show the month page with our current selected date
-            auto ymd = date::year_month_day{calendar_state->selected_date};
-            
-            auto new_date = ymd.month()/date::day{1}/ymd.year();
-            Assert(new_date.ok());
-            
-            auto first_day_of_month = date::year_month_weekday{new_date};
-            Assert(first_day_of_month.ok());
-            
-            calendar_state->first_day_of_month = first_day_of_month;
-        }
-        
         ImGuiStyle& style = ImGui::GetStyle();
-        style.SelectableTextAlign = ImVec2(.5f, 0.0f); // make calendar numbers right aligned
+        style.SelectableTextAlign = ImVec2(1.0f, 0.0f); // make calendar numbers right aligned
         
         static char *weekdays[] = {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"};
         static char *labels[] = {
@@ -396,7 +381,7 @@ do_calendar(Calendar_State *calendar_state)
         //ImGui::ArrowButton("##left", ImGuiDir_Left); // looks worse but not too bad
         if (ImGui::Button(ICON_MD_ARROW_BACK))
         {
-            auto ymd = date::year_month_day{calendar_state->first_day_of_month};
+            auto ymd = date::year_month_day{calendar->first_day_of_month};
             Assert(ymd.ok());
             
             int year = int(ymd.year());
@@ -414,13 +399,13 @@ do_calendar(Calendar_State *calendar_state)
             auto new_date = date::month{month}/ymd.day()/year;
             Assert(new_date.ok());
             
-            calendar_state->first_day_of_month = date::year_month_weekday{new_date};
-            Assert(calendar_state->first_day_of_month.ok());
+            calendar->first_day_of_month = date::year_month_weekday{new_date};
+            Assert(calendar->first_day_of_month.ok());
         }
         ImGui::SameLine(ImGui::GetWindowWidth() - 40); 
         if (ImGui::Button(ICON_MD_ARROW_FORWARD))
         {
-            auto ymd = date::year_month_day{calendar_state->first_day_of_month};
+            auto ymd = date::year_month_day{calendar->first_day_of_month};
             Assert(ymd.ok());
             
             int year = int(ymd.year());
@@ -438,12 +423,12 @@ do_calendar(Calendar_State *calendar_state)
             auto new_date = date::month{month}/ymd.day()/year;
             Assert(new_date.ok());
             
-            calendar_state->first_day_of_month = date::year_month_weekday{new_date};
-            Assert(calendar_state->first_day_of_month.ok());
+            calendar->first_day_of_month = date::year_month_weekday{new_date};
+            Assert(calendar->first_day_of_month.ok());
         }
         
-        int year = int(calendar_state->first_day_of_month.year());
-        int month = unsigned(calendar_state->first_day_of_month.month());
+        int year = int(calendar->first_day_of_month.year());
+        int month = unsigned(calendar->first_day_of_month.month());
         
         char page_month_year[64];
         snprintf(page_month_year, 64, "%s %i", month_string(month), year);
@@ -460,7 +445,7 @@ do_calendar(Calendar_State *calendar_state)
         // indicating if this is the first, second, etc. weekday of the indicated month.
         // Saturday is wd = 6, Sunday is 0, monday is 1
         
-        s32 skipped_spots = calendar_state->first_day_of_month.weekday().iso_encoding() - 1;
+        s32 skipped_spots = calendar->first_day_of_month.weekday().iso_encoding() - 1;
         s32 days_in_month_count = days_in_month(month, year);
         
         ImGui::Columns(7, "mycolumns", false);  // no border
@@ -479,7 +464,7 @@ do_calendar(Calendar_State *calendar_state)
         // can also just pass a bool to Selactable
         bool selected[31] = {};
         {
-            auto ymd = date::year_month_day{calendar_state->selected_date};
+            auto ymd = date::year_month_day{calendar->selected_date};
             int sel_year = int(ymd.year());
             int sel_month = unsigned(ymd.month());
             int sel_day = unsigned(ymd.day());
@@ -492,13 +477,12 @@ do_calendar(Calendar_State *calendar_state)
         ImGuiSelectableFlags flags = 0;
         for (int i = 0; i < days_in_month_count; i++)
         {
-            //if (i + 1 > day && calendar_state->selected_index != -1) flags |= ImGuiSelectableFlags_Disabled;
+            //if (i + 1 > day && calendar->selected_index != -1) flags |= ImGuiSelectableFlags_Disabled;
             
             if (ImGui::Selectable(labels[i], &selected[i], flags)) 
             {
                 // close calendar and say selected this one
-                calendar_state->selected_date = date::sys_days{calendar_state->first_day_of_month} + date::days{i};
-                open = false;
+                calendar->selected_date = date::sys_days{calendar->first_day_of_month} + date::days{i};
                 break;
             }
             ImGui::NextColumn();
@@ -508,10 +492,11 @@ do_calendar(Calendar_State *calendar_state)
         style.SelectableTextAlign = ImVec2(0.0f, 0.0f);
         ImGui::EndPopup();
     }
-    
-    return open;
 }
 
+// Database only needed for app_names, and generating new settings ids
+// current_date not really needed
+// State needed for calendar and settings structs
 void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *database, date::sys_days current_date, Day_View *day_view)
 {
     ImGui_ImplOpenGL3_NewFrame();
@@ -544,81 +529,89 @@ void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *data
     ImGui::SetNextWindowSize(ImVec2(850, 690), true);
     ImGui::Begin("Main window", nullptr, flags);
     
-    bool open_settings = false;
-    if (ImGui::BeginMenuBar())
     {
-        if (ImGui::BeginMenu("Settings##menu"))
+        // TODO: I would perfer a settings button with cog icon, if nothing else is in menu bar
+        bool open_settings = false; // workaround to nexted id stack
+        if (ImGui::BeginMenuBar())
         {
-            // NOTE: Id might be different because nexted in menu stack, so might be label + menu
-            open_settings = true;
-            ImGui::EndMenu();
-        }
-        ImGui::EndMenuBar();
-    }
-    if (open_settings)
-        ImGui::OpenPopup("Settings");
-    
-    // TODO: Make variables for settings window and child windows width height, 
-    // and maybe base off users monitor w/h
-    // TODO: 800 is probably too big for some screens (make this dynamic)
-    ImGui::SetNextWindowSize(ImVec2(850, 600));
-    if (ImGui::BeginPopupModal("Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize))
-    {
-        if (ImGui::IsWindowAppearing())
-        {
-            // TODO: Does this eval to true for two frames like calendar does...
-            
-            state->edit_settings = (Edit_Settings *)calloc(1, sizeof(Edit_Settings));
-            
-            // Not sure if should try to leave only one extra or all possible input boxes
-            state->edit_settings->input_box_count = MAX_KEYWORD_COUNT;
-            state->edit_settings->misc_options = state->settings.misc_options;
-            
-            // TODO: Should be a better way than this
-            state->edit_settings->poll_start_time_item = state->settings.misc_options.poll_start_time / 15;
-            state->edit_settings->poll_end_time_item = state->settings.misc_options.poll_end_time / 15;
-            
-            Assert(state->settings.keywords.size() <= MAX_KEYWORD_COUNT);
-            for (s32 i = 0; i < state->settings.keywords.size(); ++i)
+            if (ImGui::BeginMenu("Settings##menu"))
             {
-                Assert(state->settings.keywords[i].str.length + 1 <= MAX_KEYWORD_SIZE);
-                strcpy(state->edit_settings->pending[i], state->settings.keywords[i].str.str);
+                // NOTE: Id might be different because nexted in menu stack, so might be label + menu
+                open_settings = true;
+                // init edit_settings
+                state->edit_settings = (Edit_Settings *)calloc(1, sizeof(Edit_Settings));
+                
+                // Not sure if should try to leave only one extra or all possible input boxes
+                state->edit_settings->input_box_count = MAX_KEYWORD_COUNT;
+                state->edit_settings->misc_options = state->settings.misc_options;
+                
+                // TODO: Should be a better way than this
+                state->edit_settings->poll_start_time_item = state->settings.misc_options.poll_start_time / 15;
+                state->edit_settings->poll_end_time_item = state->settings.misc_options.poll_end_time / 15;
+                
+                Assert(state->settings.keywords.size() <= MAX_KEYWORD_COUNT);
+                for (s32 i = 0; i < state->settings.keywords.size(); ++i)
+                {
+                    Assert(state->settings.keywords[i].str.length + 1 <= MAX_KEYWORD_SIZE);
+                    strcpy(state->edit_settings->pending[i], state->settings.keywords[i].str.str);
+                }
+                
+                ImGui::EndMenu();
             }
+            ImGui::EndMenuBar();
         }
         
-        bool open = do_settings_popup(state->edit_settings);
-        if (!open)
+        if (open_settings) ImGui::OpenPopup("Settings");
+        
+        bool finished = do_settings_popup(state->edit_settings);
+        if (finished)
         {
             update_settings(state->edit_settings, &state->settings, database);
             free(state->edit_settings);
         }
-        
-        ImGui::EndPopup(); // only close if BeginPopupModal returns true
     }
     
-    {
-        date::year_month_day ymd{ state->calendar_state.selected_date };
+    auto do_calendar_button = [](Calendar_State *calendar) {
+        date::year_month_day ymd{ calendar->selected_date };
         int year = int(ymd.year());
         int month = unsigned(ymd.month());
         int day = unsigned(ymd.day());
         
         // renders old selected date for one frame (the frame when a new one is selected)
         char buf[64];
-        snprintf(buf, 64, ICON_MD_DATE_RANGE " %i/%i/%i", day, month, year);
-        if (ImGui::Button(buf))
+        snprintf(buf, 64, ICON_MD_DATE_RANGE " %i/%02i/%i", day, month, year);
+        
+        ImGui::PushID((void *)&calendar->selected_date);
+        if (ImGui::Button(buf, ImVec2(120, 30))) // TODO: Better size estimate (maybe based of font)?
         {
             ImGui::OpenPopup("Calendar");
+            
+            // Init calendar
+            
+            // Want to show the calendar month with our current selected date
+            auto ymd = date::year_month_day{calendar->selected_date};
+            
+            auto new_date = ymd.month()/date::day{1}/ymd.year();
+            Assert(new_date.ok());
+            
+            auto first_day_of_month = date::year_month_weekday{new_date};
+            Assert(first_day_of_month.ok());
+            
+            // Selected date should already be set
+            calendar->first_day_of_month = first_day_of_month;
         }
         
-        // can also pass in id or name to function to get two widgets (but maybe can get away with one)
-        bool open = do_calendar(&state->calendar_state);
-        if (!open)
-        {
-        }
-    }
+        do_calendar(calendar);
+        
+        ImGui::PopID();
+    };
+    
+    // can put in above func to use pushed id
+    do_calendar_button(&state->calendar_date_range_start);
+    do_calendar_button(&state->calendar_date_range_end);
+    
     
     {
-        
         date::year_month_day ymd_date{ current_date };
         int year = int(ymd_date.year());
         int month = unsigned(ymd_date.month());
@@ -648,7 +641,7 @@ void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *data
             date::sys_days start_date = current_date - date::days{period - 1};
             set_day_view_range(day_view, start_date, current_date);
         }
-#if 1
+#if 0
         ImGui::SameLine();
         if (ImGui::Button("Next day", ImVec2(ImGui::GetWindowSize().x*0.2f, 0.0f)))
         {
@@ -689,20 +682,27 @@ void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *data
         {
             Record &record = sorted_records[i];
             
-            // DEBUG:
-            Icon_Asset *icon = 0;
-            if (record.id == 0)
+            if (is_exe(record.id))
             {
-                icon = database->icons + database->default_icon_index;
+                // DEBUG:
+                Icon_Asset *icon = 0;
+                if (record.id == 0)
+                {
+                    icon = database->icons + database->default_icon_index;
+                }
+                else
+                {
+                    // TODO: Check if pos of bar or image will be clipped entirely, and maybe skip rest of loop
+                    icon = get_icon_asset(database, record.id);
+                }
+                
+                // Don't need to bind texture before this because imgui binds it before draw call
+                ImGui::Image((ImTextureID)(intptr_t)icon->texture_handle, ImVec2((float)icon->bitmap.width, (float)icon->bitmap.height));
             }
             else
             {
-                // TODO: Check if pos of bar or image will be clipped entirely, and maybe skip rest of loop
-                icon = get_icon_asset(database, record.id);
+                ImGui::Text(ICON_MD_PUBLIC);
             }
-            
-            // Don't need to bind texture before this because imgui binds it before draw call
-            ImGui::Image((ImTextureID)(intptr_t)icon->texture_handle, ImVec2((float)icon->bitmap.width, (float)icon->bitmap.height));
             
             ImGui::SameLine();
             ImVec2 p0 = ImGui::GetCursorScreenPos();
@@ -783,11 +783,6 @@ void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *data
     memcpy((void *)style.Colors, red, 3 * sizeof(float));
     ImGui::Text("diff between time since startup and sum duration: %.5fs", diff_seconds2);
     memcpy((void *)style.Colors, black, 3 * sizeof(float));
-    
-    
-    
-    
-    
     
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
     ImGui::End();

@@ -1,0 +1,23 @@
+
+
+
+// -----------------------------------------------------------------
+// TODO:
+// * !!! If GUI is visible don't sleep. But we still want to poll infrequently. So maybe check elapsed poll time.
+// * Remember window width and height
+// * Unicode correctness
+// * Path length correctness
+// * Stop repeating work getting the firefox URL, maybe use UIAutomation cache?
+// -----------------------------------------------------------------
+
+// Obey licenses (may need to include license and copyright info, can google)
+// TODO: When finished leave asserts and make them write to a log file instead of calling debugbreak()
+// TODO: Don't hardcode sizes, make it a multiple of font size maybe
+// can use array textures maybe, GL_TEXTURE_2D_ARRAY texture target. Textures must be same size
+
+
+
+### Wait for input
+// TODO: ImGui might need to render 3 frames after input (from github imgui), making wait on input more difficult
+
+// Cost of rendering imgui is generally lower than the cost of building the ui elements - "Omar"

@@ -46,24 +46,14 @@ static char *global_savefile_path;
 static char *global_debug_savefile_path;
 static bool global_running = true;
 
-
 // NOTE: This is only used for toggling with the tray icon.
 // Use pump messages result to check if visible to avoid the issues with value unexpectly changing.
 // Still counts as visible if minimised to the task bar.
+// Can put in a function to avoid global
 static NOTIFYICONDATA global_nid = {};
 
 #define WINDOW_WIDTH 1240
 #define WINDOW_HEIGHT 720
-
-// -----------------------------------------------------------------
-// TODO:
-// * !!! If GUI is visible don't sleep. But we still want to poll infrequently. So maybe check elapsed poll time.
-// * Remember window width and height
-// * Unicode correctness
-// * Path length correctness
-// * Stop repeating work getting the firefox URL, maybe use UIAutomation cache?
-
-// -----------------------------------------------------------------
 
 #if 0
 // put this at/around wher ImGui::NewFrame() is
@@ -203,27 +193,37 @@ int main(int argc, char* argv[])
     //io.Fonts->AddFontDefault();
     
     
-    // Can also just add desired ranges/glyphs
-#if 0
-    ImVector<ImWchar> ranges;
-    ImFontGlyphRangesBuilder builder;
-    builder.AddText("Hello world");                        // Add a string (here "Hello world" contains 7 unique characters)
-    builder.AddChar(0x7262);                               // Add a specific character
-    builder.AddRanges(io.Fonts->GetGlyphRangesJapanese()); // Add one of the default ranges
-    builder.BuildRanges(&ranges);                          // Build the final result (ordered ranges with all the unique characters submitted)
     
-    io.Fonts->AddFontFromFileTTF("myfontfile.ttf", size_in_pixels, NULL, ranges.Data);
-    io.Fonts->Build();   
-#endif
     
     io.Fonts->AddFontFromFileTTF("c:\\windows\\fonts\\seguisym.ttf", 22.0f);
     
-    static const ImWchar icons_ranges[] = { ICON_MIN_MD, ICON_MAX_MD, 0 };
+    // NOTE: glyph ranges must exist at least until atlas is built
+    
+    //static const ImWchar icon_range[] = { ICON_MIN_MD, ICON_MAX_MD, 0 };
+    //builder.AddRanges(icon_range); // calls add char looping over 2byte chars in range
+    
     ImFontConfig icons_config; 
     icons_config.MergeMode = true; 
     icons_config.PixelSnapH = true;
+    
+    ImVector<ImWchar> range_32;
+    ImFontGlyphRangesBuilder builder_32;
+    builder_32.AddText(ICON_MD_PUBLIC);
+    builder_32.BuildRanges(&range_32);                          
+    
+    ImVector<ImWchar> range_22;
+    ImFontGlyphRangesBuilder builder_22;
+    builder_22.AddText(ICON_MD_DATE_RANGE);
+    builder_22.AddText(ICON_MD_ARROW_FORWARD);
+    builder_22.AddText(ICON_MD_ARROW_BACK);
+    builder_22.BuildRanges(&range_22);                          
+    
+    icons_config.GlyphOffset = ImVec2(0, 13); // move glyphs down or else they render too high
+    io.Fonts->AddFontFromFileTTF("c:\\dev\\projects\\monitor\\build\\MaterialIcons-Regular.ttf", 32.0f, &icons_config, range_32.Data);
+    
     icons_config.GlyphOffset = ImVec2(0, 4); // move glyphs down or else they render too high
-    ImFont *MD_font = io.Fonts->AddFontFromFileTTF("c:\\dev\\projects\\monitor\\build\\MaterialIcons-Regular.ttf", 22.0f, &icons_config, icons_ranges);
+    io.Fonts->AddFontFromFileTTF("c:\\dev\\projects\\monitor\\build\\MaterialIcons-Regular.ttf", 22.0f, &icons_config, range_22.Data);
+    
     
     unsigned int flags = ImGuiFreeType::NoHinting;
     ImGuiFreeType::BuildFontAtlas(io.Fonts, flags);
