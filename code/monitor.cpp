@@ -3,8 +3,6 @@
 #include "cian.h"
 #include "monitor_string.h"
 #include "helper.h"
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
 #include "graphics.h"
 #include "icon.h"
 #include "helper.h"
@@ -75,6 +73,7 @@ void
 add_or_update_record(Day_List *day_list, App_Id id, time_type dt)
 {
     // Assumes a day's records are sequential in memory
+    // DEBUG: Record id can be 0, used to denote 'no program'
     Assert(day_list->days.size() > 0);
     
     Day *cur_day = &day_list->days.back();
@@ -115,11 +114,12 @@ add_or_update_record(Day_List *day_list, App_Id id, time_type dt)
 Day_View
 get_day_view(Day_List *day_list)
 {
+    // TODO: Handle zero day in day_list
+    // (are we handling zero records in list?)
+    
+    // TODO: This should not default to daily, but keep the alst used range, even if the records are updated
+    
     Day_View day_view = {};
-    //day_view.start_date = start_date;
-    //call  set range...
-    //day_view.period = initial_period;
-    //day_view.accumulate = (period == 1) ? false : true;
     
     // If no records this might allocate 0 bytes (probably fine)
     Day *cur_day = &day_list->days.back();
@@ -130,12 +130,20 @@ get_day_view(Day_List *day_list)
     day_view.days = day_list->days;
     day_view.days.back().records = day_view.copy_of_current_days_records;
     
+    day_view.range_type = Range_Type_Daily;
+    day_view.start_date = cur_day->date;
+    day_view.end_date = cur_day->date;
+    day_view.left_disabled = (day_view.days.size() == 1); // we are on the first and only day
+    day_view.right_disabled = true;
+    snprintf(day_view.date_label, array_count(day_view.date_label), "Today");
+    
     return day_view;
 }
 
 void
 set_day_view_range(Day_View *day_view, date::sys_days start_date, date::sys_days end_date)
 {
+#if 0
     // TODO:
     Assert(day_view->days.size() > 0);
     Assert(start_date >= end_date);
@@ -191,6 +199,7 @@ set_day_view_range(Day_View *day_view, date::sys_days start_date, date::sys_days
     day_view->start_range = start_range;
     day_view->end_range = end_range;
     //range_count = range_count;
+#endif
 }
 
 
@@ -205,49 +214,6 @@ free_day_view(Day_View *day_view)
     // TODO: Should I deallocate day_view->days memory? (probably)
     *day_view = {};
 }
-
-
-void init_database(Database *database)
-{
-    *database = {};
-    database->id_table = std::unordered_map<String, App_Id>(30);
-    database->app_names = std::unordered_map<App_Id, App_Info>(80);
-    
-    database->next_program_id = 1;
-    database->next_website_id = 1 << 31;
-    
-    database->firefox_id = 0;
-    database->added_firefox = false;
-    
-    database->day_list = {};
-    database->day_list.blocks = new_block(nullptr);
-    start_new_day(&database->day_list, get_localtime());
-    
-#if 0
-    for (int i = 0; i < array_count(state->database.ms_icons); ++i)
-    {
-        HICON ico = LoadIconA(NULL, MAKEINTRESOURCE(32513 + i));
-        Bitmap *bitmap = &state->database.ms_icons[i];
-        win32_get_bitmap_data_from_HICON(ico, &bitmap->width, &bitmap->height, &bitmap->pitch, &bitmap->pixels);
-    }
-#endif
-    
-    // Load default icon, to use if we can't get an apps program
-    Bitmap bitmap;
-    // Dont need to DestroyIcon this
-    HICON hicon = LoadIconA(NULL, IDI_ERROR); // TODO: Replace with IDI_APPLICATION
-    if (hicon)
-    {
-        if (!win32_get_bitmap_data_from_HICON(hicon, &bitmap.width, &bitmap.height, &bitmap.pitch, &bitmap.pixels))
-        {
-            // If can't load OS icon make an background coloured icon to use as default
-            init_bitmap(&bitmap, ICON_SIZE, ICON_SIZE);
-        }
-    }
-    
-    database->default_icon_index = load_icon_and_add_to_database(database, bitmap);
-}
-
 
 bool is_exe(u32 id)
 {
@@ -280,6 +246,154 @@ u32 make_id(Database *database, Record_Type type)
     
     return id;
 }
+
+void
+debug_add_records(Database *database, Day_List *day_list, date::sys_days cur_date)
+{
+    static char *names[] = {
+        "C:\\Program Files\\Krita (x64)\\bin\\krita.exe",
+        "C:\\Program Files\\Mozilla Firefox\\firefox.exe",
+        "C:\\dev\\projects\\monitor\\build\\monitor.exe",
+        "C:\\Program Files\\7-Zip\\7zFM.exe",  // normal 7z.exe had no icon
+        "C:\\Qt\\5.12.2\\msvc2017_64\\bin\\designer.exe",
+        "C:\\Qt\\5.12.2\\msvc2017_64\\bin\\assistant.exe",
+        "C:\\Program Files (x86)\\Dropbox\\Client\\Dropbox.exe",
+        "C:\\Program Files (x86)\\Vim\\vim80\\gvim.exe",
+        "C:\\Windows\\notepad.exe",
+        "C:\\Program Files\\CMake\\bin\\cmake-gui.exe",
+        "C:\\Program Files\\Git\\git-bash.exe",
+        "C:\\Program Files\\Malwarebytes\\Anti-Malware\\mbam.exe",
+        "C:\\Program Files\\Sublime Text 3\\sublime_text.exe",
+        "C:\\Program Files\\Typora\\bin\\typora.exe",
+        "C:\\files\\applications\\cmder\\cmder.exe",
+        "C:\\files\\applications\\4coder\\4ed.exe",
+        "C:\\files\\applications\\Aseprite\\aseprite.exe",
+        "C:\\dev\\projects\\shell\\shell.exe",  // No icon in executable just default windows icon showed in explorer, so can't load anything
+        "C:\\Program Files\\Realtek\\Audio\\HDA\\RtkNGUI64.exe",
+        "C:\\Program Files\\VideoLAN\\VLC\\vlc.exe",
+        "C:\\Program Files\\Windows Defender\\MpCmdRun.exe",
+        "C:\\Program Files\\Java\\jdk-11.0.2\\bin\\java.exe",
+        "C:\\Program Files (x86)\\Internet Explorer\\iexplore.exe",
+        "C:\\Program Files (x86)\\Meld\\Meld.exe",
+        "C:\\Program Files (x86)\\MSI Afterburner\\MSIAfterburner.exe"
+    };
+    
+    // Should be no days in day list
+    Assert(day_list->days.size() == 0);
+    
+    
+#include <stdlib.h> // rand (debug)
+    
+    auto rand_between = [](int low, int high) -> int {
+        static bool first = true;
+        if (first)
+        {
+            time_t time_now;
+            srand((unsigned) time(&time_now));
+            first = false;
+        }
+        
+        float t = (float)rand() / (float)RAND_MAX;
+        float result = round((1.0f - t) * low + t*high);
+        return (int)result;
+    };
+    
+    date::sys_days start  = cur_date - date::days{70};
+    
+    for (date::sys_days d = start; d < cur_date; d += date::days{1})
+    {
+        start_new_day(day_list, d);
+        
+        int n = rand_between(1, 6);
+        for (int j = 0; j < n; ++j)
+        {
+            int name_idx = rand_between(0, array_count(names) - 1);
+            int dt_microsecs = rand_between(0, MICROSECS_PER_SEC * 3);
+            
+            String full_path = make_string_size_cap(names[name_idx], strlen(names[name_idx]), strlen(names[name_idx]));
+            String program_name = get_filename_from_path(full_path);
+            Assert(program_name.length != 0);
+            
+            remove_extension(&program_name);
+            Assert(program_name.length != 0);
+            
+            // string_to_lower(&program_name);
+            
+            App_Id record_id = 0;
+            if (database->id_table.count(program_name) == 0)
+            {
+                App_Id new_id = make_id(database, Record_Exe);
+                
+                App_Info names;
+                names.long_name = copy_alloc_string(full_path);
+                names.short_name = copy_alloc_string(program_name);
+                names.icon_index = -1;
+                
+                database->app_names.insert({new_id, names});
+                
+                // These don't share the same strings for now
+                String name_2 = copy_alloc_string(program_name);
+                database->id_table.insert({name_2, new_id});
+                
+                record_id = new_id;
+            }
+            else
+            {
+                // get record id
+                record_id = database->id_table[program_name];
+            }
+            
+            add_or_update_record(day_list, record_id, dt_microsecs);
+        }
+    }
+}
+
+
+void init_database(Database *database, date::sys_days current_date)
+{
+    *database = {};
+    database->id_table = std::unordered_map<String, App_Id>(30);
+    database->app_names = std::unordered_map<App_Id, App_Info>(80);
+    
+    database->next_program_id = 1;
+    database->next_website_id = 1 << 31;
+    
+    database->firefox_id = 0;
+    database->added_firefox = false;
+    
+    database->day_list = {};
+    database->day_list.blocks = new_block(nullptr);
+    
+    // add fake days before current_date
+    debug_add_records(database, &database->day_list, current_date);
+    
+    start_new_day(&database->day_list, current_date);
+    
+#if 0
+    for (int i = 0; i < array_count(state->database.ms_icons); ++i)
+    {
+        HICON ico = LoadIconA(NULL, MAKEINTRESOURCE(32513 + i));
+        Bitmap *bitmap = &state->database.ms_icons[i];
+        win32_get_bitmap_data_from_HICON(ico, &bitmap->width, &bitmap->height, &bitmap->pitch, &bitmap->pixels);
+    }
+#endif
+    
+    // Load default icon, to use if we can't get an apps program
+    Bitmap bitmap;
+    // Dont need to DestroyIcon this
+    HICON hicon = LoadIconA(NULL, IDI_ERROR); // TODO: Replace with IDI_APPLICATION
+    if (hicon)
+    {
+        if (!win32_get_bitmap_data_from_HICON(hicon, &bitmap.width, &bitmap.height, &bitmap.pitch, &bitmap.pixels))
+        {
+            // If can't load OS icon make an background coloured icon to use as default
+            init_bitmap(&bitmap, ICON_SIZE, ICON_SIZE);
+        }
+    }
+    
+    database->default_icon_index = load_icon_and_add_to_database(database, bitmap);
+}
+
 
 void add_keyword(std::vector<Keyword> &keywords, Database *database, char *str, App_Id id = 0)
 {
@@ -418,6 +532,9 @@ get_icon_asset(Database *database, App_Id id)
 App_Id
 poll_windows(Database *database, Settings *settings)
 {
+    ZoneScoped;
+    
+    // TODO: Probably should just make everything a null terminated String as imgui, windows, curl all want null terminated
 	App_Id record_id = 0;
     
     char buf[2000];
@@ -533,10 +650,12 @@ poll_windows(Database *database, Settings *settings)
 	return record_id;
 }
 
-
 void
 update(Monitor_State *state, SDL_Window *window, time_type dt, u32 window_status)
 {
+    //OPTICK_EVENT();
+    ZoneScoped;
+    
     date::sys_days current_date = get_localtime(); // + date::days{state->extra_days};;
     if (!state->is_initialised)
     {
@@ -546,7 +665,7 @@ update(Monitor_State *state, SDL_Window *window, time_type dt, u32 window_status
         *state = {};
         state->header = {};
         
-        init_database(&state->database);
+        init_database(&state->database, current_date);
         
         Misc_Options options = {};
         options.day_start_time = 0;
@@ -568,6 +687,8 @@ update(Monitor_State *state, SDL_Window *window, time_type dt, u32 window_status
         // https://www.hero.com/specials/hi&=yes
         // hero, specials
         
+        
+        
         state->accumulated_time = 0;
         state->total_runtime = 0;
         state->startup_time = win32_get_time();
@@ -582,7 +703,7 @@ update(Monitor_State *state, SDL_Window *window, time_type dt, u32 window_status
     
     Database *database = &state->database;
     
-    // TODO: Just use google or duckduckgo service for now
+    // TODO: Just use google or duckduckgo service for now (look up how duckduckgo browser does it, ever since they switched from using their service...)
     
     if (window_status & Window_Just_Hidden)
     {
@@ -615,24 +736,31 @@ update(Monitor_State *state, SDL_Window *window, time_type dt, u32 window_status
         state->accumulated_time = 0;
     }
     
+    static Day_View day_view = {};
     if (window_status & Window_Just_Visible)
     {
         // Save a freeze frame of the currently saved days.
         
         // setup day view and 
+        
+        
+        // sets start and end date and sets to daily currently
+        // TODO: This should not default to daily, but keep the alst used range, even if the records are updated
+        day_view = get_day_view(&database->day_list);
     }
     
-    Day_View day_view = get_day_view(&database->day_list);
     
-    date::sys_days start_date = current_date;
-    set_day_view_range(&day_view, start_date, current_date);
+    //date::sys_days start_date = current_date;
+    //set_day_view_range(&day_view, start_date, current_date);
     
     if (window_status & Window_Visible)
     {
+        // I think we are drawing more frames than monitor is eating (hence high cpu usage)?
+        // But doesn't vsync sleep application on swap buffers, when it cant buffer any more frames
         draw_ui_and_update(window, state, database, current_date, &day_view);
     }
     
-    free_day_view(&day_view);
+    //free_day_view(&day_view);
     
 }
 

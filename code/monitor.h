@@ -34,6 +34,12 @@ typedef u32 App_Id;
 using System_Clock = std::chrono::system_clock; // gives according to utc time
 
 // May want store date in seconds rather than days since epoch
+// But storing days allows easy comparison like if (day_view->start_range == cur_date)
+// whereas a storing time in seconds it can be the same day but seconds are not equal
+
+// should i be using local_days instead of sys_days (does it actually matter, using sys days and the get_localtime function I did fix the "day not changing after midnight because of utc time" issue)
+
+
 date::sys_days
 get_localtime()
 {
@@ -46,6 +52,9 @@ get_localtime()
     //int tm_year;        /* The number of years since 1900   */
     info = localtime( &rawtime );
     auto now = date::sys_days{date::month{(unsigned)(info->tm_mon + 1)}/date::day{(unsigned)info->tm_mday}/date::year{info->tm_year + 1900}};
+    
+    //auto test_date = std::floor<date::local_days>()};
+    //Assert(using local_days    = local_time<days>;
     return now;
 }
 
@@ -79,6 +88,7 @@ namespace std
         std::size_t operator()(App_Id const& id) const noexcept
         {
             // Probably fine for program ids (start at 1)
+            Assert(id != 0);
             return (size_t)id;
         }
     };
@@ -137,20 +147,38 @@ struct Day_List
     Block *blocks;
     std::vector<Day> days;
 };
+
+enum Range_Type : int
+{
+    Range_Type_Daily = 0, // code relies on this
+    Range_Type_Weekly,
+    Range_Type_Monthly,
+    Range_Type_Custom,
+};
+
 struct Day_View
 {
     std::vector<Day> days;
+    Record *copy_of_current_days_records;
     
-    // Start and end dates can be out of range of actual stored days
-    // the indexes point to the closest actual stored days
-    // start_date < == > days[start_index].date  
-    // end_date < == > days[end_index].date
+    ////////////////////////////////////////
+    // All of these are modified by ui
+    
+    // TODO: When new days are added do we update end_date
+    // TODO: Get rid of day suffix probably...
+    Range_Type range_type;
+    
+    // maybe should be ymd
+    // should i use local_days not sys_days
     date::sys_days start_date;
     date::sys_days end_date;
-    i32 start_range;
-    i32 end_range;
-    bool has_days;
-    Record *copy_of_current_days_records;
+    
+    
+    // Longest string "30st September 2020 - 31st September 2020"
+    // 41 chars
+    char date_label[64];
+    bool left_disabled;
+    bool right_disabled;
 };
 
 
@@ -192,8 +220,9 @@ struct Icon_Asset
 struct Database
 {
 	// Contains local programs only
-    // This is used to quickly Assigned_Idable paths -> ID
-    // Don't need a corresponding one for websites as we have to test agains all keywords anyway
+    // Hash the exe name (shortname) of program
+    // This is used to quickly get an App_Id from a exe name
+    // Don't need a corresponding one for websites as we have to test agains all keywords anyway (except maybe we do)
     std::unordered_map<String, App_Id> id_table;
     
     // Contains websites and local programs
@@ -280,6 +309,7 @@ Monitor_State
     Calendar_State calendar_date_range_start;
     Calendar_State calendar_date_range_end;
     
+    // microsecs
     time_type accumulated_time;
     
     // debug temporary

@@ -135,6 +135,7 @@ remove_duplicate_and_empty_keyword_strings(char(*keywords)[MAX_KEYWORD_SIZE])
 void
 update_settings(Edit_Settings *edit_settings, Settings *settings, Database *database)
 {
+    // TODO: Could maybe hash new keyworks to get and ID and check if we have records with that id and if so use that id instead of assigning a new one. Avoids the problem of having multiple records with same keyword and different ids, also tries to avoid re-getting icons and having multiple identical textures.
     if (!edit_settings->update_settings) return;
     
     // Empty input boxes are just zeroed array
@@ -357,6 +358,31 @@ do_settings_popup(Edit_Settings *edit_settings)
     return finished;
 }
 
+
+void
+prev_month(int *month, int *year)
+{
+    if (*month == 1) {
+        *month = 12;
+        *year -= 1;
+    }
+    else {
+        *month -= 1;
+    }
+}
+
+void
+next_month(int *month, int *year)
+{
+    if (*month == 12) {
+        *month = 1;
+        *year += 1;
+    }
+    else {
+        *month += 1;
+    }
+}
+
 void
 do_calendar(Calendar_State *calendar)
 {
@@ -385,18 +411,9 @@ do_calendar(Calendar_State *calendar)
             Assert(ymd.ok());
             
             int year = int(ymd.year());
-            unsigned month = unsigned (ymd.month());
-            if (month == 1) 
-            {
-                month = 12;
-                year -= 1;
-            }
-            else
-            {
-                month -= 1;
-            }
-            
-            auto new_date = date::month{month}/ymd.day()/year;
+            int month = unsigned (ymd.month());
+            prev_month(&month, &year);
+            auto new_date = date::month(month)/ymd.day()/year;
             Assert(new_date.ok());
             
             calendar->first_day_of_month = date::year_month_weekday{new_date};
@@ -409,18 +426,10 @@ do_calendar(Calendar_State *calendar)
             Assert(ymd.ok());
             
             int year = int(ymd.year());
-            unsigned month = unsigned(ymd.month());
-            if (month == 12) 
-            {
-                month = 1;
-                year += 1;
-            }
-            else
-            {
-                month += 1;
-            }
+            int month = unsigned(ymd.month());
+            next_month(&month, &year);
             
-            auto new_date = date::month{month}/ymd.day()/year;
+            auto new_date = date::month(month)/ymd.day()/year;
             Assert(new_date.ok());
             
             calendar->first_day_of_month = date::year_month_weekday{new_date};
@@ -494,11 +503,525 @@ do_calendar(Calendar_State *calendar)
     }
 }
 
+void
+do_calendar_button(Calendar_State *calendar) 
+{
+    date::year_month_day ymd{ calendar->selected_date };
+    int year = int(ymd.year());
+    int month = unsigned(ymd.month());
+    int day = unsigned(ymd.day());
+    
+    // renders old selected date for one frame (the frame when a new one is selected)
+    char buf[64];
+    snprintf(buf, 64, ICON_MD_DATE_RANGE " %i/%02i/%i", day, month, year);
+    
+    ImGui::PushID((void *)&calendar->selected_date);
+    if (ImGui::Button(buf, ImVec2(120, 30))) // TODO: Better size estimate (maybe based of font)?
+    {
+        ImGui::OpenPopup("Calendar");
+        
+        // Init calendar
+        
+        // Want to show the calendar month with our current selected date
+        auto ymd = date::year_month_day{calendar->selected_date};
+        
+        auto new_date = ymd.month()/date::day{1}/ymd.year();
+        Assert(new_date.ok());
+        
+        auto first_day_of_month = date::year_month_weekday{new_date};
+        Assert(first_day_of_month.ok());
+        
+        // Selected date should already be set
+        calendar->first_day_of_month = first_day_of_month;
+    }
+    
+    do_calendar(calendar);
+    
+    ImGui::PopID();
+}
+
+
+void
+backwards_range_and_clip(Range_Type range_type, 
+                         date::sys_days *start_date, date::sys_days *end_date,
+                         date::sys_days oldest_date, date::sys_days newest_date) 
+{
+    date::sys_days start = *start_date;
+    date::sys_days end = *end_date;
+    if (range_type == Range_Type_Daily)
+    {
+        start -= date::days{1};
+        end -= date::days{1};
+        // no clipping needed
+    }
+    else if (range_type == Range_Type_Weekly)
+    {
+        Assert(end - start == date::days{6});
+        
+        // start end stay on monday and sunday of week unless clipped
+        start -= date::days{7};
+        end -= date::days{7};
+        
+        // if end is currently clipped to newest then it may not be on sunday, so minus 7 days will still not be a sunday
+        auto ymw = date::year_month_weekday{end};
+        if (ymw.weekday() != date::Sunday)
+        {
+            end = date::sys_days{ymw.year()/ymw.month()/date::Sunday[ymw.index()]};
+        }
+        ymw = date::year_month_weekday{start};
+        if (ymw.weekday() != date::Monday)
+        {
+            // needed?
+            start = date::sys_days{ymw.year()/ymw.month()/date::Monday[ymw.index()]};
+        }
+        
+        if (start < oldest_date) start = oldest_date;
+        if (end < oldest_date) end = oldest_date;
+    }
+    else if (range_type == Range_Type_Monthly)
+    {
+        auto ymd = date::year_month_day{start};
+        int year = int(ymd.year());
+        int month = unsigned(ymd.month());
+        
+        prev_month(&month, &year);
+        
+        start = date::sys_days{date::year{year}/month/1};
+        end = date::sys_days{date::year{year}/month/days_in_month(month, year)};
+        
+        auto test = date::sys_days{date::year{year}/month/date::last};
+        Assert(end == test);
+        
+        if (start < oldest_date) start = oldest_date;
+        if (end < oldest_date) end = oldest_date;
+    }
+    // else Custom (Nothing happens)
+    
+    *start_date = start;
+    *end_date = end;
+}
+
+void
+forewards_range_and_clip(Range_Type range_type, 
+                         date::sys_days *start_date, date::sys_days *end_date,
+                         date::sys_days oldest_date, date::sys_days newest_date) 
+{
+    date::sys_days start = *start_date;
+    date::sys_days end = *end_date;
+    if (range_type == Range_Type_Daily)
+    {
+        Assert(end == start);
+        
+        start += date::days{1};
+        end += date::days{1};
+        // no clipping needed
+    }
+    else if (range_type == Range_Type_Weekly)
+    {
+        Assert(end - start == date::days{6});
+        
+        // start end stay on monday and sunday of week unless clipped
+        start += date::days{7};
+        end += date::days{7};
+        
+        // if end is currently clipped to newest then it may not be on sunday, so minus 7 days will still not be a sunday
+        auto ymw = date::year_month_weekday{start};
+        if (ymw.weekday() != date::Monday)
+        {
+            // Make into monday of the next week
+            start = date::sys_days{ymw.year()/ymw.month()/date::Monday[ymw.index()]};
+        }
+        
+        ymw = date::year_month_weekday{end};
+        if (ymw.weekday() != date::Sunday)
+        {
+            // needed? if guarenteed 7 days apart
+            
+            // Make into monday of the next week
+            end = date::sys_days{ymw.year()/ymw.month()/date::Sunday[ymw.index()]};
+        }
+        
+        if (start > newest_date) start = newest_date;
+        if (end > newest_date) end = newest_date;
+    }
+    else if (range_type == Range_Type_Monthly)
+    {
+        auto ymd = date::year_month_day{end};
+        int year = int(ymd.year());
+        int month = unsigned(ymd.month());
+        
+        Assert(end - start == date::days{days_in_month(year, month)});
+        
+        next_month(&month, &year);
+        
+        start = date::sys_days{date::year{year}/month/1};
+        end = date::sys_days{date::year{year}/month/days_in_month(month, year)};
+        
+        auto test = date::sys_days{date::year{year}/month/date::last};
+        Assert(end == test);
+        
+        
+        if (start > newest_date) start = newest_date;
+        if (end > newest_date) end = newest_date;
+    }
+    // else Custom (Nothing happens)
+    
+    *start_date = start;
+    *end_date = end;
+}
+
+bool can_backward_range(date::sys_days start, date::sys_days end,
+                        date::sys_days oldest_date, date::sys_days newest_date)
+{
+    // If start is clipped then there is always no earlier day/week/month (can't go backwards)
+    // Or start is not clipped but is on the oldest date (can't go backwards)
+    // If start is not clipped then must be at the beginning of a week or month, so any earlier date (i.e. oldest) would have to be in another week or month (can go backwards)
+    return start > oldest_date;
+}
+
+bool
+can_foreward_range(date::sys_days start, date::sys_days end,
+                   date::sys_days oldest_date, date::sys_days newest_date)
+{
+    return end < newest_date;
+}
+
+void
+push_disable(bool is_disabled)
+{
+    if (is_disabled)
+    {
+        ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true); // imgui_internal.h
+        ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.5f);
+    }
+}
+
+void
+pop_disable(bool is_disabled)
+{
+    if (is_disabled)
+    {
+        ImGui::PopItemFlag(); // imgui_internal.h
+        ImGui::PopStyleVar();
+    }
+}
+
+void
+do_date_select_popup(Monitor_State *state,
+                     Day_View *day_view, date::sys_days oldest_date, date::sys_days newest_date)
+{
+    // make below button
+    //ImGui::SetNextWindowPos();
+    //ImGui::SetNextWindowSize(ImVec2(300,300));
+    if (ImGui::BeginPopup("Date Select"))
+    {
+        // @WaitOnInput: this may change the date displayed on button
+        
+        char *items[] = {"Daily", "Weekly", "Monthly", "Custom range"};
+        
+        int prev_range_type = day_view->range_type;
+        if (ImGui::Combo("period picker", (int *)&day_view->range_type, items, array_count(items)))
+        {
+            // TODO: Collapse this to avoid rechecking range_type and coverting to ymd more than once (though this may need to happen if the day is clipped)
+            switch (day_view->range_type)
+            {
+                case Range_Type_Daily:
+                {
+                    if (prev_range_type == Range_Type_Weekly)
+                    {
+                        // Select first day of week
+                        auto ymw = date::year_month_weekday{day_view->start_date};
+                        day_view->start_date = date::sys_days{ymw.year()/ymw.month()/date::Monday[ymw.index()]};
+                    }
+                    else if (prev_range_type == Range_Type_Monthly)
+                    {
+                        // Select first day of month
+                        auto ymd = date::year_month_day{day_view->start_date};
+                        day_view->start_date = date::sys_days{ymd.year()/ymd.month()/1};
+                    }
+                    else if (prev_range_type == Range_Type_Custom)
+                    {
+                        // start_date stays the same
+                    }
+                    
+                    day_view->end_date = day_view->start_date;
+                } break;
+                
+                case Range_Type_Weekly:
+                {
+                    if (prev_range_type == Range_Type_Daily ||
+                        prev_range_type == Range_Type_Custom)
+                    {
+                        // Select the week that start_date is in
+                        auto ymw = date::year_month_weekday{day_view->start_date};
+                        day_view->start_date = date::sys_days{ymw.year()/ymw.month()/date::Monday[ymw.index()]};
+                        day_view->end_date   = date::sys_days{ymw.year()/ymw.month()/date::Sunday[ymw.index()]};
+                    }
+                    else if (prev_range_type == Range_Type_Monthly)
+                    {
+                        // Select first week of that month that start_date is in
+                        auto ymw = date::year_month_weekday{day_view->start_date};
+                        day_view->start_date = date::sys_days{ymw.year()/ymw.month()/date::Monday[1]};
+                        day_view->end_date   = date::sys_days{ymw.year()/ymw.month()/date::Sunday[1]};
+                    }
+                } break;
+                
+                case Range_Type_Monthly:
+                {
+                    if (prev_range_type == Range_Type_Daily ||
+                        prev_range_type == Range_Type_Custom || 
+                        prev_range_type == Range_Type_Weekly)
+                    {
+                        // Select the month that start_date is in
+                        auto ymd = date::year_month_day{day_view->start_date};
+                        day_view->start_date = date::sys_days{ymd.year()/ymd.month()/1};
+                        day_view->end_date   = date::sys_days{ymd.year()/ymd.month()/date::last};
+                    }
+                } break;
+                
+                case Range_Type_Custom:
+                // else Custom (Nothing happens TODO)
+                break;
+            }
+            
+            // Clip dates
+            if (day_view->start_date > newest_date) day_view->start_date = newest_date;
+            if (day_view->end_date > newest_date)   day_view->end_date = newest_date;
+            if (day_view->start_date < oldest_date) day_view->start_date = oldest_date;
+            if (day_view->end_date < oldest_date)   day_view->end_date = oldest_date;
+            
+            if (day_view->range_type == Range_Type_Daily)
+            {
+                if (day_view->start_date == oldest_date)
+                    snprintf(day_view->date_label, array_count(day_view->date_label), "Today");
+                else if (day_view->start_date == oldest_date - date::days{1})
+                    snprintf(day_view->date_label, array_count(day_view->date_label), "Yesterday");
+                else
+                {
+                    auto ymd = date::year_month_day{day_view->start_date};
+                    int year = int(ymd.year());
+                    int month = unsigned(ymd.month());
+                    int day = unsigned(ymd.day());
+                    snprintf(day_view->date_label, array_count(day_view->date_label), 
+                             "%i%s %s %i", day, day_suffix(day), month_string(month), year);
+                }
+            }
+            else if (day_view->range_type == Range_Type_Weekly)
+            {
+                // TODO: Use day suffix?
+                {
+                    auto ymd = date::year_month_day{day_view->start_date};
+                    int year = int(ymd.year());
+                    int month = unsigned(ymd.month());
+                    int day = unsigned(ymd.day());
+                    snprintf(day_view->date_label, array_count(day_view->date_label), 
+                             "%i%s %s %i - ", day, day_suffix(day), month_string(month), year);
+                }
+                {
+                    auto ymd = date::year_month_day{day_view->end_date};
+                    int year = int(ymd.year());
+                    int month = unsigned(ymd.month());
+                    int day = unsigned(ymd.day());
+                    snprintf(day_view->date_label, array_count(day_view->date_label), 
+                             "%i%s %s %i", day, day_suffix(day), month_string(month), year);
+                }
+            }
+            else if (day_view->range_type == Range_Type_Monthly)
+            {
+                auto ymd = date::year_month_day{day_view->start_date};
+                int year = int(ymd.year());
+                int month = unsigned(ymd.month());
+                snprintf(day_view->date_label, array_count(day_view->date_label), 
+                         "%s %i", month_string(month), year);
+            }
+            else if (day_view->range_type == Range_Type_Custom)
+            {
+                {
+                    auto ymd = date::year_month_day{day_view->start_date};
+                    int year = int(ymd.year());
+                    int month = unsigned(ymd.month());
+                    int day = unsigned(ymd.day());
+                    snprintf(day_view->date_label, array_count(day_view->date_label), 
+                             "%i%s %s %i - ", day, day_suffix(day), month_string(month), year);
+                }
+                {
+                    auto ymd = date::year_month_day{day_view->end_date};
+                    int year = int(ymd.year());
+                    int month = unsigned(ymd.month());
+                    int day = unsigned(ymd.day());
+                    snprintf(day_view->date_label, array_count(day_view->date_label), 
+                             "%i%s %s %i", day, day_suffix(day), month_string(month), year);
+                }
+            }
+            else
+            {
+                Assert(0);
+            }
+            
+            
+            day_view->left_disabled = !can_backward_range(day_view->start_date, day_view->end_date,
+                                                          oldest_date, newest_date);
+            
+            day_view->right_disabled = !can_foreward_range(day_view->start_date, day_view->end_date,
+                                                           oldest_date, newest_date);
+        }
+        
+        // Maybe disable these when some options selected?
+        do_calendar_button(&state->calendar_date_range_start);
+        ImGui::SameLine();
+        do_calendar_button(&state->calendar_date_range_end);
+        
+        // check range
+        
+        ImGui::EndPopup();
+    }
+}
+
+void
+do_debug_window_button(Database *database, Day_View *day_view)
+{
+    static bool debug_menu_open = false;
+    if (ImGui::Button("Debug"))
+    {
+        debug_menu_open = !debug_menu_open;
+        ImGui::SetNextWindowPos(ImVec2(90, 0), true);
+    }
+    
+    if (debug_menu_open)
+    {
+        ImGuiWindowFlags flags =
+            ImGuiWindowFlags_NoScrollbar
+            | ImGuiWindowFlags_NoSavedSettings;
+        
+        ImGui::SetNextWindowSize(ImVec2(850, 690), true);
+        ImGui::Begin("Debug Window", &debug_menu_open, flags);
+        {
+            ImGui::Text("id_table:");
+            ImGui::SameLine(300);
+            ImGui::Text("app_names:");
+            
+            ImGui::BeginChildFrame(26, ImVec2(200, 600));
+            for (auto const &pair : database->id_table)
+            {
+                // not sure if definately null terminated
+                ImGui::BulletText("%s: %u", pair.first.str, pair.second);
+            }
+            ImGui::EndChildFrame();
+            
+            ImGui::SameLine();
+            
+            ImGui::BeginChildFrame(27, ImVec2(500, 600));
+            for (auto const &pair : database->app_names)
+            {
+                // not sure if definately null terminated
+                ImGui::BulletText("%u: %s   (%s)", pair.first, 
+                                  pair.second.short_name.str, pair.second.long_name.str);
+            }
+            ImGui::EndChildFrame();
+        }
+        {
+            ImGui::Text("__Day_List__");
+            ImGui::Text("days:");
+            ImGui::SameLine(500);
+            ImGui::Text("blocks:");
+            
+            Day_List *day_list = &database->day_list;
+            
+            ImGui::BeginChildFrame(29, ImVec2(400, 600));
+            ImGui::Text("day count = %u", day_list->days.size());
+            {
+                auto start = date::year_month_day{day_list->days.front().date};
+                auto end = date::year_month_day{day_list->days.back().date};
+                
+                std::ostringstream buf;
+                buf << start.day() << "/" << start.month() << "/" << start.year() <<  " - " 
+                    << end.day() << "/" << end.month() << "/" << end.year(); 
+                
+                ImGui::SameLine();
+                ImGui::Text("%s", buf.str().c_str());
+            }
+            for (int i = 0; i < day_list->days.size(); ++i)
+            {
+                auto ymd = date::year_month_day{day_list->days[i].date};
+                
+                std::ostringstream buf;
+                buf << ymd;
+                
+                ImGui::Text("%s, record count = %u", buf.str().c_str(), day_list->days[i].record_count);
+                Record  *records = day_list->days[i].records;
+                for (int j = 0; j < day_list->days[i].record_count; ++j)
+                {
+                    ImGui::BulletText("id = %u, duration = %llis", records[j].id, records[j].duration / MICROSECS_PER_SEC);
+                }
+            }
+            ImGui::EndChildFrame();
+            
+            ImGui::SameLine();
+            
+            ImGui::BeginChildFrame(28, ImVec2(300, 600));
+            Block *b = day_list->blocks;
+            int total_block_count = 0;
+            while (b)
+            {
+                ImGui::Text("block %i, record count = %u", total_block_count, b->count);
+                for (int i = 0; i < b->count; ++i)
+                {
+                    ImGui::Text("id = %u, duration = %llis", b->records[i].id, b->records[i].duration / MICROSECS_PER_SEC);
+                }
+                b = b->next;
+                total_block_count += 1;
+            }
+            ImGui::EndChildFrame();
+        }
+        {
+            ImGui::Text("Day_View");
+            ImGui::BeginChildFrame(30, ImVec2(300, 600));
+            ImGui::Text("day view count = %u", day_view->days.size());
+            ImGui::Text("range type = %s", day_view->range_type == Range_Type_Daily ? "Daily" : 
+                        day_view->range_type == Range_Type_Weekly ? "Weekly" :
+                        day_view->range_type == Range_Type_Monthly ? "Monthly" :
+                        day_view->range_type == Range_Type_Custom ? "Custom" : "??");
+            {
+                auto start = date::year_month_day{day_view->start_date};
+                auto end = date::year_month_day{day_view->end_date};
+                
+                std::ostringstream buf;
+                std::ostringstream buf1;
+                buf << "start_date: " << start.day() << "/" << start.month() << "/" << start.year();
+                buf1 << "end_date: " << end.day() << "/" << end.month() << "/" << end.year(); 
+                
+                ImGui::Text("%s", buf.str().c_str());
+                ImGui::Text("%s", buf1.str().c_str());
+            }
+            for (int i = 0; i < day_view->days.size(); ++i)
+            {
+                auto ymd = date::year_month_day{day_view->days[i].date};
+                
+                std::ostringstream buf;
+                buf << ymd;
+                
+                ImGui::Text("%s, record count = %u", buf.str().c_str(), day_view->days[i].record_count);
+                Record  *records = day_view->days[i].records;
+                for (int j = 0; j < day_view->days[i].record_count; ++j)
+                {
+                    ImGui::BulletText("id = %u, duration = %llis", records[j].id, records[j].duration / MICROSECS_PER_SEC);
+                }
+            }
+            ImGui::EndChildFrame();
+        }
+        
+        ImGui::End();
+    }
+}
+
+
 // Database only needed for app_names, and generating new settings ids
 // current_date not really needed
 // State needed for calendar and settings structs
 void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *database, date::sys_days current_date, Day_View *day_view)
 {
+    ZoneScoped;
+    
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplSDL2_NewFrame(window);
     ImGui::NewFrame();
@@ -522,7 +1045,7 @@ void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *data
         | ImGuiWindowFlags_NoScrollbar
         | ImGuiWindowFlags_NoCollapse
         | ImGuiWindowFlags_NoSavedSettings
-        | ImGuiWindowFlags_MenuBar
+        //| ImGuiWindowFlags_MenuBar
         | ImGuiWindowFlags_NoResize;
     
     ImGui::SetNextWindowPos(ImVec2(0, 0), true);
@@ -530,38 +1053,28 @@ void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *data
     ImGui::Begin("Main window", nullptr, flags);
     
     {
-        // TODO: I would perfer a settings button with cog icon, if nothing else is in menu bar
-        bool open_settings = false; // workaround to nexted id stack
-        if (ImGui::BeginMenuBar())
+        if (ImGui::Button(ICON_MD_SETTINGS))
         {
-            if (ImGui::BeginMenu("Settings##menu"))
+            // init edit_settings
+            state->edit_settings = (Edit_Settings *)calloc(1, sizeof(Edit_Settings));
+            
+            // Not sure if should try to leave only one extra or all possible input boxes
+            state->edit_settings->input_box_count = MAX_KEYWORD_COUNT;
+            state->edit_settings->misc_options = state->settings.misc_options;
+            
+            // TODO: Should be a better way than this
+            state->edit_settings->poll_start_time_item = state->settings.misc_options.poll_start_time / 15;
+            state->edit_settings->poll_end_time_item = state->settings.misc_options.poll_end_time / 15;
+            
+            Assert(state->settings.keywords.size() <= MAX_KEYWORD_COUNT);
+            for (s32 i = 0; i < state->settings.keywords.size(); ++i)
             {
-                // NOTE: Id might be different because nexted in menu stack, so might be label + menu
-                open_settings = true;
-                // init edit_settings
-                state->edit_settings = (Edit_Settings *)calloc(1, sizeof(Edit_Settings));
-                
-                // Not sure if should try to leave only one extra or all possible input boxes
-                state->edit_settings->input_box_count = MAX_KEYWORD_COUNT;
-                state->edit_settings->misc_options = state->settings.misc_options;
-                
-                // TODO: Should be a better way than this
-                state->edit_settings->poll_start_time_item = state->settings.misc_options.poll_start_time / 15;
-                state->edit_settings->poll_end_time_item = state->settings.misc_options.poll_end_time / 15;
-                
-                Assert(state->settings.keywords.size() <= MAX_KEYWORD_COUNT);
-                for (s32 i = 0; i < state->settings.keywords.size(); ++i)
-                {
-                    Assert(state->settings.keywords[i].str.length + 1 <= MAX_KEYWORD_SIZE);
-                    strcpy(state->edit_settings->pending[i], state->settings.keywords[i].str.str);
-                }
-                
-                ImGui::EndMenu();
+                Assert(state->settings.keywords[i].str.length + 1 <= MAX_KEYWORD_SIZE);
+                strcpy(state->edit_settings->pending[i], state->settings.keywords[i].str.str);
             }
-            ImGui::EndMenuBar();
+            
+            ImGui::OpenPopup("Settings");
         }
-        
-        if (open_settings) ImGui::OpenPopup("Settings");
         
         bool finished = do_settings_popup(state->edit_settings);
         if (finished)
@@ -570,88 +1083,87 @@ void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *data
             free(state->edit_settings);
         }
     }
-    
-    auto do_calendar_button = [](Calendar_State *calendar) {
-        date::year_month_day ymd{ calendar->selected_date };
-        int year = int(ymd.year());
-        int month = unsigned(ymd.month());
-        int day = unsigned(ymd.day());
-        
-        // renders old selected date for one frame (the frame when a new one is selected)
-        char buf[64];
-        snprintf(buf, 64, ICON_MD_DATE_RANGE " %i/%02i/%i", day, month, year);
-        
-        ImGui::PushID((void *)&calendar->selected_date);
-        if (ImGui::Button(buf, ImVec2(120, 30))) // TODO: Better size estimate (maybe based of font)?
-        {
-            ImGui::OpenPopup("Calendar");
-            
-            // Init calendar
-            
-            // Want to show the calendar month with our current selected date
-            auto ymd = date::year_month_day{calendar->selected_date};
-            
-            auto new_date = ymd.month()/date::day{1}/ymd.year();
-            Assert(new_date.ok());
-            
-            auto first_day_of_month = date::year_month_weekday{new_date};
-            Assert(first_day_of_month.ok());
-            
-            // Selected date should already be set
-            calendar->first_day_of_month = first_day_of_month;
-        }
-        
-        do_calendar(calendar);
-        
-        ImGui::PopID();
-    };
-    
-    // can put in above func to use pushed id
-    do_calendar_button(&state->calendar_date_range_start);
-    do_calendar_button(&state->calendar_date_range_end);
-    
+    {
+        ImGui::SameLine();
+        do_debug_window_button(database, day_view);
+    }
     
     {
-        date::year_month_day ymd_date{ current_date };
-        int year = int(ymd_date.year());
-        int month = unsigned(ymd_date.month());
-        int day = unsigned(ymd_date.day());
+        date::sys_days oldest_date = day_view->days.front().date;
+        date::sys_days newest_date = day_view->days.back().date;
+        //date::sys_days oldest_date = date::year{2020}/6/24;
+        //date::sys_days newest_date = date::year{2020}/7/31;
         
-        ImGui::Text("%i%s %s, %i", day, day_suffix(day), month_string(month), year);
-        if (ImGui::Button("Day", ImVec2(ImGui::GetWindowSize().x*0.2f, 0.0f)))
+        bool left_disabled = day_view->left_disabled;
+        push_disable(left_disabled);
+        if (ImGui::Button(ICON_MD_ARROW_BACK))
         {
-            s32 period = 1;
+            // If you can click button this always succeeds, though may be clipped to oldest/newest
+            backwards_range_and_clip(day_view->range_type, &day_view->start_date, &day_view->end_date,
+                                     oldest_date, newest_date);
             
-            date::sys_days start_date = current_date - date::days{period - 1};
-            set_day_view_range(day_view, start_date, current_date);
+            // check next possible press of this button 
+            day_view->left_disabled = !can_backward_range(day_view->start_date, day_view->end_date,
+                                                          oldest_date, newest_date);
+            
+            day_view->right_disabled = !can_foreward_range(day_view->start_date, day_view->end_date,
+                                                           oldest_date, newest_date);
+        }
+        pop_disable(left_disabled);
+        
+        ImGui::SameLine();
+        if (ImGui::Button(day_view->date_label, ImVec2(200, 0))) // passing zero uses default I guess
+        {
+            ImGui::OpenPopup("Date Select");
         }
         ImGui::SameLine();
-        if (ImGui::Button("Week", ImVec2(ImGui::GetWindowSize().x*0.2f, 0.0f)))
+        
+        bool right_disabled = day_view->right_disabled;
+        push_disable(right_disabled);
+        if (ImGui::Button(ICON_MD_ARROW_FORWARD))
         {
-            s32 period = 7;
+            // If you can click button this always succeeds, though may be clipped to oldest/newest
+            forewards_range_and_clip(day_view->range_type, &day_view->start_date, &day_view->end_date,
+                                     oldest_date, newest_date);
             
-            date::sys_days start_date = current_date - date::days{period - 1};
-            set_day_view_range(day_view, start_date, current_date);
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Month", ImVec2(ImGui::GetWindowSize().x*0.2f, 0.0f)))
-        {
-            s32 period = 30;
+            // check next possible press of this button 
+            day_view->left_disabled = !can_backward_range(day_view->start_date, day_view->end_date,
+                                                          oldest_date, newest_date);
             
-            date::sys_days start_date = current_date - date::days{period - 1};
-            set_day_view_range(day_view, start_date, current_date);
+            day_view->right_disabled = !can_foreward_range(day_view->start_date, day_view->end_date,
+                                                           oldest_date, newest_date);
         }
-#if 0
-        ImGui::SameLine();
-        if (ImGui::Button("Next day", ImVec2(ImGui::GetWindowSize().x*0.2f, 0.0f)))
-        {
-            state->extra_days += 1;
-            
-            // because it hasn't been updated yet
-            //current_date += date::days{state->extra_days};
-            //set_day_view_range(day_view, start_date, current_date);
-        }
-#endif
+        pop_disable(right_disabled);
+        
+        do_date_select_popup(state, day_view, oldest_date, newest_date);
+        
+        auto ymd = date::year_month_day{day_view->start_date};
+        auto ymw = date::year_month_weekday{day_view->start_date};
+        std::ostringstream buf;
+        
+        buf << "start_date: " << ymd << ", " <<  ymw;
+        ImGui::Text(buf.str().c_str());
+        
+        ymd = date::year_month_day{day_view->end_date};
+        ymw = date::year_month_weekday{day_view->end_date};
+        std::ostringstream buf1;
+        
+        buf1 << "end_date: " << ymd << ", " <<  ymw;
+        ImGui::Text(buf1.str().c_str());
+        
+        ymd = date::year_month_day{oldest_date};
+        ymw = date::year_month_weekday{oldest_date};
+        std::ostringstream buf2;
+        
+        buf2 << "oldest_date; " << ymd << ", " <<  ymw;
+        ImGui::Text(buf2.str().c_str());
+        
+        ymd = date::year_month_day{newest_date};
+        ymw = date::year_month_weekday{newest_date};
+        std::ostringstream buf3;
+        
+        buf3 << "newest_date: " << ymd << ", " <<  ymw;
+        ImGui::Text(buf3.str().c_str());
     }
     
     // To allow frame border
@@ -664,7 +1176,7 @@ void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *data
     
     time_type sum_duration = 0;
     
-    if (day_view->has_days && today->record_count > 0)
+    if (today->record_count > 0)
     {
         i32 record_count = today->record_count;
         
@@ -788,23 +1300,13 @@ void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *data
     ImGui::End();
     
     
-    ImGui::Render();
+    ImGui::Render(); 
+    
     ImGuiIO& io = ImGui::GetIO();
     glViewport(0, 0, (int)io.DisplaySize.x, (int)io.DisplaySize.y);
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
     glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
     glClear(GL_COLOR_BUFFER_BIT);
-    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
     
-#if 0
-    if (duration_seconds < 60)
-        // Seconds
-        else if (duration_seconds < 3600)
-        // Minutes
-        snprintf(text, array_count(text), "%llum", duration_seconds / 60);
-    else
-        // Hours
-        snprintf(text, array_count(text), "%lluh", duration_seconds / 3600);
-#endif
-    
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData()); 
 }

@@ -3,6 +3,7 @@
 #include "imgui_impl_sdl.h"
 #include "imgui_impl_opengl3.h"
 #include "imgui_freetype.h"
+#include "imgui_internal.h" // used to extend imgui, no guaranteed forward compatibility
 
 #include "SDl2/SDL.h"
 #include "SDL2/SDL_main.h"
@@ -31,6 +32,10 @@
 #include <wchar.h>
 
 #include "IconsMaterialDesign.h"
+
+#include <atlbase.h>
+#include "tracy.hpp"
+#include "../tracy/TracyClient.cpp"
 
 // temporarily used by monitor
 static s64 global_performance_frequency; // win32
@@ -144,6 +149,9 @@ int main(int argc, char* argv[])
     HANDLE con_in = win32_create_console();
 #endif
     
+    //OPTICK_EVENT();
+    ZoneScoped;
+    
     if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_TIMER|SDL_INIT_EVENTS) != 0)
     {
         return 1;
@@ -194,7 +202,7 @@ int main(int argc, char* argv[])
     
     
     
-    
+    // make just add ascii characters?
     io.Fonts->AddFontFromFileTTF("c:\\windows\\fonts\\seguisym.ttf", 22.0f);
     
     // NOTE: glyph ranges must exist at least until atlas is built
@@ -216,6 +224,7 @@ int main(int argc, char* argv[])
     builder_22.AddText(ICON_MD_DATE_RANGE);
     builder_22.AddText(ICON_MD_ARROW_FORWARD);
     builder_22.AddText(ICON_MD_ARROW_BACK);
+    builder_22.AddText(ICON_MD_SETTINGS);
     builder_22.BuildRanges(&range_22);                          
     
     icons_config.GlyphOffset = ImVec2(0, 13); // move glyphs down or else they render too high
@@ -321,6 +330,9 @@ int main(int argc, char* argv[])
         // - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main application.
         // Generally you may always pass all inputs to dear imgui, and hide them from your application based on those two flags.
         
+        //OPTICK_FRAME("MainThread");
+        ZoneScopedN("Frame");
+        
         // clear just visible, just hidden flags
         window_status = window_status & (Window_Visible | Window_Hidden);
         
@@ -407,8 +419,53 @@ int main(int argc, char* argv[])
         // We might want to change frequency that we poll, so may need platform_change_wakeup_frequency()
         update(&monitor_state, window, dt_microseconds, window_status);
         
-        // I'm assuming this does nothing when the window is hidden
-        SDL_GL_SwapWindow(window);
+        
+        // Sleeping longer reduces the time spent waiting for vblank in a opengl driver context (making task manager report lower CPU usage)
+        //Sleep(10);
+        
+        // vsync may not be supported, or be disabled by user, so need to limit frame rate to 60fps anyway, to stop high refresh in scenario where user is making lots on input
+        {
+            ZoneScopedN("Swap buffers and glFinish");
+            
+            // From Khronos OpenGl wiki
+            //As such, you should only use glFinish when you are doing something that the specification specifically states will not be synchronous. 
+            
+            // Adding this aswell makes CPU usage what it should be, but graphics cards are complex and some implementations may not have finished processing after this call
+            
+            // doesn"t return until all sent render commands are completed (pixels are in targeted framebuffers for rendering commands)
+            //glFinish();
+            
+            // I'm assuming this does nothing when the window is hidden
+            // So normally I think this is non_blocking (on my machine), but does block on next opengl call is there is still work to do, I think
+            // With VSync on (or off for that matter), your render loop will block when the driver decides it should block. This may be when you swap buffers, but it may not be. It could be inside some random GL command when the driver FIFO has just filled up. It could also be when the GPU has gotten too many frames behind the commands you’re submitting on the CPU. In any case, you can force the driver to block on VSync by following SwapBuffers with a glFinish() call. That will force any conformant driver to wait until it can swap and does swap, which is (in a VSync-limited case with VSync enabled when VSync isn’t being “virtualized” by a compositor) typically after it hits the vertical retrace in the video signal. This is fine to do on a desktop GPU, but don’t do this on a tile-based mobile GPU
+            // - Khronos Senior Community member
+            
+            // Another post - Senior member
+            // That’s what SwapBuffers pretty much does. On drivers I’m familiar with, it merely queues a “I’m done; you can swap when ready” event on the command queue. If the command queue isn’t full (by driver-internal criteria), then you get the CPU back and can do what you want – before the Swap has occurred. Some driver’s will buffer up as much as another frame or two of commands before they block the draw thread in a GL call because their “queue full” criteria is met.
+            
+            //To force the driver “not” to do that (on a desktop discrete GPU only; i.e. sort-last architecture) and instead wait for the swap, you put a glFinish() right after SwapBuffers. When that returns, you know that the SwapBuffers has occurred, which means you’ve synchronized your draw thread with the VSync clock.
+            SDL_GL_SwapWindow(window);
+            
+            // block until all GL execution is complete
+            // Appers to make the waiting for vblank to happen here not during a later openGL call next frame such as glGetIntegerv();
+            // glGetIntegerv may actually be triggering a glFinish internally
+            
+            //glFinish();
+        }
+        
+        {
+            ZoneScopedN("glcall after swap");
+            // This causes a wait before executing (instead of a wait later in next frame opengl_impl_drawrenderdata())
+            GLenum last_active_texture;
+            glGetIntegerv(GL_ACTIVE_TEXTURE, (GLint*)&last_active_texture);
+            // This doesn't causes wait here (happens in opengl_impl_drawrenderdata)
+            //ImGuiIO& io = ImGui::GetIO();
+            //glViewport(0, 0, (int)io.DisplaySize.x, (int)io.DisplaySize.y);
+        }
+        
+        // I think this or the impl_render_draw_data is waiting and windows is reporting it as cpu usage, even though it't not (other processes can still use cpu when driver stuff is waiting)
+        //void swap_win_profiled(SDL_Window *window);
+        //swap_win_profiled(window);
     }
     
 #if defined(_WIN32)
@@ -426,4 +483,10 @@ int main(int argc, char* argv[])
     SDL_Quit();
     
     return 0;
+}
+
+void swap_win_profiled(SDL_Window *window)
+{
+    //OPTICK_EVENT();
+    SDL_GL_SwapWindow(window);
 }

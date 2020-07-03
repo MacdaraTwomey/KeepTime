@@ -1,4 +1,6 @@
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 #include "icon.h"
 
 // Some icons glitch out on some sizes, maybe getting the icon sizes up/down for icons without that specific size. // But maybe good ones like firefox are built in with lots of sizes.
