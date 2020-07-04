@@ -112,7 +112,7 @@ add_or_update_record(Day_List *day_list, App_Id id, time_type dt)
 }
 
 Day_View
-get_day_view(Day_List *day_list)
+get_day_view(Day_List *day_list, date::sys_days start, date::sys_days end )
 {
     // TODO: Handle zero day in day_list
     // (are we handling zero records in list?)
@@ -131,9 +131,11 @@ get_day_view(Day_List *day_list)
     day_view.days.back().records = day_view.copy_of_current_days_records;
     
     day_view.range_type = Range_Type_Daily;
-    day_view.start_date = cur_day->date;
-    day_view.end_date = cur_day->date;
-    day_view.left_disabled = (day_view.days.size() == 1); // we are on the first and only day
+    //day_view.start_date = cur_day->date;
+    //day_view.end_date = cur_day->date;
+    day_view.start_date = start;
+    day_view.end_date = end;
+    day_view.left_disabled = true; //(day_view.days.size() == 1); // we are on the first and only day
     day_view.right_disabled = true;
     snprintf(day_view.date_label, array_count(day_view.date_label), "Today");
     
@@ -365,7 +367,7 @@ void init_database(Database *database, date::sys_days current_date)
     database->day_list.blocks = new_block(nullptr);
     
     // add fake days before current_date
-    debug_add_records(database, &database->day_list, current_date);
+    //debug_add_records(database, &database->day_list, current_date);
     
     start_new_day(&database->day_list, current_date);
     
@@ -571,6 +573,8 @@ poll_windows(Database *database, Settings *settings)
         // urls can validly have no www. or https:// and still be valid.
         char url_buf[2000];
         size_t url_len = 0;
+        
+        // If any of this stuff fails we just add duration as firefox exe
         bool got_url = platform_get_firefox_url(window, url_buf, array_count(url_buf), &url_len);
         if (got_url)
         {
@@ -746,9 +750,11 @@ update(Monitor_State *state, SDL_Window *window, time_type dt, u32 window_status
         
         // sets start and end date and sets to daily currently
         // TODO: This should not default to daily, but keep the alst used range, even if the records are updated
-        day_view = get_day_view(&database->day_list);
     }
     
+    date::sys_days start = database->day_list.days.front().date;
+    date::sys_days end = database->day_list.days.back().date;
+    day_view = get_day_view(&database->day_list, start, end);
     
     //date::sys_days start_date = current_date;
     //set_day_view_range(&day_view, start_date, current_date);
@@ -760,7 +766,7 @@ update(Monitor_State *state, SDL_Window *window, time_type dt, u32 window_status
         draw_ui_and_update(window, state, database, current_date, &day_view);
     }
     
-    //free_day_view(&day_view);
+    free_day_view(&day_view);
     
 }
 

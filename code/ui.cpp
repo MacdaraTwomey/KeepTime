@@ -1272,7 +1272,7 @@ void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *data
     double sum_duration_seconds = (double)sum_duration / 1000000;
     
     auto now = win32_get_time();
-    auto start_time = win32_get_microseconds_elapsed(state->startup_time, now, global_performance_frequency);
+    auto start_time = win32_get_microseconds_elapsed(state->startup_time, now);
     
     double time_since_startup_seconds = (double)start_time / 1000000;
     

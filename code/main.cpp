@@ -51,12 +51,6 @@ static char *global_savefile_path;
 static char *global_debug_savefile_path;
 static bool global_running = true;
 
-// NOTE: This is only used for toggling with the tray icon.
-// Use pump messages result to check if visible to avoid the issues with value unexpectly changing.
-// Still counts as visible if minimised to the task bar.
-// Can put in a function to avoid global
-static NOTIFYICONDATA global_nid = {};
-
 #define WINDOW_WIDTH 1240
 #define WINDOW_HEIGHT 720
 
@@ -144,12 +138,6 @@ struct FreeTypeTest
 
 int main(int argc, char* argv[])
 {
-    
-#if CONSOLE_ON
-    HANDLE con_in = win32_create_console();
-#endif
-    
-    //OPTICK_EVENT();
     ZoneScoped;
     
     if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_TIMER|SDL_INIT_EVENTS) != 0)
@@ -246,56 +234,16 @@ int main(int argc, char* argv[])
     //FreeTypeTest freetype_test;
     
 #if defined(_WIN32)
+    SDL_EventState(SDL_SYSWMEVENT, SDL_ENABLE);
+    
+    SDL_SysWMinfo info;
+    SDL_VERSION(&info.version); /* initialize info structure with SDL version info */
+    if(SDL_GetWindowWMInfo(window,&info)) {
+        init_win32_context(info.info.win.window);
+    }
+    else
     {
-        LARGE_INTEGER frequency;
-        QueryPerformanceFrequency(&frequency);
-        global_performance_frequency = frequency.QuadPart;
-        
-        
-        // Don't ignore special system-specific messages that unhandled (allows us to get SDL_SYSWMEVENT events)
-        SDL_EventState(SDL_SYSWMEVENT, SDL_ENABLE);
-        
-        // TODO: Why don't we need to link ole32.lib?
-        // Call this because we use CoCreateInstance in UIAutomation
-        CoInitializeEx(NULL, COINIT_APARTMENTTHREADED); // equivalent to CoInitialize(NULL)
-        
-        SDL_SysWMinfo info;
-        SDL_VERSION(&info.version); /* initialize info structure with SDL version info */
-        if(SDL_GetWindowWMInfo(window,&info)) {
-            HWND hwnd = info.info.win.window;
-            HINSTANCE instance = info.info.win.hinstance;
-            
-            // TODO: Does SDL automatically set icon to icon inside executable, or is that windows,
-            // Should we set icon manually?
-#if 0
-            HICON h_icon = (HICON)LoadIcon(GetModuleHandle(NULL), MAKEINTRESOURCE(ID_MAIN_ICON));
-            if (h_icon)
-            {
-                SendMessage(hwnd, WM_SETICON, ICON_BIG, (LPARAM)h_icon);
-                SendMessage(hwnd, WM_SETICON, ICON_SMALL, (LPARAM)h_icon); // ??? both???
-            }
-#endif
-            
-            // TODO: To maintain compatibility with older and newer versions of shell32.dll while using
-            // current header files may need to check which version of shell32.dll is installed so the
-            // cbSize of NOTIFYICONDATA can be initialised correctly.
-            // https://docs.microsoft.com/en-us/windows/win32/api/shellapi/ns-shellapi-notifyicondataa
-            global_nid = {};
-            global_nid.cbSize = sizeof(NOTIFYICONDATA);
-            global_nid.hWnd = hwnd;
-            global_nid.uID = ID_TRAY_APP_ICON; // // Not sure why we need this
-            global_nid.uFlags = NIF_ICON|NIF_MESSAGE|NIF_TIP;
-            global_nid.uCallbackMessage = CUSTOM_WM_TRAY_ICON;
-            // Recommented you provide 32x32 icon for higher DPI systems
-            // Can use LoadIconMetric to specify correct one with correct settings is used
-            global_nid.hIcon = (HICON)LoadIcon(GetModuleHandle(NULL), MAKEINTRESOURCE(ID_MAIN_ICON));
-            
-            // TODO: This should say "running"
-            TCHAR tooltip[] = {"Tooltip dinosaur"}; // Use max 64 chars
-            strncpy(global_nid.szTip, tooltip, sizeof(tooltip));
-            
-            Shell_NotifyIconA(NIM_ADD, &global_nid);
-        }
+        Assert(0);
     }
 #endif // if _WIN32
     
@@ -362,7 +310,7 @@ int main(int argc, char* argv[])
                         global_running = false;
                         
 #if defined(_WIN32)
-                        Shell_NotifyIconA(NIM_DELETE, &global_nid);
+                        Shell_NotifyIconA(NIM_DELETE, &win32_context.nid);
 #endif
                     } break;
                 }
@@ -411,7 +359,7 @@ int main(int argc, char* argv[])
         
         // Steady clock also accounts for time paused in debugger etc, so can introduce bugs that aren't there normally when debugging.
         auto new_time = win32_get_time();
-        s64 dt_microseconds = win32_get_microseconds_elapsed(old_time, new_time, global_performance_frequency);
+        s64 dt_microseconds = win32_get_microseconds_elapsed(old_time, new_time);
         old_time = new_time;
         
         // Maybe pass in poll stuff here which would allow us to avoid timer stuff in app layer,
@@ -469,9 +417,7 @@ int main(int argc, char* argv[])
     }
     
 #if defined(_WIN32)
-    Shell_NotifyIconA(NIM_DELETE, &global_nid);
-    CoUninitialize();
-    FreeConsole();
+    win32_free_context();
 #endif
     
     ImGui_ImplOpenGL3_Shutdown();

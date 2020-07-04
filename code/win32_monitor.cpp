@@ -12,8 +12,146 @@
 #define ID_TRAY_APP_ICON 1001
 #define CUSTOM_WM_TRAY_ICON (WM_USER + 1)
 
-// https://docs.microsoft.com/en-us/cpp/build/reference/manifestdependency-specify-manifest-dependencies?view=vs-2019
-// #pragma comment(linker, "\"/manifestdependency:type='Win32' name='Test.Research.SampleAssembly' version='6.0.0.0' processorArchitecture='X86' publicKeyToken='0000000000000000' language='*'\"")
+// Visual studio can generate manifest file
+//https://docs.microsoft.com/en-us/cpp/build/reference/manifestdependency-specify-manifest-dependencies?view=vs-2019
+//#pragma comment(linker, "\"/manifestdependency:type='Win32' name='Test.Research.SampleAssembly' version='6.0.0.0' processorArchitecture='X86' publicKeyToken='0000000000000000' language='*'\"")
+
+struct Win32_Context
+{
+    NOTIFYICONDATA nid; // Can put in a function to avoid global
+    LARGE_INTEGER performance_frequency;
+    HWND hwnd;
+    // HINSTANCE instance = info.info.win.hinstance;
+    
+    // UIAutomation
+    IUIAutomation *uia;
+    VARIANT navigation_name; // VT_BSTR
+    VARIANT variant_offscreen_false; // VT_BOOL - don't need to initialise default is false
+    
+    IUIAutomationCondition *is_navigation;
+    IUIAutomationCondition *is_toolbar;
+    IUIAutomationCondition *and_cond;
+    IUIAutomationCondition *is_combobox;
+    IUIAutomationCondition *is_editbox;
+    
+    IUIAutomationCondition *is_document;
+    IUIAutomationCondition *is_group;
+    IUIAutomationCondition *is_not_offscreen;
+};
+
+static Win32_Context win32_context;
+
+void
+init_win32_context(HWND hwnd)
+{
+    win32_context = {};
+    
+    // TODO: Why don't we need to link ole32.lib?
+    // Call this because we use CoCreateInstance in UIAutomation
+    CoInitializeEx(NULL, COINIT_APARTMENTTHREADED); // equivalent to CoInitialize(NULL)
+    
+    QueryPerformanceFrequency(&win32_context.performance_frequency);
+    
+    HRESULT err = CoCreateInstance(CLSID_CUIAutomation, NULL, CLSCTX_INPROC_SERVER, IID_IUIAutomation,
+                                   (void **)(&win32_context.uia));
+    if (err != S_OK || win32_context.uia == nullptr)
+    {
+        // Don't use UIA?
+        Assert(0);
+    }
+    
+    win32_context.navigation_name.vt = VT_BSTR;
+    win32_context.navigation_name.bstrVal = SysAllocString(L"Navigation");
+    if (win32_context.navigation_name.bstrVal == NULL)
+    {
+        Assert(0);
+    }
+    
+    // Default is false
+    win32_context.variant_offscreen_false.vt = VT_BOOL;
+    
+    // For getting url editbox (when not fullscreen)
+    HRESULT err1 = win32_context.uia->CreatePropertyCondition(UIA_NamePropertyId, win32_context.navigation_name,  &win32_context.is_navigation);
+    HRESULT err2 = 
+        win32_context.uia->CreatePropertyCondition(UIA_ControlTypePropertyId, CComVariant(UIA_ToolBarControlTypeId), &win32_context.is_toolbar);
+    HRESULT err3 = win32_context.uia->CreateAndCondition(win32_context.is_navigation, win32_context.is_toolbar, &win32_context.and_cond);
+    HRESULT err4 = win32_context.uia->CreatePropertyCondition(UIA_ControlTypePropertyId, CComVariant(UIA_ComboBoxControlTypeId), &win32_context.is_combobox);
+    HRESULT err5 = win32_context.uia->CreatePropertyCondition(UIA_ControlTypePropertyId, CComVariant(UIA_EditControlTypeId), &win32_context.is_editbox);
+    
+    // // For getting url document (when fullscreen)
+    HRESULT err6 = win32_context.uia->CreatePropertyCondition(UIA_ControlTypePropertyId, 
+                                                              CComVariant(UIA_GroupControlTypeId), &win32_context.is_group);
+    
+    HRESULT err7 = win32_context.uia->CreatePropertyCondition(UIA_IsOffscreenPropertyId, 
+                                                              win32_context.variant_offscreen_false, &win32_context.is_not_offscreen);
+    HRESULT err8 = win32_context.uia->CreatePropertyCondition(UIA_ControlTypePropertyId, CComVariant(UIA_DocumentControlTypeId), &win32_context.is_document);
+    
+    if (err1 != S_OK || err2 != S_OK || err3 != S_OK || err4 != S_OK || err5 != S_OK || 
+        err6 != S_OK || err7 != S_OK || err8 != S_OK)
+    {
+        Assert(0);
+    }
+    
+    
+    
+    
+    
+    // TODO: Does SDL automatically set icon to icon inside executable, or is that windows,
+    // Should we set icon manually?
+#if 0
+    HICON h_icon = (HICON)LoadIcon(GetModuleHandle(NULL), MAKEINTRESOURCE(ID_MAIN_ICON));
+    if (h_icon)
+    {
+        SendMessage(hwnd, WM_SETICON, ICON_BIG, (LPARAM)h_icon);
+        SendMessage(hwnd, WM_SETICON, ICON_SMALL, (LPARAM)h_icon); // ??? both???
+    }
+#endif
+    
+    // TODO: To maintain compatibility with older and newer versions of shell32.dll while using
+    // current header files may need to check which version of shell32.dll is installed so the
+    // cbSize of NOTIFYICONDATA can be initialised correctly.
+    // https://docs.microsoft.com/en-us/windows/win32/api/shellapi/ns-shellapi-notifyicondataa
+    win32_context.nid = {};
+    win32_context.nid.cbSize = sizeof(NOTIFYICONDATA);
+    win32_context.nid.hWnd = hwnd;
+    win32_context.nid.uID = ID_TRAY_APP_ICON; // // Not sure why we need this
+    win32_context.nid.uFlags = NIF_ICON|NIF_MESSAGE|NIF_TIP;
+    win32_context.nid.uCallbackMessage = CUSTOM_WM_TRAY_ICON;
+    // Recommented you provide 32x32 icon for higher DPI systems
+    // Can use LoadIconMetric to specify correct one with correct settings is used
+    win32_context.nid.hIcon = (HICON)LoadIcon(GetModuleHandle(NULL), MAKEINTRESOURCE(ID_MAIN_ICON));
+    
+    // TODO: This should say "running"
+    TCHAR tooltip[] = {"Tooltip dinosaur"}; // Must use max 64 chars
+    strncpy(win32_context.nid.szTip, tooltip, sizeof(tooltip));
+    
+    Shell_NotifyIconA(NIM_ADD, &win32_context.nid);
+}
+
+void
+win32_free_context()
+{
+    Shell_NotifyIconA(NIM_DELETE, &win32_context.nid);
+    //FreeConsole();
+    
+    // UIA
+    
+    if (win32_context.is_editbox) win32_context.is_editbox->Release();
+    if (win32_context.is_combobox) win32_context.is_combobox->Release();
+    if (win32_context.and_cond) win32_context.and_cond->Release();
+    if (win32_context.is_toolbar) win32_context.is_toolbar->Release();
+    if (win32_context.is_navigation) win32_context.is_navigation->Release();
+    
+    if (win32_context.is_document) win32_context.is_document->Release();
+    if (win32_context.is_not_offscreen) win32_context.is_not_offscreen->Release();
+    if (win32_context.is_group) win32_context.is_group->Release();
+    
+    VariantClear(&win32_context.navigation_name); 
+    VariantClear(&win32_context.variant_offscreen_false); 
+    if (win32_context.uia) win32_context.uia->Release();
+    
+    CoUninitialize();
+}
 
 struct Process_Ids
 {
@@ -31,12 +169,12 @@ win32_get_time()
 
 // TODO: I would rather not pass in perf_freq (maybe make a global in this file)
 s64
-win32_get_microseconds_elapsed(LARGE_INTEGER start, LARGE_INTEGER end, s64 performance_frequency)
+win32_get_microseconds_elapsed(LARGE_INTEGER start, LARGE_INTEGER end)
 {
     LARGE_INTEGER microseconds;
     microseconds.QuadPart = end.QuadPart - start.QuadPart;
     microseconds.QuadPart *= 1000000; // microseconds per second
-    microseconds.QuadPart /= performance_frequency; // ticks per second
+    microseconds.QuadPart /= win32_context.performance_frequency.QuadPart; // ticks per second
     return microseconds.QuadPart;
 }
 
@@ -170,6 +308,8 @@ MyEnumChildWindowsCallback(HWND hwnd, LPARAM lParam)
 bool
 platform_get_program_from_window(Platform_Window window, char *buf, size_t *length)
 {
+    // TODO: check against desktop and shell windows
+    
     // On success fills buf will null terminated string, and sets length to string length (not including null terminator)
     HWND handle = window.handle;
     Process_Ids process_ids = {0, 0};
@@ -233,61 +373,101 @@ win32_BSTR_to_utf8(BSTR url, char *buf, int buf_size, size_t *length)
 }
 
 IUIAutomationElement *
-win32_firefox_get_url_bar_editbox(HWND window)
+win32_firefox_get_url_editbox(HWND hwnd)
 {
+    // If people have different firefox setup than me, (e.g. multiple comboboxes in navigation somehow), this doesn't work
+    
     IUIAutomationElement *editbox = nullptr;
     
-    IUIAutomation *uia = nullptr;
-    HRESULT err = CoCreateInstance(CLSID_CUIAutomation, NULL, CLSCTX_INPROC_SERVER, IID_IUIAutomation,
-                                   (void **)(&uia));
-    if (err != S_OK || !uia) goto CLEANUP;
-    
     IUIAutomationElement *firefox_window = nullptr;
-    err = uia->ElementFromHandle(window, &firefox_window);
+    IUIAutomationElement *navigation_toolbar = nullptr;
+    IUIAutomationElement *combobox = nullptr;
+    
+    HRESULT err = win32_context.uia->ElementFromHandle(hwnd, &firefox_window);
     if (err != S_OK || !firefox_window) goto CLEANUP;
     
-    VARIANT navigation_name;
-    navigation_name.vt = VT_BSTR;
-    navigation_name.bstrVal = SysAllocString(L"Navigation");
-    if (navigation_name.bstrVal == NULL) goto CLEANUP;
-    
-    IUIAutomationCondition *is_navigation = nullptr;
-    IUIAutomationCondition *is_toolbar = nullptr;
-    IUIAutomationCondition *and_cond = nullptr;
-    IUIAutomationCondition *is_combobox = nullptr;
-    IUIAutomationCondition *is_editbox = nullptr;
-    uia->CreatePropertyCondition(UIA_NamePropertyId, navigation_name, &is_navigation);
-    uia->CreatePropertyCondition(UIA_ControlTypePropertyId, CComVariant(UIA_ToolBarControlTypeId), &is_toolbar);
-    uia->CreateAndCondition(is_navigation, is_toolbar, &and_cond);
-    uia->CreatePropertyCondition(UIA_ControlTypePropertyId, CComVariant(UIA_ComboBoxControlTypeId), &is_combobox);
-    uia->CreatePropertyCondition(UIA_ControlTypePropertyId, CComVariant(UIA_EditControlTypeId), &is_editbox);
-    
-    // exception?
-    IUIAutomationElement *navigation_toolbar = nullptr;
-    err = firefox_window->FindFirst(TreeScope_Children, and_cond, &navigation_toolbar);
+    // oleaut.dll Library not registered - may just be app requesting newer oleaut than is available
+    // This seems to throw exception
+    err = firefox_window->FindFirst(TreeScope_Children, win32_context.and_cond, &navigation_toolbar);
     if (err != S_OK || !navigation_toolbar) goto CLEANUP;
     
-    IUIAutomationElement *combobox = nullptr;
-    err = navigation_toolbar->FindFirst(TreeScope_Children, is_combobox, &combobox);
+    err = navigation_toolbar->FindFirst(TreeScope_Children, win32_context.is_combobox, &combobox);
     if (err != S_OK || !combobox) goto CLEANUP;
     
-    err = combobox->FindFirst(TreeScope_Descendants, is_editbox, &editbox);
+    err = combobox->FindFirst(TreeScope_Descendants, win32_context.is_editbox, &editbox);
     if (err != S_OK) editbox = nullptr;
     
     CLEANUP:
     
     if (combobox) combobox->Release();
     if (navigation_toolbar) navigation_toolbar->Release();
-    if (is_editbox) is_editbox->Release();
-    if (is_combobox) is_combobox->Release();
-    if (and_cond) and_cond->Release();
-    if (is_toolbar) is_toolbar->Release();
-    if (is_navigation) is_navigation->Release();
-    if (navigation_name.bstrVal) VariantClear(&navigation_name);
     if (firefox_window) firefox_window->Release();
-    if (uia) uia->Release();
     
+    // If success dont release editbox, if failure editbox doesn't need releasing
     return editbox;
+}
+
+IUIAutomationElement *
+win32_get_firefox_url_document_if_fullscreen(HWND hwnd)
+{
+    IUIAutomationElement *document = nullptr;
+    
+    IUIAutomationElement *firefox_window = nullptr;
+    IUIAutomationElement *not_offscreen_element = nullptr;
+    IUIAutomationElement *group = nullptr;
+    
+    HRESULT err = win32_context.uia->ElementFromHandle(hwnd, &firefox_window);
+    if (err != S_OK || !firefox_window) goto CLEANUP;
+    
+    //0,0,w,h
+    //VARIANT bounding_rect = {};
+    //err = firefox_window->GetCurrentPropertyValue(UIA_BoundingRectanglePropertyId, &bounding_rect);
+    
+    // This doesn't seem to throw exception
+    err = firefox_window->FindFirst(TreeScope_Children, win32_context.is_group, &group);
+    if (err != S_OK || !group) goto CLEANUP;
+    
+    err = group->FindFirst(TreeScope_Children, win32_context.is_not_offscreen, &not_offscreen_element);
+    if (err != S_OK || !not_offscreen_element) goto CLEANUP;
+    
+    // Try to skip over one child using TreeScope_Descendants
+    err = not_offscreen_element->FindFirst(TreeScope_Descendants, win32_context.is_document, &document);
+    if (err != S_OK || !document) document = nullptr;
+    
+    CLEANUP:
+    if (not_offscreen_element) not_offscreen_element->Release();
+    if (group) group->Release();
+    if (firefox_window) firefox_window->Release();
+    
+    return document;
+}
+
+bool
+is_fullscreen(HWND hwnd)
+{
+    RECT window_rect;
+    if (GetWindowRect(hwnd, &window_rect) == 0)
+    {
+        Assert(0);
+    }
+    
+    int window_width = window_rect.right - window_rect.left;
+    int window_height = window_rect.bottom - window_rect.top;
+    
+    // Gets closest monitor to window
+    MONITORINFO monitor_info = {sizeof(MONITORINFO)}; // must set size of struct
+    if (GetMonitorInfoA(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), &monitor_info) == 0)
+    {
+        Assert(0);
+    }
+    
+    // Expressed in virtual-screen coordinates.
+    // NOTE: that if the monitor is not the primary display monitor, some of the rectangle's coordinates may be negative values.
+    // I think this works if left and right are negative
+    int monitor_width = monitor_info.rcMonitor.right - monitor_info.rcMonitor.left;
+    int monitor_height =  monitor_info.rcMonitor.bottom - monitor_info.rcMonitor.top;
+    
+    return (window_width == monitor_width && window_height == monitor_height);
 }
 
 bool
@@ -300,16 +480,61 @@ platform_get_firefox_url(Platform_Window window, char *buf, int buf_size, size_t
     //       "Search with Google or enter address"   UIA_EditControlTypeId (0xC354) LocalizedControlType: "edit"
     //        which has Value.Value = URL
     
-    // TODO: Does this handle multiple firefox windows correctly??
-    
-    HWND handle = window.handle;
+    HWND hwnd = window.handle;
     bool success = false;
     *length = 0;
+    
+    // static HWND last_hwnd // if != then re-get firefox_window and re get editbox or document etc
+    // static IUIAutomationElement *firefox_window;
+    // static IUIAutomationElement *editbox;
+    // static IUIAutomationElement *document;
+    
+    bool fullscreen = is_fullscreen(hwnd);
+    
+    // TODO: Could also use EVENT_OBJECT_NAMECHANGE to see if window title changed and then only look for new tabs at that point
+    // AddPropertyChangedEventHandler
+    // https://docs.microsoft.com/en-us/windows/win32/winauto/uiauto-howto-implement-event-handlers
+    
+    // Maybe cache both editbox and document for when we swap between fullscreen and normal
+    
+    IUIAutomationElement *url_element = nullptr;
+    if (fullscreen)
+    {
+        url_element = win32_get_firefox_url_document_if_fullscreen(hwnd);
+    }
+    else
+    {
+        url_element = win32_firefox_get_url_editbox(hwnd);
+    }
+    
+    if (url_element)
+    {
+        VARIANT url_bar = {};
+        HRESULT err = url_element->GetCurrentPropertyValue(UIA_ValueValuePropertyId, &url_bar);
+        if (err == S_OK)
+        {
+            if (url_bar.bstrVal)
+            {
+                success = win32_BSTR_to_utf8(url_bar.bstrVal, buf, buf_size, length);
+                VariantClear(&url_bar);
+            }
+        }
+        
+        url_element->Release();
+    }
+    
+    return success;
+    
     
     // NOTE: window will always be the up to date firefox window, even if our editbox pointer is old.
     // NOTE: Even when everything else is released it seems that you can still use editbox pointer, unless the window is closed. Documentation does not confirm this, so i'm not 100% sure it's safe.
     
     // NOTE: This is duplicated because the editbox pointer can be valid, but just stale, and we only know that if GetCurrentPropertyValue fails, in which case we free the pointer and try to reacquire the editbox.
+    
+    // BUG: If we get a valid editbox from a normal firfox window, then go fullscreen, the editbox pointer is not set to null, so we continually read an empty string from the property value, without an error (not sure why no error is set by windows).
+    
+#if 0
+    // TODO: This most likely doesn't handle multiple firefox windows
     static IUIAutomationElement *editbox = nullptr;
     if (editbox)
     {
@@ -334,7 +559,7 @@ platform_get_firefox_url(Platform_Window window, char *buf, int buf_size, size_t
         }
     }
     
-    editbox = win32_firefox_get_url_bar_editbox(handle);
+    editbox = win32_firefox_get_url_bar_editbox(hwnd);
     if (editbox)
     {
         VARIANT url_bar = {};
@@ -357,6 +582,7 @@ platform_get_firefox_url(Platform_Window window, char *buf, int buf_size, size_t
     }
     
     return success;
+#endif
 }
 
 
@@ -589,5 +815,10 @@ for (int i = 0; i < array_count(names); ++i, ++col)
         }
         return false;
     }
+#endif
+    
+    
+#if CONSOLE_ON
+    HANDLE con_in = win32_create_console();
 #endif
     
