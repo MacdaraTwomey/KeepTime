@@ -13,17 +13,23 @@
 #define CUSTOM_WM_TRAY_ICON (WM_USER + 1)
 
 // Visual studio can generate manifest file
-//https://docs.microsoft.com/en-us/cpp/build/reference/manifestdependency-specify-manifest-dependencies?view=vs-2019
 //#pragma comment(linker, "\"/manifestdependency:type='Win32' name='Test.Research.SampleAssembly' version='6.0.0.0' processorArchitecture='X86' publicKeyToken='0000000000000000' language='*'\"")
 
 struct Win32_Context
 {
-    NOTIFYICONDATA nid; // Can put in a function to avoid global
+    NOTIFYICONDATA nid;
     LARGE_INTEGER performance_frequency;
     HWND hwnd;
     // HINSTANCE instance = info.info.win.hinstance;
     
-    // UIAutomation
+#if 0
+    HWINEVENTHOOK window_changed_hook;
+    HWINEVENTHOOK browser_title_changed_hook;
+    HWND last_browser_window;
+    bool window_changed;
+    bool browser_title_changed;
+#endif
+    
     IUIAutomation *uia;
     VARIANT navigation_name; // VT_BSTR
     VARIANT variant_offscreen_false; // VT_BOOL - don't need to initialise default is false
@@ -37,9 +43,76 @@ struct Win32_Context
     IUIAutomationCondition *is_document;
     IUIAutomationCondition *is_group;
     IUIAutomationCondition *is_not_offscreen;
+    
+    // TODO: Put statics in platform_get_firefox_url in here
+    // and free any IUIAutomationElement remaining open before close
 };
-
 static Win32_Context win32_context;
+
+s64
+win32_get_wall_time_microseconds()
+{
+    LARGE_INTEGER now;
+    QueryPerformanceCounter(&now);
+    
+    now.QuadPart *= 1000000; // microseconds per second
+    now.QuadPart /= win32_context.performance_frequency.QuadPart; // ticks per second
+    
+    return (s64)now.QuadPart;
+}
+
+
+#if 0
+// While a hook function processes an event, additional events may be triggered, which may cause the hook function to reenter before the processing for the original event is finished. The problem with reentrancy in hook functions is that events are completed out of sequence unless the hook function handles this situation.
+// The only solution is for client developers to add code in the hook function that detects reentrancy and take appropriate action if the hook function is reentered.
+void CALLBACK window_changed_proc(HWINEVENTHOOK hWinEventHook,
+                                  DWORD event,
+                                  HWND hwnd,
+                                  LONG idObject,
+                                  LONG idChild,
+                                  DWORD dwEventThread,
+                                  DWORD dwmsEventTime)
+{
+    // Can be sent even if foregound window changes to another window in the same thread
+    if (event == EVENT_SYSTEM_FOREGROUND &&
+        idObject == OBJID_WINDOW &&
+        idChild == CHILDID_SELF)
+    {
+        // Since the notification is asynchronous, the foreground window may have been destroyed by the time the notification is received, so we have to be prepared for that case.
+        
+        win32_context.window_changed = true;
+        win32_context.browser_title_changed = false; // not sure if should do this or not
+        
+        // send message
+    }
+    else
+    {
+        Assert(0);
+    }
+}
+
+void CALLBACK browser_title_changed_proc(HWINEVENTHOOK hWinEventHook,
+                                         DWORD event,
+                                         HWND hwnd,
+                                         LONG idObject,
+                                         LONG idChild,
+                                         DWORD dwEventThread,
+                                         DWORD dwmsEventTime)
+{
+    if (event == EVENT_OBJECT_NAMECHANGE) 
+        //idObject == OBJID_WINDOW &&
+        //idChild == CHILDID_SELF)
+    {
+        // Doesn't matter if multiple tabs or windows are changed in a small space of time, we would have missed this anyway with > 1 second polling, so just know about last change
+        win32_context.browser_title_changed = true;
+        win32_context.window_changed = true;
+    }
+    else
+    {
+        Assert(0);
+    }
+}
+#endif
 
 void
 init_win32_context(HWND hwnd)
@@ -51,6 +124,22 @@ init_win32_context(HWND hwnd)
     CoInitializeEx(NULL, COINIT_APARTMENTTHREADED); // equivalent to CoInitialize(NULL)
     
     QueryPerformanceFrequency(&win32_context.performance_frequency);
+    
+#if 0    
+    // Out of context hooks are asynchronous, but events are guaranteed to be in sequential order
+    // TODO: Might want WINEVENT_SKIPOWNPROCESS
+    // This might require CoInitialize
+    // The client thread that calls SetWinEventHook must have a message loop in order to receive events.
+    win32_context.window_changed_hook = SetWinEventHook(EVENT_SYSTEM_FOREGROUND,
+                                                        EVENT_SYSTEM_FOREGROUND,
+                                                        NULL, window_changed_proc, 
+                                                        0, 0, // If these are zero gets from all processes on desktop
+                                                        WINEVENT_OUTOFCONTEXT);
+    if (win32_context.window_changed_hook == 0)
+    {
+        Assert(0);
+    }
+#endif
     
     HRESULT err = CoCreateInstance(CLSID_CUIAutomation, NULL, CLSCTX_INPROC_SERVER, IID_IUIAutomation,
                                    (void **)(&win32_context.uia));
@@ -134,6 +223,11 @@ win32_free_context()
     Shell_NotifyIconA(NIM_DELETE, &win32_context.nid);
     //FreeConsole();
     
+#if 0    
+    if (win32_context.window_changed_hook) UnhookWinEvent(win32_context.window_changed_hook);
+    if (win32_context.browser_name_change_hook) UnhookWinEvent(win32_context.browser_name_change_hook);
+#endif
+    
     // UIA
     
     if (win32_context.is_editbox) win32_context.is_editbox->Release();
@@ -152,6 +246,7 @@ win32_free_context()
     
     CoUninitialize();
 }
+
 
 struct Process_Ids
 {
@@ -309,6 +404,7 @@ bool
 platform_get_program_from_window(Platform_Window window, char *buf, size_t *length)
 {
     // TODO: check against desktop and shell windows
+    // TODO: Return utf8 path
     
     // On success fills buf will null terminated string, and sets length to string length (not including null terminator)
     HWND handle = window.handle;
@@ -408,7 +504,7 @@ win32_firefox_get_url_editbox(HWND hwnd)
 }
 
 IUIAutomationElement *
-win32_get_firefox_url_document_if_fullscreen(HWND hwnd)
+win32_firefox_get_url_document_if_fullscreen(HWND hwnd)
 {
     IUIAutomationElement *document = nullptr;
     
@@ -443,7 +539,7 @@ win32_get_firefox_url_document_if_fullscreen(HWND hwnd)
 }
 
 bool
-is_fullscreen(HWND hwnd)
+win32_window_is_fullscreen(HWND hwnd)
 {
     RECT window_rect;
     if (GetWindowRect(hwnd, &window_rect) == 0)
@@ -470,6 +566,23 @@ is_fullscreen(HWND hwnd)
     return (window_width == monitor_width && window_height == monitor_height);
 }
 
+bool win32_firefox_get_url_from_element(IUIAutomationElement *element, char *buf, int buf_size, size_t *length)
+{
+    bool success = false;
+    VARIANT url_bar = {};
+    HRESULT err = element->GetCurrentPropertyValue(UIA_ValueValuePropertyId, &url_bar);
+    if (err == S_OK)
+    {
+        if (url_bar.bstrVal)
+        {
+            success = win32_BSTR_to_utf8(url_bar.bstrVal, buf, buf_size, length);
+        }
+    }
+    
+    VariantClear(&url_bar);
+    return success;
+}
+
 bool
 platform_get_firefox_url(Platform_Window window, char *buf, int buf_size, size_t *length)
 {
@@ -480,47 +593,119 @@ platform_get_firefox_url(Platform_Window window, char *buf, int buf_size, size_t
     //       "Search with Google or enter address"   UIA_EditControlTypeId (0xC354) LocalizedControlType: "edit"
     //        which has Value.Value = URL
     
-    HWND hwnd = window.handle;
-    bool success = false;
-    *length = 0;
-    
-    // static HWND last_hwnd // if != then re-get firefox_window and re get editbox or document etc
-    // static IUIAutomationElement *firefox_window;
-    // static IUIAutomationElement *editbox;
-    // static IUIAutomationElement *document;
-    
-    bool fullscreen = is_fullscreen(hwnd);
-    
     // TODO: Could also use EVENT_OBJECT_NAMECHANGE to see if window title changed and then only look for new tabs at that point
+    // TODO:?
     // AddPropertyChangedEventHandler
     // https://docs.microsoft.com/en-us/windows/win32/winauto/uiauto-howto-implement-event-handlers
     
-    // Maybe cache both editbox and document for when we swap between fullscreen and normal
+    // TODO: make sure url bar doesn't have keyboard focus/is changing?
     
-    IUIAutomationElement *url_element = nullptr;
-    if (fullscreen)
-    {
-        url_element = win32_get_firefox_url_document_if_fullscreen(hwnd);
-    }
-    else
-    {
-        url_element = win32_firefox_get_url_editbox(hwnd);
-    }
+    bool success = false;
+    *length = 0;
     
-    if (url_element)
+    static HWND last_hwnd = 0; // if != then re-get firefox_window and re get editbox or document etc
+    //static IUIAutomationElement *firefox_window = nullptr;
+    static IUIAutomationElement *editbox = nullptr;
+    static IUIAutomationElement *document = nullptr;
+    
+    HWND hwnd = window.handle;
+    bool is_fullscreen = win32_window_is_fullscreen(hwnd);
+    
+    // TODO: Get firefox window once-ish (is this even a big deal if we have to re_load element it is just one extra call anyway)
+    // TODO: We are just redundantly trying twice to load element if it fails (when matching hwnd)
+    
+    // TODO: Possible cases
+    // 1. alt tab switching from one fullscreen firefox window to another
+    // 2. Switching between tabs that are both fullscreen (might not be possible)
+    
+    // NOTE: Maybe safest thing is to just do all the work everytime, and rely and events to tell us when
+    // Counterpoint, try to do the fast thing and then fall back to slow thing (what i'm trying to do)
+    
+    // If screenmode changes load other element
+    bool re_load_firefox_element = true;
+    if (last_hwnd == hwnd)
     {
-        VARIANT url_bar = {};
-        HRESULT err = url_element->GetCurrentPropertyValue(UIA_ValueValuePropertyId, &url_bar);
-        if (err == S_OK)
+        if (is_fullscreen)
         {
-            if (url_bar.bstrVal)
+            if (editbox) editbox->Release();
+            editbox = nullptr;
+            
+            if (!document)
             {
-                success = win32_BSTR_to_utf8(url_bar.bstrVal, buf, buf_size, length);
-                VariantClear(&url_bar);
+                document = win32_firefox_get_url_document_if_fullscreen(hwnd);
+            }
+            if (document)
+            {
+                // TODO: Assert that this is onscreen (the current tab)
+                
+                if (win32_firefox_get_url_from_element(document, buf, buf_size, length))
+                {
+                    // Don't release element (try to reuse next time)
+                    success = true;
+                    re_load_firefox_element = false;
+                }
             }
         }
+        else
+        {
+            if (document) document->Release();
+            document = nullptr;
+            
+            if (!editbox)
+            {
+                editbox = win32_firefox_get_url_editbox(hwnd);
+            }
+            if (editbox)
+            {
+                if (win32_firefox_get_url_from_element(editbox, buf, buf_size, length))
+                {
+                    // Don't release element (try to reuse next time)
+                    success = true;
+                    re_load_firefox_element = false;
+                }
+            }
+        }
+    }
+    
+    if (re_load_firefox_element)
+    {
+        // Free cached elements of other (old) window
+        if (editbox) editbox->Release();
+        if (document) document->Release();
+        //if (firefox_window) firefox_window->Release();
+        editbox = nullptr;
+        document = nullptr;
+        //firefox_window = nullptr;
         
-        url_element->Release();
+        IUIAutomationElement *element = nullptr;
+        if (is_fullscreen)
+            element = win32_firefox_get_url_document_if_fullscreen(hwnd);
+        else
+            element = win32_firefox_get_url_editbox(hwnd);
+        
+        if (element)
+        {
+            if (win32_firefox_get_url_from_element(element, buf, buf_size, length))
+            {
+                // Don't release element (try to reuse next time)
+                success = true;
+                if (is_fullscreen)
+                    document = element;
+                else
+                    editbox = element;
+            }
+            else
+            {
+                // Could not get url from window
+                element->Release();
+            }
+        }
+        else
+        {
+            // Could not get url from window
+        }
+        
+        last_hwnd = hwnd;
     }
     
     return success;
@@ -532,57 +717,6 @@ platform_get_firefox_url(Platform_Window window, char *buf, int buf_size, size_t
     // NOTE: This is duplicated because the editbox pointer can be valid, but just stale, and we only know that if GetCurrentPropertyValue fails, in which case we free the pointer and try to reacquire the editbox.
     
     // BUG: If we get a valid editbox from a normal firfox window, then go fullscreen, the editbox pointer is not set to null, so we continually read an empty string from the property value, without an error (not sure why no error is set by windows).
-    
-#if 0
-    // TODO: This most likely doesn't handle multiple firefox windows
-    static IUIAutomationElement *editbox = nullptr;
-    if (editbox)
-    {
-        // If we have a editbox pointer we can assume its the same window (likely) and try to get url bar
-        VARIANT url_bar = {};
-        HRESULT err = editbox->GetCurrentPropertyValue(UIA_ValueValuePropertyId, &url_bar);
-        if (err == S_OK)
-        {
-            if (url_bar.bstrVal)
-            {
-                success = win32_BSTR_to_utf8(url_bar.bstrVal, buf, buf_size, length);
-                VariantClear(&url_bar);
-            }
-            
-            return success;
-        }
-        else
-        {
-            // The editbox pointer probably isn't valid anymore
-            editbox->Release();
-            editbox = nullptr;
-        }
-    }
-    
-    editbox = win32_firefox_get_url_bar_editbox(hwnd);
-    if (editbox)
-    {
-        VARIANT url_bar = {};
-        HRESULT err = editbox->GetCurrentPropertyValue(UIA_ValueValuePropertyId, &url_bar);
-        if (err == S_OK)
-        {
-            if (url_bar.bstrVal)
-            {
-                success = win32_BSTR_to_utf8(url_bar.bstrVal, buf, buf_size, length);
-                VariantClear(&url_bar);
-            }
-            
-            return success;
-        }
-        else
-        {
-            editbox->Release();
-            editbox = nullptr;
-        }
-    }
-    
-    return success;
-#endif
 }
 
 
@@ -719,6 +853,95 @@ platform_get_icon_from_executable(char *path, u32 desired_size,
     if (small_icon_handle) DestroyIcon(small_icon_handle);
     return success;
 }
+
+
+#if 0
+void
+platform_get_changed_window()
+{
+    if (win32_context.window_changed)
+    {
+        HWND foreground_win = GetForegroundWindow();
+        char buf[2000];
+        size_t len;
+        if (platform_get_program_from_window(Platform_Window{foreground_win, true}, buf, &len))
+        {
+            String full_path = make_string_size_cap(buf, len, array_count(buf));
+            String program_name = get_filename_from_path(full_path);
+            if (program_name.length == 0) return 0;
+            
+            remove_extension(&program_name);
+            if (program_name.length == 0) return 0;
+            
+            if (string_equals(program_name, "firefox"))
+            {
+                if (win32_context.last_browser_window == foreground_win)
+                {
+                    // We changed to a browser window that is already hooked
+                }
+                else
+                {
+                    if (win32_context.browser_title_changed_hook) UnhookWinEvent(win32_context.browser_name_change_hook);
+                    
+                    DWORD process_id = 0; // 0 can only be system idle process
+                    GetWindowThreadProcessId(foreground_win, &process_id);
+                    if (process_id != 0)
+                    {
+                        win32_context.browser_title_changed_hook = SetWinEventHook(EVENT_OBJECT_NAMECHANGE,
+                                                                                   EVENT_OBJECT_NAMECHANGE,
+                                                                                   NULL, browser_title_changed_proc, 
+                                                                                   process_id, 0, 
+                                                                                   WINEVENT_OUTOFCONTEXT);
+                        if (win32_context.browser_title_changed_hook)
+                        {
+                            win32_context.last_browser_window = foreground_win;
+                        }
+                    }
+                    
+                }
+            }
+        }
+        
+        
+        win32_context.browser_title_changed = false;
+        win32_context.window_changed = false;
+        
+        // If window change occured we assume it takes precedence over tab change, so don't process tab change
+        return;
+    }
+    
+    if (win32_context.browser_title_changed)
+    {
+        // make sure we are still on browser
+        HWND foreground_win = GetForegroundWindow();
+        if (foreground_win != win32_context.last_browser_window)
+        {
+            // This shouldn't happen because if the foreground win is not the hooked browser window that set .browser_title_changed, then we should have also set and handled .window_changed and returned above.
+            Assert(0);
+        }
+        
+        char buf[2000];
+        size_t len;
+        if (platform_get_active_window(Platform_Window{foreground_win, true}, buf, &len))
+        {
+            String full_path = make_string_size_cap(buf, len, array_count(buf));
+            String program_name = get_filename_from_path(full_path);
+            if (program_name.length == 0) return 0;
+            
+            remove_extension(&program_name);
+            if (program_name.length == 0) return 0;
+            
+            Assert(string_equals(program_name, "firefox"));
+        }
+    }
+    
+    // ... do normal updating time stuff...
+    
+    win32_context.browser_title_changed = false;
+    win32_context.window_changed = false;
+    return;
+}
+#endif
 
 
 #if 0

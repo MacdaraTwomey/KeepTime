@@ -2,7 +2,7 @@
 // from monitor.cpp
 Icon_Asset * get_icon_asset(Database *database, App_Id id);
 void add_keyword(std::vector<Keyword> &keywords, Database *database, char *str, App_Id id);
-void set_day_view_range(Day_View *day_view, date::sys_days start_date, date::sys_days end_date);
+void set_day_view_range(Day_View *day_view, date::sys_days start, date::sys_days end);
 bool is_exe(u32 id);
 
 const char *
@@ -192,6 +192,7 @@ HelpMarker(const char* desc)
 bool
 do_settings_popup(Edit_Settings *edit_settings)
 {
+    // TODO: Could draw lines under text like a notebook instead of text boxes
     bool finished = false;
     
     float keywords_child_height = ImGui::GetWindowHeight() * 0.6f;
@@ -358,34 +359,11 @@ do_settings_popup(Edit_Settings *edit_settings)
     return finished;
 }
 
-
-void
-prev_month(int *month, int *year)
+bool
+do_calendar(Calendar *calendar)
 {
-    if (*month == 1) {
-        *month = 12;
-        *year -= 1;
-    }
-    else {
-        *month -= 1;
-    }
-}
-
-void
-next_month(int *month, int *year)
-{
-    if (*month == 12) {
-        *month = 1;
-        *year += 1;
-    }
-    else {
-        *month += 1;
-    }
-}
-
-void
-do_calendar(Calendar_State *calendar)
-{
+    bool selection_made = false;
+    
     // TODO: Decide best date types to use, to minimise conversions and make cleaner
     
     // maybe only allow selection between days we actually have, or at least limit to current date
@@ -407,33 +385,15 @@ do_calendar(Calendar_State *calendar)
         //ImGui::ArrowButton("##left", ImGuiDir_Left); // looks worse but not too bad
         if (ImGui::Button(ICON_MD_ARROW_BACK))
         {
-            auto ymd = date::year_month_day{calendar->first_day_of_month};
-            Assert(ymd.ok());
-            
-            int year = int(ymd.year());
-            int month = unsigned (ymd.month());
-            prev_month(&month, &year);
-            auto new_date = date::month(month)/ymd.day()/year;
-            Assert(new_date.ok());
-            
-            calendar->first_day_of_month = date::year_month_weekday{new_date};
-            Assert(calendar->first_day_of_month.ok());
+            // TODO: can this be year_month_weekday?
+            auto d = date::year_month_day{calendar->first_day_of_month} - date::months{1};
+            calendar->first_day_of_month = date::year_month_weekday{d};
         }
         ImGui::SameLine(ImGui::GetWindowWidth() - 40); 
         if (ImGui::Button(ICON_MD_ARROW_FORWARD))
         {
-            auto ymd = date::year_month_day{calendar->first_day_of_month};
-            Assert(ymd.ok());
-            
-            int year = int(ymd.year());
-            int month = unsigned(ymd.month());
-            next_month(&month, &year);
-            
-            auto new_date = date::month(month)/ymd.day()/year;
-            Assert(new_date.ok());
-            
-            calendar->first_day_of_month = date::year_month_weekday{new_date};
-            Assert(calendar->first_day_of_month.ok());
+            auto d = date::year_month_day{calendar->first_day_of_month} + date::months{1};
+            calendar->first_day_of_month = date::year_month_weekday{d};
         }
         
         int year = int(calendar->first_day_of_month.year());
@@ -492,7 +452,7 @@ do_calendar(Calendar_State *calendar)
             {
                 // close calendar and say selected this one
                 calendar->selected_date = date::sys_days{calendar->first_day_of_month} + date::days{i};
-                break;
+                selection_made = true;
             }
             ImGui::NextColumn();
         }
@@ -501,10 +461,12 @@ do_calendar(Calendar_State *calendar)
         style.SelectableTextAlign = ImVec2(0.0f, 0.0f);
         ImGui::EndPopup();
     }
+    
+    return selection_made;
 }
 
-void
-do_calendar_button(Calendar_State *calendar) 
+bool
+do_calendar_button(Calendar *calendar) 
 {
     date::year_month_day ymd{ calendar->selected_date };
     int year = int(ymd.year());
@@ -535,155 +497,141 @@ do_calendar_button(Calendar_State *calendar)
         calendar->first_day_of_month = first_day_of_month;
     }
     
-    do_calendar(calendar);
+    bool changed_selection = do_calendar(calendar);
     
     ImGui::PopID();
-}
-
-
-void
-backwards_range_and_clip(Range_Type range_type, 
-                         date::sys_days *start_date, date::sys_days *end_date,
-                         date::sys_days oldest_date, date::sys_days newest_date) 
-{
-    date::sys_days start = *start_date;
-    date::sys_days end = *end_date;
-    if (range_type == Range_Type_Daily)
-    {
-        start -= date::days{1};
-        end -= date::days{1};
-        // no clipping needed
-    }
-    else if (range_type == Range_Type_Weekly)
-    {
-        Assert(end - start == date::days{6});
-        
-        // start end stay on monday and sunday of week unless clipped
-        start -= date::days{7};
-        end -= date::days{7};
-        
-        // if end is currently clipped to newest then it may not be on sunday, so minus 7 days will still not be a sunday
-        auto ymw = date::year_month_weekday{end};
-        if (ymw.weekday() != date::Sunday)
-        {
-            end = date::sys_days{ymw.year()/ymw.month()/date::Sunday[ymw.index()]};
-        }
-        ymw = date::year_month_weekday{start};
-        if (ymw.weekday() != date::Monday)
-        {
-            // needed?
-            start = date::sys_days{ymw.year()/ymw.month()/date::Monday[ymw.index()]};
-        }
-        
-        if (start < oldest_date) start = oldest_date;
-        if (end < oldest_date) end = oldest_date;
-    }
-    else if (range_type == Range_Type_Monthly)
-    {
-        auto ymd = date::year_month_day{start};
-        int year = int(ymd.year());
-        int month = unsigned(ymd.month());
-        
-        prev_month(&month, &year);
-        
-        start = date::sys_days{date::year{year}/month/1};
-        end = date::sys_days{date::year{year}/month/days_in_month(month, year)};
-        
-        auto test = date::sys_days{date::year{year}/month/date::last};
-        Assert(end == test);
-        
-        if (start < oldest_date) start = oldest_date;
-        if (end < oldest_date) end = oldest_date;
-    }
-    // else Custom (Nothing happens)
     
-    *start_date = start;
-    *end_date = end;
+    return changed_selection;
 }
 
-void
-forewards_range_and_clip(Range_Type range_type, 
-                         date::sys_days *start_date, date::sys_days *end_date,
-                         date::sys_days oldest_date, date::sys_days newest_date) 
+
+void 
+date_picker_update_label(Date_Picker *date_picker, date::sys_days oldest_date, date::sys_days newest_date)
 {
-    date::sys_days start = *start_date;
-    date::sys_days end = *end_date;
-    if (range_type == Range_Type_Daily)
+    if (date_picker->range_type == Range_Type_Daily)
     {
-        Assert(end == start);
-        
-        start += date::days{1};
-        end += date::days{1};
-        // no clipping needed
-    }
-    else if (range_type == Range_Type_Weekly)
-    {
-        Assert(end - start == date::days{6});
-        
-        // start end stay on monday and sunday of week unless clipped
-        start += date::days{7};
-        end += date::days{7};
-        
-        // if end is currently clipped to newest then it may not be on sunday, so minus 7 days will still not be a sunday
-        auto ymw = date::year_month_weekday{start};
-        if (ymw.weekday() != date::Monday)
+        if (date_picker->start == oldest_date)
+            snprintf(date_picker->date_label, array_count(date_picker->date_label), "Today");
+        else if (date_picker->start == oldest_date - date::days{1})
+            snprintf(date_picker->date_label, array_count(date_picker->date_label), "Yesterday");
+        else
         {
-            // Make into monday of the next week
-            start = date::sys_days{ymw.year()/ymw.month()/date::Monday[ymw.index()]};
+            auto d1 = date::year_month_day{date_picker->start};
+            snprintf(date_picker->date_label, array_count(date_picker->date_label), 
+                     "%u %s %i", unsigned(d1.day()), month_string(unsigned(d1.month())), int(d1.year()));
         }
-        
-        ymw = date::year_month_weekday{end};
-        if (ymw.weekday() != date::Sunday)
-        {
-            // needed? if guarenteed 7 days apart
-            
-            // Make into monday of the next week
-            end = date::sys_days{ymw.year()/ymw.month()/date::Sunday[ymw.index()]};
-        }
-        
-        if (start > newest_date) start = newest_date;
-        if (end > newest_date) end = newest_date;
     }
-    else if (range_type == Range_Type_Monthly)
+    else if (date_picker->range_type == Range_Type_Weekly)
     {
-        auto ymd = date::year_month_day{end};
-        int year = int(ymd.year());
-        int month = unsigned(ymd.month());
-        
-        Assert(end - start == date::days{days_in_month(year, month)});
-        
-        next_month(&month, &year);
-        
-        start = date::sys_days{date::year{year}/month/1};
-        end = date::sys_days{date::year{year}/month/days_in_month(month, year)};
-        
-        auto test = date::sys_days{date::year{year}/month/date::last};
-        Assert(end == test);
-        
-        
-        if (start > newest_date) start = newest_date;
-        if (end > newest_date) end = newest_date;
+        auto d1 = date::year_month_day{date_picker->start};
+        auto d2 = date::year_month_day{date_picker->end};
+        snprintf(date_picker->date_label, array_count(date_picker->date_label), 
+                 "%u %s %i - %u %s %i", 
+                 unsigned(d1.day()), month_string(unsigned(d1.month())), int(d1.year()),
+                 unsigned(d2.day()), month_string(unsigned(d2.month())), int(d2.year()));
     }
-    // else Custom (Nothing happens)
+    else if (date_picker->range_type == Range_Type_Monthly)
+    {
+        auto d1 = date::year_month_day{date_picker->start};
+        snprintf(date_picker->date_label, array_count(date_picker->date_label), 
+                 "%s %i", month_string(unsigned(d1.month())), int(d1.year()));
+    }
+    else if (date_picker->range_type == Range_Type_Custom)
+    {
+        auto d1 = date::year_month_day{date_picker->start};
+        auto d2 = date::year_month_day{date_picker->end};
+        snprintf(date_picker->date_label, array_count(date_picker->date_label), 
+                 "%u %s %i - %u %s %i", 
+                 unsigned(d1.day()), month_string(unsigned(d1.month())), int(d1.year()),
+                 unsigned(d2.day()), month_string(unsigned(d2.month())), int(d2.year()));
+    }
+}
+
+void 
+date_picker_clip_and_update(Date_Picker *date_picker, date::sys_days oldest_date, date::sys_days newest_date)
+{
+    // TODO: Maybe this should take range and if Range_Type is Custom then disable both buttons
     
-    *start_date = start;
-    *end_date = end;
-}
-
-bool can_backward_range(date::sys_days start, date::sys_days end,
-                        date::sys_days oldest_date, date::sys_days newest_date)
-{
+    date_picker->start = clamp(date_picker->start, oldest_date, newest_date);
+    date_picker->end = clamp(date_picker->end, oldest_date, newest_date);
+    
+    Assert(date_picker->start <= date_picker->end);
+    Assert(date_picker->start >= oldest_date);
+    Assert(date_picker->end <= newest_date);
+    
     // If start is clipped then there is always no earlier day/week/month (can't go backwards)
     // Or start is not clipped but is on the oldest date (can't go backwards)
     // If start is not clipped then must be at the beginning of a week or month, so any earlier date (i.e. oldest) would have to be in another week or month (can go backwards)
-    return start > oldest_date;
+    
+    date_picker->is_backwards_disabled = (date_picker->start == oldest_date);
+    date_picker->is_forwards_disabled = (date_picker->end == newest_date);
+    
+    date_picker_update_label(date_picker, oldest_date, newest_date);
 }
 
-bool
-can_foreward_range(date::sys_days start, date::sys_days end,
-                   date::sys_days oldest_date, date::sys_days newest_date)
+void
+date_picker_backwards(Date_Picker *date_picker, date::sys_days oldest_date, date::sys_days newest_date) 
 {
-    return end < newest_date;
+    if (date_picker->range_type == Range_Type_Daily)
+    {
+        date_picker->start -= date::days{1};
+        date_picker->end -= date::days{1};
+    }
+    else if (date_picker->range_type == Range_Type_Weekly)
+    {
+        // start end stay on monday and sunday of week unless clipped
+        date_picker->start -= date::days{7};
+        date_picker->end -= date::days{7};
+        
+        // If end is currently clipped to the newest date then it may not be on sunday, so subtracting 7 days will reduce the date by too much, so need to add days to get back to the weeks sunday
+        // This is not a problem for the start date if we are going backwards
+        auto day_of_week = date::weekday{date_picker->end};
+        if (day_of_week != date::Sunday)
+        {
+            auto days_to_next_sunday = date::Sunday - day_of_week;
+            date_picker->end +=  days_to_next_sunday;
+        }
+    }
+    else if (date_picker->range_type == Range_Type_Monthly)
+    {
+        auto d = date::year_month_day{date_picker->start} - date::months{1};
+        date_picker->start = date::sys_days{d.year()/d.month()/1};
+        date_picker->end = date::sys_days{d.year()/d.month()/date::last};
+    }
+    
+    date_picker_clip_and_update(date_picker, oldest_date, newest_date);
+}
+
+void
+date_picker_forwards(Date_Picker *date_picker, date::sys_days oldest_date, date::sys_days newest_date) 
+{
+    if (date_picker->range_type == Range_Type_Daily)
+    {
+        date_picker->start += date::days{1};
+        date_picker->end += date::days{1};
+    }
+    else if (date_picker->range_type == Range_Type_Weekly)
+    {
+        // start end stay on monday and sunday of week unless clipped
+        date_picker->start += date::days{7};
+        date_picker->end += date::days{7};
+        
+        // If we overshot our monday because start was clipped to a non-monday day, we need to move back
+        auto day_of_week = date::weekday{date_picker->start};
+        if (day_of_week != date::Monday)
+        {
+            auto days_back_to_monday = day_of_week - date::Monday;
+            date_picker->start -= days_back_to_monday;
+        }
+    }
+    else if (date_picker->range_type == Range_Type_Monthly)
+    {
+        auto d = date::year_month_day{date_picker->end} + date::months{1};
+        date_picker->start = date::sys_days{d.year()/d.month()/1};
+        date_picker->end = date::sys_days{d.year()/d.month()/date::last};
+    }
+    
+    date_picker_clip_and_update(date_picker, oldest_date, newest_date);
 }
 
 void
@@ -707,171 +655,82 @@ pop_disable(bool is_disabled)
 }
 
 void
-do_date_select_popup(Monitor_State *state,
-                     Day_View *day_view, date::sys_days oldest_date, date::sys_days newest_date)
+do_date_select_popup(Date_Picker *date_picker, date::sys_days oldest_date, date::sys_days newest_date)
 {
-    // make below button
-    //ImGui::SetNextWindowPos();
+    ImVec2 pos = ImVec2(ImGui::GetWindowWidth() / 2.0f, ImGui::GetCursorPosY());
+    ImGui::SetNextWindowPos(pos, true, ImVec2(0.5f, 0)); // centre on x
+    
     //ImGui::SetNextWindowSize(ImVec2(300,300));
+    
     if (ImGui::BeginPopup("Date Select"))
     {
         // @WaitOnInput: this may change the date displayed on button
         
         char *items[] = {"Daily", "Weekly", "Monthly", "Custom range"};
         
-        int prev_range_type = day_view->range_type;
-        if (ImGui::Combo("period picker", (int *)&day_view->range_type, items, array_count(items)))
+        int prev_range_type = date_picker->range_type;
+        if (ImGui::Combo("##picker", (int *)&date_picker->range_type, items, array_count(items)))
         {
             // TODO: Collapse this to avoid rechecking range_type and coverting to ymd more than once (though this may need to happen if the day is clipped)
-            switch (day_view->range_type)
+            
+            // TODO: May want to use end_date as basis of range instead of start_date because we tend to care more about more recent dates, so when switching from month to daily it goes to last day of month, etc.
+            if (date_picker->range_type != prev_range_type)
             {
-                case Range_Type_Daily:
+                if (date_picker->range_type == Range_Type_Daily)
                 {
-                    if (prev_range_type == Range_Type_Weekly)
-                    {
-                        // Select first day of week
-                        auto ymw = date::year_month_weekday{day_view->start_date};
-                        day_view->start_date = date::sys_days{ymw.year()/ymw.month()/date::Monday[ymw.index()]};
-                    }
-                    else if (prev_range_type == Range_Type_Monthly)
-                    {
-                        // Select first day of month
-                        auto ymd = date::year_month_day{day_view->start_date};
-                        day_view->start_date = date::sys_days{ymd.year()/ymd.month()/1};
-                    }
-                    else if (prev_range_type == Range_Type_Custom)
-                    {
-                        // start_date stays the same
-                    }
+                    // start_date stays the same
+                    date_picker->end = date_picker->start;
+                }
+                else if  (date_picker->range_type == Range_Type_Weekly)
+                {
+                    // Select the week that start_date was in
+                    date::days days_back_to_monday_of_week = date::weekday{date_picker->start} - date::Monday;
                     
-                    day_view->end_date = day_view->start_date;
-                } break;
-                
-                case Range_Type_Weekly:
+                    date_picker->start = date_picker->start - days_back_to_monday_of_week;
+                    date_picker->end   = date_picker->start + date::days{6};
+                }
+                else if  (date_picker->range_type == Range_Type_Monthly)
                 {
-                    if (prev_range_type == Range_Type_Daily ||
-                        prev_range_type == Range_Type_Custom)
-                    {
-                        // Select the week that start_date is in
-                        auto ymw = date::year_month_weekday{day_view->start_date};
-                        day_view->start_date = date::sys_days{ymw.year()/ymw.month()/date::Monday[ymw.index()]};
-                        day_view->end_date   = date::sys_days{ymw.year()/ymw.month()/date::Sunday[ymw.index()]};
-                    }
-                    else if (prev_range_type == Range_Type_Monthly)
-                    {
-                        // Select first week of that month that start_date is in
-                        auto ymw = date::year_month_weekday{day_view->start_date};
-                        day_view->start_date = date::sys_days{ymw.year()/ymw.month()/date::Monday[1]};
-                        day_view->end_date   = date::sys_days{ymw.year()/ymw.month()/date::Sunday[1]};
-                    }
-                } break;
-                
-                case Range_Type_Monthly:
+                    // Select the month that start_date was in
+                    auto ymd = date::year_month_day{date_picker->start};
+                    date_picker->start = date::sys_days{ymd.year()/ymd.month()/1};
+                    date_picker->end   = date::sys_days{ymd.year()/ymd.month()/date::last};
+                }
+                else if (date_picker->range_type == Range_Type_Custom)
                 {
-                    if (prev_range_type == Range_Type_Daily ||
-                        prev_range_type == Range_Type_Custom || 
-                        prev_range_type == Range_Type_Weekly)
-                    {
-                        // Select the month that start_date is in
-                        auto ymd = date::year_month_day{day_view->start_date};
-                        day_view->start_date = date::sys_days{ymd.year()/ymd.month()/1};
-                        day_view->end_date   = date::sys_days{ymd.year()/ymd.month()/date::last};
-                    }
-                } break;
-                
-                case Range_Type_Custom:
-                // else Custom (Nothing happens TODO)
-                break;
-            }
-            
-            // Clip dates
-            if (day_view->start_date > newest_date) day_view->start_date = newest_date;
-            if (day_view->end_date > newest_date)   day_view->end_date = newest_date;
-            if (day_view->start_date < oldest_date) day_view->start_date = oldest_date;
-            if (day_view->end_date < oldest_date)   day_view->end_date = oldest_date;
-            
-            if (day_view->range_type == Range_Type_Daily)
-            {
-                if (day_view->start_date == oldest_date)
-                    snprintf(day_view->date_label, array_count(day_view->date_label), "Today");
-                else if (day_view->start_date == oldest_date - date::days{1})
-                    snprintf(day_view->date_label, array_count(day_view->date_label), "Yesterday");
+                    date_picker->start = date_picker->calendar_range_start.selected_date;
+                    date_picker->end = date_picker->calendar_range_end.selected_date;
+                }
                 else
                 {
-                    auto ymd = date::year_month_day{day_view->start_date};
-                    int year = int(ymd.year());
-                    int month = unsigned(ymd.month());
-                    int day = unsigned(ymd.day());
-                    snprintf(day_view->date_label, array_count(day_view->date_label), 
-                             "%i%s %s %i", day, day_suffix(day), month_string(month), year);
+                    Assert(0);
                 }
-            }
-            else if (day_view->range_type == Range_Type_Weekly)
-            {
-                // TODO: Use day suffix?
-                {
-                    auto ymd = date::year_month_day{day_view->start_date};
-                    int year = int(ymd.year());
-                    int month = unsigned(ymd.month());
-                    int day = unsigned(ymd.day());
-                    snprintf(day_view->date_label, array_count(day_view->date_label), 
-                             "%i%s %s %i - ", day, day_suffix(day), month_string(month), year);
-                }
-                {
-                    auto ymd = date::year_month_day{day_view->end_date};
-                    int year = int(ymd.year());
-                    int month = unsigned(ymd.month());
-                    int day = unsigned(ymd.day());
-                    snprintf(day_view->date_label, array_count(day_view->date_label), 
-                             "%i%s %s %i", day, day_suffix(day), month_string(month), year);
-                }
-            }
-            else if (day_view->range_type == Range_Type_Monthly)
-            {
-                auto ymd = date::year_month_day{day_view->start_date};
-                int year = int(ymd.year());
-                int month = unsigned(ymd.month());
-                snprintf(day_view->date_label, array_count(day_view->date_label), 
-                         "%s %i", month_string(month), year);
-            }
-            else if (day_view->range_type == Range_Type_Custom)
-            {
-                {
-                    auto ymd = date::year_month_day{day_view->start_date};
-                    int year = int(ymd.year());
-                    int month = unsigned(ymd.month());
-                    int day = unsigned(ymd.day());
-                    snprintf(day_view->date_label, array_count(day_view->date_label), 
-                             "%i%s %s %i - ", day, day_suffix(day), month_string(month), year);
-                }
-                {
-                    auto ymd = date::year_month_day{day_view->end_date};
-                    int year = int(ymd.year());
-                    int month = unsigned(ymd.month());
-                    int day = unsigned(ymd.day());
-                    snprintf(day_view->date_label, array_count(day_view->date_label), 
-                             "%i%s %s %i", day, day_suffix(day), month_string(month), year);
-                }
-            }
-            else
-            {
-                Assert(0);
             }
             
-            
-            day_view->left_disabled = !can_backward_range(day_view->start_date, day_view->end_date,
-                                                          oldest_date, newest_date);
-            
-            day_view->right_disabled = !can_foreward_range(day_view->start_date, day_view->end_date,
-                                                           oldest_date, newest_date);
+            date_picker_clip_and_update(date_picker, oldest_date, newest_date);
         }
         
+        // @WaitForInput
         // Maybe disable these when some options selected?
-        do_calendar_button(&state->calendar_date_range_start);
+        // TODO: Don't allow selecting (or maybe just confirming) start > end
+        if (do_calendar_button(&date_picker->calendar_range_start))
+        {
+            // Changed selection
+            if (date_picker->range_type == Range_Type_Custom)
+            {
+                date_picker->start = date_picker->calendar_range_start.selected_date;
+                date_picker_clip_and_update(date_picker, oldest_date, newest_date);
+            }
+        } 
         ImGui::SameLine();
-        do_calendar_button(&state->calendar_date_range_end);
-        
-        // check range
+        if (do_calendar_button(&date_picker->calendar_range_end))
+        {
+            if (date_picker->range_type == Range_Type_Custom)
+            {
+                date_picker->end = date_picker->calendar_range_end.selected_date;
+                date_picker_clip_and_update(date_picker, oldest_date, newest_date);
+            }
+        }
         
         ImGui::EndPopup();
     }
@@ -977,22 +836,6 @@ do_debug_window_button(Database *database, Day_View *day_view)
             ImGui::Text("Day_View");
             ImGui::BeginChildFrame(30, ImVec2(300, 600));
             ImGui::Text("day view count = %u", day_view->days.size());
-            ImGui::Text("range type = %s", day_view->range_type == Range_Type_Daily ? "Daily" : 
-                        day_view->range_type == Range_Type_Weekly ? "Weekly" :
-                        day_view->range_type == Range_Type_Monthly ? "Monthly" :
-                        day_view->range_type == Range_Type_Custom ? "Custom" : "??");
-            {
-                auto start = date::year_month_day{day_view->start_date};
-                auto end = date::year_month_day{day_view->end_date};
-                
-                std::ostringstream buf;
-                std::ostringstream buf1;
-                buf << "start_date: " << start.day() << "/" << start.month() << "/" << start.year();
-                buf1 << "end_date: " << end.day() << "/" << end.month() << "/" << end.year(); 
-                
-                ImGui::Text("%s", buf.str().c_str());
-                ImGui::Text("%s", buf1.str().c_str());
-            }
             for (int i = 0; i < day_view->days.size(); ++i)
             {
                 auto ymd = date::year_month_day{day_view->days[i].date};
@@ -1010,10 +853,101 @@ do_debug_window_button(Database *database, Day_View *day_view)
             ImGui::EndChildFrame();
         }
         
+        
+#if 0
+        ImGui::Text("swaps:");
+        ImGui::BeginChildFrame(31, ImVec2(600, 600));
+        if (win32_context.swap_count > 0)
+        {
+            for (int i = 0; i < win32_context.swap_count - 1; ++i)
+            {
+                s64 dur = win32_context.swaps[i+1].event_time_milliseconds - win32_context.swaps[i].event_time_milliseconds;
+                ImGui::BulletText("%s: %fs", win32_context.swaps[i].name, (float)dur / 1000);
+            }
+        }
+        ImGui::EndChildFrame();
+#endif
+        
+        
         ImGui::End();
-    }
+    } // if debug_menu_open
 }
 
+Record *
+get_records_in_date_range(Day_View *day_view, u32 *record_count, date::sys_days start_range, date::sys_days end_range)
+{
+    Record *result = nullptr;
+    
+    // Dates should be in our days range
+    int start_idx = -1;
+    int end_idx = -1;
+    for (int i = 0; i < day_view->days.size(); ++i)
+    {
+        if (start_range == day_view->days[i].date)
+        {
+            start_idx = i;
+        }
+        if (end_range == day_view->days[i].date)
+        {
+            end_idx = i;
+            Assert(start_idx != -1);
+            break;
+        }
+    }
+    
+    Assert(start_idx != -1 && end_idx != -1);
+    
+    s32 total_record_count = 0;
+    for (int i = start_idx; i <= end_idx; ++i)
+    {
+        total_record_count += day_view->days[i].record_count;
+    }
+    
+    if (total_record_count > 0)
+    {
+        Record *range_records = (Record *)xalloc(total_record_count * sizeof(Record));
+        Record *deduplicated_records = (Record *)xalloc(total_record_count * sizeof(Record));
+        
+        Record *at = range_records;
+        for (int i = start_idx; i <= end_idx; ++i)
+        {
+            memcpy(at, day_view->days[i].records, day_view->days[i].record_count * sizeof(Record));
+            at += day_view->days[i].record_count;
+        }
+        
+        // Sort by id
+        std::sort(range_records, range_records + total_record_count, 
+                  [](Record &a, Record &b) { return a.id < b.id; });
+        
+        // Merge same id records 
+        deduplicated_records[0] = range_records[0];
+        int unique_id_count = 1; 
+        
+        for (int i = 1; i < total_record_count; ++i)
+        {
+            if (range_records[i].id == deduplicated_records[unique_id_count-1].id)
+            {
+                deduplicated_records[unique_id_count-1].duration += range_records[i].duration;
+            }
+            else
+            {
+                deduplicated_records[unique_id_count] = range_records[i];
+                unique_id_count += 1;
+            }
+        }
+        
+        // Sort by duration
+        std::sort(deduplicated_records, deduplicated_records + unique_id_count, 
+                  [](Record &a, Record &b) { return a.duration > b.duration; });
+        
+        free(range_records);
+        
+        *record_count = unique_id_count;
+        return deduplicated_records;
+    }
+    
+    return result;
+}
 
 // Database only needed for app_names, and generating new settings ids
 // current_date not really needed
@@ -1052,100 +986,92 @@ void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *data
     ImGui::SetNextWindowSize(ImVec2(850, 690), true);
     ImGui::Begin("Main window", nullptr, flags);
     
+    // TODO: Make in exact middle
+    ImGui::SameLine(ImGui::GetWindowWidth() * .35f);
     {
-        if (ImGui::Button(ICON_MD_SETTINGS))
-        {
-            // init edit_settings
-            state->edit_settings = (Edit_Settings *)calloc(1, sizeof(Edit_Settings));
-            
-            // Not sure if should try to leave only one extra or all possible input boxes
-            state->edit_settings->input_box_count = MAX_KEYWORD_COUNT;
-            state->edit_settings->misc_options = state->settings.misc_options;
-            
-            // TODO: Should be a better way than this
-            state->edit_settings->poll_start_time_item = state->settings.misc_options.poll_start_time / 15;
-            state->edit_settings->poll_end_time_item = state->settings.misc_options.poll_end_time / 15;
-            
-            Assert(state->settings.keywords.size() <= MAX_KEYWORD_COUNT);
-            for (s32 i = 0; i < state->settings.keywords.size(); ++i)
-            {
-                Assert(state->settings.keywords[i].str.length + 1 <= MAX_KEYWORD_SIZE);
-                strcpy(state->edit_settings->pending[i], state->settings.keywords[i].str.str);
-            }
-            
-            ImGui::OpenPopup("Settings");
-        }
+        Date_Picker *date_picker = &state->date_picker;
         
-        bool finished = do_settings_popup(state->edit_settings);
-        if (finished)
-        {
-            update_settings(state->edit_settings, &state->settings, database);
-            free(state->edit_settings);
-        }
-    }
-    {
-        ImGui::SameLine();
-        do_debug_window_button(database, day_view);
-    }
-    
-    {
         date::sys_days oldest_date = day_view->days.front().date;
         date::sys_days newest_date = day_view->days.back().date;
-        //date::sys_days oldest_date = date::year{2020}/6/24;
-        //date::sys_days newest_date = date::year{2020}/7/31;
         
-        bool left_disabled = day_view->left_disabled;
-        push_disable(left_disabled);
+        // @WaitForInput
+        bool disabled = date_picker->is_backwards_disabled;
+        push_disable(disabled);
         if (ImGui::Button(ICON_MD_ARROW_BACK))
         {
-            // If you can click button this always succeeds, though may be clipped to oldest/newest
-            backwards_range_and_clip(day_view->range_type, &day_view->start_date, &day_view->end_date,
-                                     oldest_date, newest_date);
-            
-            // check next possible press of this button 
-            day_view->left_disabled = !can_backward_range(day_view->start_date, day_view->end_date,
-                                                          oldest_date, newest_date);
-            
-            day_view->right_disabled = !can_foreward_range(day_view->start_date, day_view->end_date,
-                                                           oldest_date, newest_date);
+            date_picker_backwards(date_picker, oldest_date, newest_date);
         }
-        pop_disable(left_disabled);
+        pop_disable(disabled);
         
         ImGui::SameLine();
-        if (ImGui::Button(day_view->date_label, ImVec2(200, 0))) // passing zero uses default I guess
+        if (ImGui::Button(date_picker->date_label, ImVec2(200, 0))) // passing zero uses default I guess
         {
             ImGui::OpenPopup("Date Select");
         }
         ImGui::SameLine();
         
-        bool right_disabled = day_view->right_disabled;
-        push_disable(right_disabled);
+        disabled = date_picker->is_forwards_disabled;
+        push_disable(disabled);
         if (ImGui::Button(ICON_MD_ARROW_FORWARD))
         {
-            // If you can click button this always succeeds, though may be clipped to oldest/newest
-            forewards_range_and_clip(day_view->range_type, &day_view->start_date, &day_view->end_date,
-                                     oldest_date, newest_date);
-            
-            // check next possible press of this button 
-            day_view->left_disabled = !can_backward_range(day_view->start_date, day_view->end_date,
-                                                          oldest_date, newest_date);
-            
-            day_view->right_disabled = !can_foreward_range(day_view->start_date, day_view->end_date,
-                                                           oldest_date, newest_date);
+            date_picker_forwards(date_picker, oldest_date, newest_date);
         }
-        pop_disable(right_disabled);
+        pop_disable(disabled);
         
-        do_date_select_popup(state, day_view, oldest_date, newest_date);
+        do_date_select_popup(date_picker, oldest_date, newest_date);
+    }
+    
+    ImGui::SameLine(ImGui::GetWindowWidth() * .85f);
+    
+    // @WaitForInput
+    if (ImGui::Button(ICON_MD_SETTINGS))
+    {
+        // init edit_settings
+        state->edit_settings = (Edit_Settings *)calloc(1, sizeof(Edit_Settings));
         
-        auto ymd = date::year_month_day{day_view->start_date};
-        auto ymw = date::year_month_weekday{day_view->start_date};
+        // Not sure if should try to leave only one extra or all possible input boxes
+        state->edit_settings->input_box_count = MAX_KEYWORD_COUNT;
+        state->edit_settings->misc_options = state->settings.misc_options;
+        
+        // TODO: Should be a better way than this
+        state->edit_settings->poll_start_time_item = state->settings.misc_options.poll_start_time / 15;
+        state->edit_settings->poll_end_time_item = state->settings.misc_options.poll_end_time / 15;
+        
+        Assert(state->settings.keywords.size() <= MAX_KEYWORD_COUNT);
+        for (s32 i = 0; i < state->settings.keywords.size(); ++i)
+        {
+            Assert(state->settings.keywords[i].str.length + 1 <= MAX_KEYWORD_SIZE);
+            strcpy(state->edit_settings->pending[i], state->settings.keywords[i].str.str);
+        }
+        
+        ImGui::OpenPopup("Settings");
+    }
+    
+    bool finished = do_settings_popup(state->edit_settings);
+    if (finished)
+    {
+        update_settings(state->edit_settings, &state->settings, database);
+        free(state->edit_settings);
+    }
+    
+    ImGui::SameLine();
+    do_debug_window_button(database, day_view);
+    
+    {
+        Date_Picker *date_picker = &state->date_picker;
+        
+        date::sys_days oldest_date = day_view->days.front().date;
+        date::sys_days newest_date = day_view->days.back().date;
+        
+        auto ymd = date::year_month_day{date_picker->start};
+        auto ymw = date::year_month_weekday{date_picker->start};
         std::ostringstream buf;
         
         buf << "start_date: " << ymd << ", " <<  ymw;
         ImGui::Text(buf.str().c_str());
         
-        ymd = date::year_month_day{day_view->end_date};
-        ymw = date::year_month_weekday{day_view->end_date};
+        ymd = date::year_month_day{date_picker->end};
+        ymw = date::year_month_weekday{date_picker->end};
         std::ostringstream buf1;
         
         buf1 << "end_date: " << ymd << ", " <<  ymw;
@@ -1166,147 +1092,142 @@ void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *data
         ImGui::Text(buf3.str().c_str());
     }
     
-    // To allow frame border
-    ImGuiWindowFlags child_flags = 0;
-    ImGui::BeginChildFrame(55, ImVec2(ImGui::GetWindowSize().x * 0.9, ImGui::GetWindowSize().y * 0.7), child_flags);
-    
-    ImDrawList* draw_list = ImGui::GetWindowDrawList();
-    
-    Day *today = &day_view->days.back();
-    
-    time_type sum_duration = 0;
-    
-    if (today->record_count > 0)
     {
-        i32 record_count = today->record_count;
+        // To allow frame border
+        ImGuiWindowFlags child_flags = 0;
+        ImGui::BeginChildFrame(55, ImVec2(ImGui::GetWindowSize().x * 0.9, ImGui::GetWindowSize().y * 0.7), child_flags);
         
-        Record sorted_records[MaxDailyRecords];
-        memcpy(sorted_records, today->records, sizeof(Record) * record_count);
+        ImDrawList* draw_list = ImGui::GetWindowDrawList();
         
-        std::sort(sorted_records, sorted_records + record_count, [](Record &a, Record &b) { return a.duration > b.duration; });
+        time_type sum_duration = 0; // for debug
         
-        time_type max_duration = sorted_records[0].duration;
-        
-        // calc item width does what...?
-        ImVec2 max_size = ImVec2(ImGui::CalcItemWidth() * 0.85, ImGui::GetFrameHeight());
-        
-        for (i32 i = 0; i < record_count; ++i)
+        u32 record_count = 0;
+        Record *records = get_records_in_date_range(day_view, &record_count, state->date_picker.start, state->date_picker.end);
+        if (records)
         {
-            Record &record = sorted_records[i];
+            time_type max_duration = records[0].duration; // +- rand amount?
             
-            if (is_exe(record.id))
+            // calc item width does what...?
+            ImVec2 max_size = ImVec2(ImGui::CalcItemWidth() * 0.85, ImGui::GetFrameHeight());
+            
+            for (i32 i = 0; i < record_count; ++i)
             {
-                // DEBUG:
-                Icon_Asset *icon = 0;
-                if (record.id == 0)
+                Record &record = records[i];
+                
+                if (is_exe(record.id))
                 {
-                    icon = database->icons + database->default_icon_index;
+                    // DEBUG:
+                    Icon_Asset *icon = 0;
+                    if (record.id == 0)
+                    {
+                        icon = database->icons + database->default_icon_index;
+                    }
+                    else
+                    {
+                        // TODO: Check if pos of bar or image will be clipped entirely, and maybe skip rest of loop
+                        icon = get_icon_asset(database, record.id);
+                    }
+                    
+                    // Don't need to bind texture before this because imgui binds it before draw call
+                    ImGui::Image((ImTextureID)(intptr_t)icon->texture_handle, ImVec2((float)icon->bitmap.width, (float)icon->bitmap.height));
                 }
                 else
                 {
-                    // TODO: Check if pos of bar or image will be clipped entirely, and maybe skip rest of loop
-                    icon = get_icon_asset(database, record.id);
+                    ImGui::Text(ICON_MD_PUBLIC);
                 }
                 
-                // Don't need to bind texture before this because imgui binds it before draw call
-                ImGui::Image((ImTextureID)(intptr_t)icon->texture_handle, ImVec2((float)icon->bitmap.width, (float)icon->bitmap.height));
+                ImGui::SameLine();
+                ImVec2 p0 = ImGui::GetCursorScreenPos();
+                
+                ImVec2 bar_size = max_size;
+                bar_size.x *= ((float)record.duration / (float)max_duration);
+                if (bar_size.x > 0)
+                {
+                    ImVec2 p1 = ImVec2(p0.x + bar_size.x, p0.y + bar_size.y);
+                    ImU32 col_a = ImGui::GetColorU32(ImVec4(0.0f, 1.0f, 0.0f, 1.0f));
+                    ImU32 col_b = ImGui::GetColorU32(ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
+                    draw_list->AddRectFilledMultiColor(p0, p1, col_a, col_b, col_b, col_a);
+                }
+                
+                // try with and without id == 0 record
+                sum_duration += record.duration;
+                
+                // This is a hash table search
+                // DEBUG
+                char *name = "sdfsdf";
+                if (record.id == 0)
+                {
+                    name = "Not polled time";
+                }
+                else
+                {
+                    name = database->app_names[record.id].short_name.str;
+                }
+                
+                double seconds = (double)record.duration / MICROSECS_PER_SEC;
+                
+                // Get cursor pos before writing text
+                ImVec2 pos = ImGui::GetCursorScreenPos();
+                
+                // TODO: Limit name length
+                ImGui::Text("%s", name); // TODO: Ensure bars unique id
+                
+                ImGui::SameLine();
+                ImGui::SetCursorPosX(ImGui::GetWindowSize().x * 0.90);
+                ImGui::Text("%.2fs", seconds); // TODO: Ensure bars unique id
+                
+                ImGui::SameLine();
+                ImGui::InvisibleButton("##gradient1", ImVec2(bar_size.x + 10, bar_size.y));
             }
-            else
-            {
-                ImGui::Text(ICON_MD_PUBLIC);
-            }
             
-            ImGui::SameLine();
-            ImVec2 p0 = ImGui::GetCursorScreenPos();
-            
-            ImVec2 bar_size = max_size;
-            bar_size.x *= ((float)record.duration / (float)max_duration);
-            if (bar_size.x > 0)
-            {
-                ImVec2 p1 = ImVec2(p0.x + bar_size.x, p0.y + bar_size.y);
-                ImU32 col_a = ImGui::GetColorU32(ImVec4(0.0f, 1.0f, 0.0f, 1.0f));
-                ImU32 col_b = ImGui::GetColorU32(ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
-                draw_list->AddRectFilledMultiColor(p0, p1, col_a, col_b, col_b, col_a);
-            }
-            
-            // try with and without id == 0 record
-            sum_duration += record.duration;
-            
-            // This is a hash table search
-            // DEBUG
-            char *name = "sdfsdf";
-            if (record.id == 0)
-            {
-                name = "Not polled time";
-            }
-            else
-            {
-                name = database->app_names[record.id].short_name.str;
-            }
-            
-            double seconds = (double)record.duration / MICROSECS_PER_SEC;
-            
-            // Get cursor pos before writing text
-            ImVec2 pos = ImGui::GetCursorScreenPos();
-            
-            // TODO: Limit name length
-            ImGui::Text("%s", name); // TODO: Ensure bars unique id
-            
-            ImGui::SameLine();
-            ImGui::SetCursorPosX(ImGui::GetWindowSize().x * 0.90);
-            ImGui::Text("%.2fs", seconds); // TODO: Ensure bars unique id
-            
-            ImGui::SameLine();
-            ImGui::InvisibleButton("##gradient1", ImVec2(bar_size.x + 10, bar_size.y));
-        }
+            free(records);
+        } // if (records)
+        
+        ImGui::EndChild();
+        
+        float red[] = {255.0f, 0, 0};
+        float black[] = {0, 0, 0};
+        
+        double total_runtime_seconds = (double)state->total_runtime / 1000000;
+        double sum_duration_seconds = (double)sum_duration / 1000000;
+        
+        auto now = win32_get_time();
+        auto start_time = win32_get_microseconds_elapsed(state->startup_time, now);
+        
+        double time_since_startup_seconds = (double)start_time / 1000000;
+        
+        double diff_seconds2 = (double)(start_time - sum_duration) / 1000000;
+        
+        
+        ImGui::Text("Total runtime:        %.5fs", total_runtime_seconds);
+        ImGui::Text("Sum duration:        %.5fs", sum_duration_seconds);
+        
+        
+        ImGui::SameLine();
+        memcpy((void *)style.Colors, red, 3 * sizeof(float));
+        ImGui::Text("diff: %llu", state->total_runtime - sum_duration);
+        memcpy((void *)style.Colors, black, 3 * sizeof(float));
+        
+        
+        ImGui::Text("time since startup: %.5fs", time_since_startup_seconds);
+        
+        ImGui::SameLine();
+        memcpy((void *)style.Colors, red, 3 * sizeof(float));
+        ImGui::Text("diff between time since startup and sum duration: %.5fs", diff_seconds2);
+        memcpy((void *)style.Colors, black, 3 * sizeof(float));
+        
+        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+        ImGui::End();
+        
+        
+        ImGui::Render(); 
+        
+        ImGuiIO& io = ImGui::GetIO();
+        glViewport(0, 0, (int)io.DisplaySize.x, (int)io.DisplaySize.y);
+        ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+        glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
+        glClear(GL_COLOR_BUFFER_BIT);
+        
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData()); 
     }
-    
-    
-    ImGui::EndChild();
-    
-    
-    float red[] = {255.0f, 0, 0};
-    float black[] = {0, 0, 0};
-    
-    double total_runtime_seconds = (double)state->total_runtime / 1000000;
-    double sum_duration_seconds = (double)sum_duration / 1000000;
-    
-    auto now = win32_get_time();
-    auto start_time = win32_get_microseconds_elapsed(state->startup_time, now);
-    
-    double time_since_startup_seconds = (double)start_time / 1000000;
-    
-    double diff_seconds2 = (double)(start_time - sum_duration) / 1000000;
-    
-    
-    ImGui::Text("Total runtime:        %.5fs", total_runtime_seconds);
-    ImGui::Text("Sum duration:        %.5fs", sum_duration_seconds);
-    
-    
-    ImGui::SameLine();
-    memcpy((void *)style.Colors, red, 3 * sizeof(float));
-    ImGui::Text("diff: %llu", state->total_runtime - sum_duration);
-    memcpy((void *)style.Colors, black, 3 * sizeof(float));
-    
-    
-    ImGui::Text("time since startup: %.5fs", time_since_startup_seconds);
-    
-    ImGui::SameLine();
-    memcpy((void *)style.Colors, red, 3 * sizeof(float));
-    ImGui::Text("diff between time since startup and sum duration: %.5fs", diff_seconds2);
-    memcpy((void *)style.Colors, black, 3 * sizeof(float));
-    
-    ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-    ImGui::End();
-    
-    
-    ImGui::Render(); 
-    
-    ImGuiIO& io = ImGui::GetIO();
-    glViewport(0, 0, (int)io.DisplaySize.x, (int)io.DisplaySize.y);
-    ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
-    glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
-    glClear(GL_COLOR_BUFFER_BIT);
-    
-    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData()); 
 }

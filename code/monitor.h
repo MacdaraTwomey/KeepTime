@@ -158,34 +158,12 @@ enum Range_Type : int
 
 struct Day_View
 {
+    // feels somewhat unneeded, but the concept is good
     std::vector<Day> days;
     Record *copy_of_current_days_records;
-    
-    ////////////////////////////////////////
-    // All of these are modified by ui
-    
-    // TODO: When new days are added do we update end_date
-    // TODO: Get rid of day suffix probably...
-    Range_Type range_type;
-    
-    // maybe should be ymd
-    // should i use local_days not sys_days
-    date::sys_days start_date;
-    date::sys_days end_date;
-    
-    
-    // Longest string "30st September 2020 - 31st September 2020"
-    // 41 chars
-    char date_label[64];
-    bool left_disabled;
-    bool right_disabled;
 };
 
-
-
 static_assert(BLOCK_SIZE == sizeof(Block), "");
-
-
 
 
 struct Keyword
@@ -254,7 +232,7 @@ struct Database
     i32 default_icon_index;
     
     u32 icon_count;
-    Icon_Asset icons[200];
+    Icon_Asset icons[200]; // 200 icons isn't really that much, should make like 1000
 };
 
 
@@ -290,10 +268,28 @@ struct Settings
     Misc_Options misc_options;
 };
 
-struct Calendar_State
+struct Calendar
 {
     date::year_month_weekday first_day_of_month;
     date::sys_days selected_date; // address of this is used for imgui id
+};
+
+struct Date_Picker
+{
+    // TODO: When new days are added do we update end_date
+    // TODO: Get rid of day suffix probably...
+    Range_Type range_type;
+    
+    date::sys_days start;
+    date::sys_days end;
+    
+    // Longest string "30st September 2020 - 31st September 2020"
+    // 41 chars
+    char date_label[64];
+    bool is_backwards_disabled;
+    bool is_forwards_disabled;
+    Calendar calendar_range_start;
+    Calendar calendar_range_end;
 };
 
 struct
@@ -303,14 +299,15 @@ Monitor_State
     Header header;
     Database database;
     
+    
     // persists ui open/closes
     Settings settings;
     Edit_Settings *edit_settings; // allocated when needed
-    Calendar_State calendar_date_range_start;
-    Calendar_State calendar_date_range_end;
     
     // microsecs
     time_type accumulated_time;
+    
+    Date_Picker date_picker;
     
     // debug temporary
     time_type total_runtime;

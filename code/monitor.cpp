@@ -112,7 +112,7 @@ add_or_update_record(Day_List *day_list, App_Id id, time_type dt)
 }
 
 Day_View
-get_day_view(Day_List *day_list, date::sys_days start, date::sys_days end )
+get_day_view(Day_List *day_list)
 {
     // TODO: Handle zero day in day_list
     // (are we handling zero records in list?)
@@ -130,42 +130,33 @@ get_day_view(Day_List *day_list, date::sys_days start, date::sys_days end )
     day_view.days = day_list->days;
     day_view.days.back().records = day_view.copy_of_current_days_records;
     
-    day_view.range_type = Range_Type_Daily;
-    //day_view.start_date = cur_day->date;
-    //day_view.end_date = cur_day->date;
-    day_view.start_date = start;
-    day_view.end_date = end;
-    day_view.left_disabled = true; //(day_view.days.size() == 1); // we are on the first and only day
-    day_view.right_disabled = true;
-    snprintf(day_view.date_label, array_count(day_view.date_label), "Today");
-    
     return day_view;
 }
 
 void
-set_day_view_range(Day_View *day_view, date::sys_days start_date, date::sys_days end_date)
+set_day_view_range(Day_View *day_view, date::sys_days start, date::sys_days end)
 {
 #if 0
     // TODO:
     Assert(day_view->days.size() > 0);
-    Assert(start_date >= end_date);
+    Assert(start >= end);
     
     i32 start_range = -1;
     i32 end_range = -1;
     
-    if (start_date > day_view->days.back().date ||
-        end_date < day_view->days[0].date)
+    if (start > day_view->days.back().date ||
+        end < day_view->days[0].date)
     {
         day_view->has_days = false;
     }
     else
     {
         bool have_end = false;
-        if (start_date < day_view->days[0].date)
+        if (start < day_view->days[0].date)
         {
             start_range = 0;
         }
-        if (end_date > day_view->days.back().date)
+        if (end > day_view->days.back().date)
         {
             end_range = day_view->days.size() - 1;
             have_end = true;
@@ -174,16 +165,16 @@ set_day_view_range(Day_View *day_view, date::sys_days start_date, date::sys_days
         for (i32 day_index = day_view->days.size() - 1; day_index >= 0; --day_index)
         {
             date::sys_days d = day_view->days[day_index].date;
-            if (d <= end_date && !have_end)
+            if (d <= end && !have_end)
             {
                 end_range = day_index;
                 have_end = true;
             }
-            if (d <= start_date)
+            if (d <= start)
             {
                 // We are guarenteed to have a smaller date, or have already set start_range to 0
-                if (d < start_date) start_range = day_index + 1;
-                else if (d == start_date) start_range = day_index;
+                if (d < start) start_range = day_index + 1;
+                else if (d == start) start_range = day_index;
                 break;
             }
         }
@@ -196,8 +187,8 @@ set_day_view_range(Day_View *day_view, date::sys_days start_date, date::sys_days
         day_view->has_days = true;
     }
     
-    day_view->start_date = start_date;
-    day_view->end_date = end_date;
+    day_view->start = start;
+    day_view->end = end;
     day_view->start_range = start_range;
     day_view->end_range = end_range;
     //range_count = range_count;
@@ -367,7 +358,7 @@ void init_database(Database *database, date::sys_days current_date)
     database->day_list.blocks = new_block(nullptr);
     
     // add fake days before current_date
-    //debug_add_records(database, &database->day_list, current_date);
+    debug_add_records(database, &database->day_list, current_date);
     
     start_new_day(&database->day_list, current_date);
     
@@ -529,8 +520,6 @@ get_icon_asset(Database *database, App_Id id)
     return default_icon;
 }
 
-// TODO: Do we need/want dt here, (but on error we would prefer to do nothing, and not return anything though)
-// maybe want to split up update_days
 App_Id
 poll_windows(Database *database, Settings *settings)
 {
@@ -657,7 +646,6 @@ poll_windows(Database *database, Settings *settings)
 void
 update(Monitor_State *state, SDL_Window *window, time_type dt, u32 window_status)
 {
-    //OPTICK_EVENT();
     ZoneScoped;
     
     date::sys_days current_date = get_localtime(); // + date::days{state->extra_days};;
@@ -697,10 +685,22 @@ update(Monitor_State *state, SDL_Window *window, time_type dt, u32 window_status
         state->total_runtime = 0;
         state->startup_time = win32_get_time();
         
-        state->calendar_date_range_start.selected_date = current_date;
-        state->calendar_date_range_start.first_day_of_month = current_date;
-        state->calendar_date_range_end.selected_date = current_date;
-        state->calendar_date_range_end.first_day_of_month = current_date;
+        // This will set once per program execution
+        Date_Picker &picker = state->date_picker;
+        picker.range_type = Range_Type_Daily;
+        picker.start = current_date;
+        picker.end = current_date;
+        
+        date::sys_days oldest_date = state->database.day_list.days.front().date;
+        date::sys_days newest_date = state->database.day_list.days.back().date;
+        
+        // sets label and if buttons are disabled 
+        date_picker_clip_and_update(&picker, oldest_date, newest_date);
+        
+        picker.calendar_range_start.selected_date = current_date;
+        picker.calendar_range_start.first_day_of_month = current_date;
+        picker.calendar_range_end.selected_date = current_date;
+        picker.calendar_range_end.first_day_of_month = current_date;
         
         state->is_initialised = true;
     }
@@ -708,6 +708,7 @@ update(Monitor_State *state, SDL_Window *window, time_type dt, u32 window_status
     Database *database = &state->database;
     
     // TODO: Just use google or duckduckgo service for now (look up how duckduckgo browser does it, ever since they switched from using their service...)
+    
     
     if (window_status & Window_Just_Hidden)
     {
@@ -721,48 +722,36 @@ update(Monitor_State *state, SDL_Window *window, time_type dt, u32 window_status
     
     // maybe start_new_day equivalent for day view (without adding records) just to keep track of current day for ui
     
+    // Also true if on a browser and the tab changed
+    // platform_get_changed_window();
+    
     state->accumulated_time += dt;
     state->total_runtime += dt;
     time_type poll_window_freq = 10000;
     if (state->accumulated_time >= poll_window_freq)
     {
         App_Id id = poll_windows(database, &state->settings);
-		if (id != 0)
-		{
-			add_or_update_record(&database->day_list, id, state->accumulated_time);
-		}
+        if (id != 0)
+        {
+            add_or_update_record(&database->day_list, id, state->accumulated_time);
+        }
         else
         {
             // debug to account for no time records
             add_or_update_record(&database->day_list, 0, state->accumulated_time);
         }
-		
+        
         state->accumulated_time = 0;
     }
     
-    static Day_View day_view = {};
     if (window_status & Window_Just_Visible)
     {
-        // Save a freeze frame of the currently saved days.
-        
-        // setup day view and 
-        
-        
-        // sets start and end date and sets to daily currently
-        // TODO: This should not default to daily, but keep the alst used range, even if the records are updated
     }
     
-    date::sys_days start = database->day_list.days.front().date;
-    date::sys_days end = database->day_list.days.back().date;
-    day_view = get_day_view(&database->day_list, start, end);
-    
-    //date::sys_days start_date = current_date;
-    //set_day_view_range(&day_view, start_date, current_date);
+    Day_View day_view = get_day_view(&database->day_list);
     
     if (window_status & Window_Visible)
     {
-        // I think we are drawing more frames than monitor is eating (hence high cpu usage)?
-        // But doesn't vsync sleep application on swap buffers, when it cant buffer any more frames
         draw_ui_and_update(window, state, database, current_date, &day_view);
     }
     

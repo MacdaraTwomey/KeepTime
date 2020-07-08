@@ -102,6 +102,13 @@ constexpr size_t array_count(T(&)[n])
     return n;
 }
 
+template<class T>
+constexpr const T& clamp(const T& v, const T& lo, const T& hi)
+{
+    Assert( !(hi < lo) );
+    return (v < lo) ? lo : (hi < v) ? hi : v;
+}
+
 // ------------------------------------------------------------------------------------------------
 // This is suspect in lieu of bugs in term on linux
 // NOTE: If values passed to defered function change, this is reflected when the function is called.

@@ -8,6 +8,7 @@ patterns = {
 	"*.rc",
 	"*.h",
 	"*.4coder",
+	"*.txt",
 	"build.bat",
 };
 
