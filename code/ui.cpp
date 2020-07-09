@@ -359,14 +359,57 @@ do_settings_popup(Edit_Settings *edit_settings)
     return finished;
 }
 
+void
+push_disable(bool is_disabled)
+{
+    if (is_disabled)
+    {
+        ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true); // imgui_internal.h
+        ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.5f);
+    }
+}
+
+void
+pop_disable(bool is_disabled)
+{
+    if (is_disabled)
+    {
+        ImGui::PopItemFlag(); // imgui_internal.h
+        ImGui::PopStyleVar();
+    }
+}
+
 bool
-do_calendar(Calendar *calendar)
+ButtonSpecial(const char* label, bool disabled, const ImVec2& size = ImVec2(0, 0))
+{
+    push_disable(disabled);
+    bool result = ImGui::Button(label, size);
+    pop_disable(disabled);
+    return result;
+}
+
+bool 
+calendar_is_backwards_disabled(Calendar *calendar, date::sys_days oldest_date)
+{
+    auto oldest_ymd = date::year_month_day{oldest_date};
+    auto prev_month = date::year_month{
+        calendar->first_day_of_month.year(),calendar->first_day_of_month.month()} - date::months{1};
+    return (prev_month < date::year_month{oldest_ymd.year(), oldest_ymd.month()}); 
+}
+
+bool 
+calendar_is_forwards_disabled(Calendar *calendar, date::sys_days newest_date)
+{
+    auto newest_ymd = date::year_month_day{newest_date};
+    auto next_month = date::year_month{
+        calendar->first_day_of_month.year(), calendar->first_day_of_month.month()} + date::months{1};
+    return (next_month > date::year_month{newest_ymd.year(), newest_ymd.month()}); 
+}
+
+bool
+do_calendar(Calendar *calendar, date::sys_days oldest_date, date::sys_days newest_date)
 {
     bool selection_made = false;
-    
-    // TODO: Decide best date types to use, to minimise conversions and make cleaner
-    
-    // maybe only allow selection between days we actually have, or at least limit to current date
     
     ImVec2 calendar_size = ImVec2(300,300);
     ImGui::SetNextWindowSize(calendar_size);
@@ -382,25 +425,29 @@ do_calendar(Calendar *calendar)
             "21","22","23","24","25","26","27","28","29","30",
             "31"};
         
-        //ImGui::ArrowButton("##left", ImGuiDir_Left); // looks worse but not too bad
-        if (ImGui::Button(ICON_MD_ARROW_BACK))
+        if(ButtonSpecial(ICON_MD_ARROW_BACK, calendar->is_backwards_disabled))
         {
-            // TODO: can this be year_month_weekday?
+            // Have to convert to ymd because subtracting month from ymw may change the day of month
             auto d = date::year_month_day{calendar->first_day_of_month} - date::months{1};
             calendar->first_day_of_month = date::year_month_weekday{d};
+            calendar->is_backwards_disabled = calendar_is_backwards_disabled(calendar, oldest_date);
+            calendar->is_forwards_disabled = false;
         }
+        
         ImGui::SameLine(ImGui::GetWindowWidth() - 40); 
-        if (ImGui::Button(ICON_MD_ARROW_FORWARD))
+        
+        if(ButtonSpecial(ICON_MD_ARROW_FORWARD, calendar->is_forwards_disabled))
         {
             auto d = date::year_month_day{calendar->first_day_of_month} + date::months{1};
             calendar->first_day_of_month = date::year_month_weekday{d};
+            calendar->is_backwards_disabled = false;
+            calendar->is_forwards_disabled = calendar_is_forwards_disabled(calendar, newest_date);
         }
         
-        int year = int(calendar->first_day_of_month.year());
-        int month = unsigned(calendar->first_day_of_month.month());
-        
+        // Set Month Year text
         char page_month_year[64];
-        snprintf(page_month_year, 64, "%s %i", month_string(month), year);
+        snprintf(page_month_year, 64, "%s %i", 
+                 month_string(unsigned(calendar->first_day_of_month.month())), int(calendar->first_day_of_month.year()));
         ImVec2 text_size = ImGui::CalcTextSize(page_month_year);
         
         // Centre text
@@ -408,14 +455,29 @@ do_calendar(Calendar *calendar)
         ImGui::Text(page_month_year); 
         ImGui::Spacing();
         
-        // NOTE: TODO: Not getting the correct time it is 12:53 28/6/2020, ui says it is 27/6/2020
-        
-        // year, month (1-12), day of the week (0 thru 6 in c_encoding, 1 - 7 in iso_encoding), index in the range [1, 5]
-        // indicating if this is the first, second, etc. weekday of the indicated month.
-        // Saturday is wd = 6, Sunday is 0, monday is 1
-        
         s32 skipped_spots = calendar->first_day_of_month.weekday().iso_encoding() - 1;
-        s32 days_in_month_count = days_in_month(month, year);
+        s32 days_in_month_count = days_in_month(unsigned(calendar->first_day_of_month.month()), int(calendar->first_day_of_month.year()));
+        
+        s32 days_before_oldest = 0;
+        if (calendar->is_backwards_disabled) 
+        {
+            auto oldest_ymd = date::year_month_day{oldest_date};
+            days_before_oldest = unsigned(oldest_ymd.day()) - 1; 
+        }
+        
+        s32 days_after_newest = 0;
+        if (calendar->is_forwards_disabled) 
+        {
+            auto newest_ymd = date::year_month_day{newest_date};
+            days_after_newest = days_in_month_count - unsigned(newest_ymd.day()); 
+        }
+        
+        s32 selected_index = -1;
+        auto selected_ymd = date::year_month_day{calendar->selected_date};
+        if (calendar->first_day_of_month.year() == selected_ymd.year() && calendar->first_day_of_month.month() == selected_ymd.month())
+        {
+            selected_index = unsigned(selected_ymd.day()) - 1;
+        }
         
         ImGui::Columns(7, "mycolumns", false);  // no border
         for (int i = 0; i < array_count(weekdays); i++)
@@ -430,33 +492,30 @@ do_calendar(Calendar *calendar)
             ImGui::NextColumn();
         }
         
-        // can also just pass a bool to Selactable
-        bool selected[31] = {};
+        int label_index = 0;
+        for (int i = 0; i < days_before_oldest; i++, label_index++)
         {
-            auto ymd = date::year_month_day{calendar->selected_date};
-            int sel_year = int(ymd.year());
-            int sel_month = unsigned(ymd.month());
-            int sel_day = unsigned(ymd.day());
-            if (year == sel_year && month == sel_month)
-            {
-                selected[sel_day - 1] = true;
-            }
+            ImGui::Selectable(labels[label_index], false, ImGuiSelectableFlags_Disabled);
+            ImGui::NextColumn();
         }
         
-        ImGuiSelectableFlags flags = 0;
-        for (int i = 0; i < days_in_month_count; i++)
+        int enabled_days = days_in_month_count - (days_before_oldest + days_after_newest);
+        for (int i = 0; i < enabled_days; i++, label_index++)
         {
-            //if (i + 1 > day && calendar->selected_index != -1) flags |= ImGuiSelectableFlags_Disabled;
-            
-            if (ImGui::Selectable(labels[i], &selected[i], flags)) 
+            bool selected = (selected_index == label_index);
+            if (ImGui::Selectable(labels[label_index], selected)) 
             {
-                // close calendar and say selected this one
-                calendar->selected_date = date::sys_days{calendar->first_day_of_month} + date::days{i};
+                calendar->selected_date = date::sys_days{calendar->first_day_of_month} + date::days{label_index};
                 selection_made = true;
             }
             ImGui::NextColumn();
         }
         
+        for (int i = 0; i < days_after_newest; i++, label_index++)
+        {
+            ImGui::Selectable(labels[label_index], false, ImGuiSelectableFlags_Disabled);
+            ImGui::NextColumn();
+        }
         
         style.SelectableTextAlign = ImVec2(0.0f, 0.0f);
         ImGui::EndPopup();
@@ -465,39 +524,48 @@ do_calendar(Calendar *calendar)
     return selection_made;
 }
 
-bool
-do_calendar_button(Calendar *calendar) 
+void
+init_calendar(Calendar *calendar, date::sys_days selected_date, 
+              date::sys_days oldest_date, date::sys_days newest_date)
 {
-    date::year_month_day ymd{ calendar->selected_date };
-    int year = int(ymd.year());
-    int month = unsigned(ymd.month());
-    int day = unsigned(ymd.day());
+    calendar->selected_date = selected_date;
     
-    // renders old selected date for one frame (the frame when a new one is selected)
-    char buf[64];
-    snprintf(buf, 64, ICON_MD_DATE_RANGE " %i/%02i/%i", day, month, year);
+    // Want to show the calendar month with our current selected date
+    auto ymd = date::year_month_day{selected_date};
+    auto new_date = ymd.year()/ymd.month()/date::day{1};
+    calendar->first_day_of_month = date::year_month_weekday{new_date};
     
+    calendar->is_backwards_disabled = calendar_is_backwards_disabled(calendar, oldest_date);
+    calendar->is_forwards_disabled  = calendar_is_forwards_disabled(calendar, newest_date);
+    
+    auto d = date::year_month_day{selected_date};
+    snprintf(calendar->button_label, array_count(calendar->button_label), 
+             ICON_MD_DATE_RANGE " %u/%02u/%i", unsigned(d.day()), unsigned(d.month()), int(d.year()));
+}
+
+bool
+do_calendar_button(Calendar *calendar, date::sys_days oldest_date, date::sys_days newest_date)
+{
     ImGui::PushID((void *)&calendar->selected_date);
-    if (ImGui::Button(buf, ImVec2(120, 30))) // TODO: Better size estimate (maybe based of font)?
+    if (ImGui::Button(calendar->button_label, ImVec2(120, 30))) // TODO: Better size estimate (maybe based of font)?
     {
+        // Calendar should be initialised already
         ImGui::OpenPopup("Calendar");
         
-        // Init calendar
-        
-        // Want to show the calendar month with our current selected date
+        // Show the calendar month with our current selected date
         auto ymd = date::year_month_day{calendar->selected_date};
-        
-        auto new_date = ymd.month()/date::day{1}/ymd.year();
-        Assert(new_date.ok());
-        
-        auto first_day_of_month = date::year_month_weekday{new_date};
-        Assert(first_day_of_month.ok());
-        
-        // Selected date should already be set
-        calendar->first_day_of_month = first_day_of_month;
+        auto new_date = ymd.year()/ymd.month()/date::day{1};
+        calendar->first_day_of_month = date::year_month_weekday{new_date};
     }
     
-    bool changed_selection = do_calendar(calendar);
+    // @WaitForInput date label
+    bool changed_selection = do_calendar(calendar, oldest_date, newest_date);
+    if (changed_selection)
+    {
+        auto d = date::year_month_day{calendar->selected_date};
+        snprintf(calendar->button_label, array_count(calendar->button_label), ICON_MD_DATE_RANGE " %u/%02u/%i", 
+                 unsigned(d.day()), unsigned(d.month()), int(d.year()));
+    }
     
     ImGui::PopID();
     
@@ -635,26 +703,6 @@ date_picker_forwards(Date_Picker *date_picker, date::sys_days oldest_date, date:
 }
 
 void
-push_disable(bool is_disabled)
-{
-    if (is_disabled)
-    {
-        ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true); // imgui_internal.h
-        ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.5f);
-    }
-}
-
-void
-pop_disable(bool is_disabled)
-{
-    if (is_disabled)
-    {
-        ImGui::PopItemFlag(); // imgui_internal.h
-        ImGui::PopStyleVar();
-    }
-}
-
-void
 do_date_select_popup(Date_Picker *date_picker, date::sys_days oldest_date, date::sys_days newest_date)
 {
     ImVec2 pos = ImVec2(ImGui::GetWindowWidth() / 2.0f, ImGui::GetCursorPosY());
@@ -698,8 +746,9 @@ do_date_select_popup(Date_Picker *date_picker, date::sys_days oldest_date, date:
                 }
                 else if (date_picker->range_type == Range_Type_Custom)
                 {
-                    date_picker->start = date_picker->calendar_range_start.selected_date;
-                    date_picker->end = date_picker->calendar_range_end.selected_date;
+                    // Either calendar can be before other
+                    date_picker->start = std::min(date_picker->calendar_range_start.selected_date, date_picker->calendar_range_end.selected_date);
+                    date_picker->end = std::max(date_picker->calendar_range_start.selected_date, date_picker->calendar_range_end.selected_date);
                 }
                 else
                 {
@@ -711,23 +760,23 @@ do_date_select_popup(Date_Picker *date_picker, date::sys_days oldest_date, date:
         }
         
         // @WaitForInput
-        // Maybe disable these when some options selected?
-        // TODO: Don't allow selecting (or maybe just confirming) start > end
-        if (do_calendar_button(&date_picker->calendar_range_start))
+        if (do_calendar_button(&date_picker->calendar_range_start, oldest_date, newest_date))
         {
-            // Changed selection
             if (date_picker->range_type == Range_Type_Custom)
             {
-                date_picker->start = date_picker->calendar_range_start.selected_date;
+                // NOTE: Maybe we allow start > end for calendars and we always choose oldest one to be start when assigning to date_picker and newest one to be end
+                date_picker->start = std::min(date_picker->calendar_range_start.selected_date, date_picker->calendar_range_end.selected_date);
+                date_picker->end = std::max(date_picker->calendar_range_start.selected_date, date_picker->calendar_range_end.selected_date);
                 date_picker_clip_and_update(date_picker, oldest_date, newest_date);
             }
         } 
         ImGui::SameLine();
-        if (do_calendar_button(&date_picker->calendar_range_end))
+        if (do_calendar_button(&date_picker->calendar_range_end, oldest_date, newest_date))
         {
             if (date_picker->range_type == Range_Type_Custom)
             {
-                date_picker->end = date_picker->calendar_range_end.selected_date;
+                date_picker->start = std::min(date_picker->calendar_range_start.selected_date, date_picker->calendar_range_end.selected_date);
+                date_picker->end = std::max(date_picker->calendar_range_start.selected_date, date_picker->calendar_range_end.selected_date);
                 date_picker_clip_and_update(date_picker, oldest_date, newest_date);
             }
         }
@@ -995,13 +1044,10 @@ void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *data
         date::sys_days newest_date = day_view->days.back().date;
         
         // @WaitForInput
-        bool disabled = date_picker->is_backwards_disabled;
-        push_disable(disabled);
-        if (ImGui::Button(ICON_MD_ARROW_BACK))
+        if (ButtonSpecial(ICON_MD_ARROW_BACK, date_picker->is_backwards_disabled))
         {
             date_picker_backwards(date_picker, oldest_date, newest_date);
         }
-        pop_disable(disabled);
         
         ImGui::SameLine();
         if (ImGui::Button(date_picker->date_label, ImVec2(200, 0))) // passing zero uses default I guess
@@ -1010,13 +1056,10 @@ void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *data
         }
         ImGui::SameLine();
         
-        disabled = date_picker->is_forwards_disabled;
-        push_disable(disabled);
-        if (ImGui::Button(ICON_MD_ARROW_FORWARD))
+        if (ButtonSpecial(ICON_MD_ARROW_FORWARD, date_picker->is_forwards_disabled))
         {
             date_picker_forwards(date_picker, oldest_date, newest_date);
         }
-        pop_disable(disabled);
         
         do_date_select_popup(date_picker, oldest_date, newest_date);
     }

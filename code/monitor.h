@@ -271,7 +271,11 @@ struct Settings
 struct Calendar
 {
     date::year_month_weekday first_day_of_month;
-    date::sys_days selected_date; // address of this is used for imgui id
+    date::sys_days selected_date;
+    
+    char button_label[64]; // set on ui initialisation
+    bool is_backwards_disabled; // set when popup opened
+    bool is_forwards_disabled; // set when popup opened
 };
 
 struct Date_Picker

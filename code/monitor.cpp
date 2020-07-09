@@ -685,6 +685,9 @@ update(Monitor_State *state, SDL_Window *window, time_type dt, u32 window_status
         state->total_runtime = 0;
         state->startup_time = win32_get_time();
         
+        
+        // UI initialisation
+        
         // This will set once per program execution
         Date_Picker &picker = state->date_picker;
         picker.range_type = Range_Type_Daily;
@@ -697,10 +700,8 @@ update(Monitor_State *state, SDL_Window *window, time_type dt, u32 window_status
         // sets label and if buttons are disabled 
         date_picker_clip_and_update(&picker, oldest_date, newest_date);
         
-        picker.calendar_range_start.selected_date = current_date;
-        picker.calendar_range_start.first_day_of_month = current_date;
-        picker.calendar_range_end.selected_date = current_date;
-        picker.calendar_range_end.first_day_of_month = current_date;
+        init_calendar(&picker.calendar_range_start, current_date, oldest_date, newest_date);
+        init_calendar(&picker.calendar_range_end, current_date, oldest_date, newest_date);
         
         state->is_initialised = true;
     }
@@ -708,7 +709,6 @@ update(Monitor_State *state, SDL_Window *window, time_type dt, u32 window_status
     Database *database = &state->database;
     
     // TODO: Just use google or duckduckgo service for now (look up how duckduckgo browser does it, ever since they switched from using their service...)
-    
     
     if (window_status & Window_Just_Hidden)
     {
