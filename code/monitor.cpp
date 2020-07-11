@@ -436,42 +436,77 @@ get_icon_asset(Database *database, App_Id id)
 String
 extract_domain_name(String url)
 {
-    // URL could just be gibberish
+    // From wikipedia: (where [component] means optional)
+    
+    // URI       = scheme:[//authority]path[?query][#fragment]
+    // authority = [userinfo@]host[:port]
+    
+    // host must be a hostname or a IP address
+    // IPv4 addresses must be in dot-decimal notation, and IPv6 addresses must be enclosed in brackets ([]).
+    
+    // A path may be empty consisting of two slashes (//)
+    // If an authority component is absent, then the path cannot begin with an empty segment, that is with two slashes (//), because it could be confused with an authority.
+    
+    // UTF8 URLs are possible
+    // Web and Internet software automatically convert the __domain name__ into punycode usable by the Domain Name System
+    // http://'Chinese symbols' becomes http://xn--fsqu00a.xn--3lr804guic/. 
+    // The xn-- indicates that the character was not originally ASCII
+    
+    // The __path name__ can also be encoded using percent encoding, but we don't care about path component here
+    
+    // NOTE: URL could just be gibberish (page wan't loaded and user was just typing in url bar)
+    
+    // Skip over scheme
     s32 colon = search_for_char(url, 0, ':');
     if (colon != -1)
     {
-        // Skip over slashes
-        s32 domain_name_offset = colon + 1;
-        while (domain_name_offset < url.length)
+        if (colon + 3 < url.length) // need at least 3 characters after colon for host (//c) where c is the domain
         {
-            if (url.str[domain_name_offset] == '/')
-                domain_name_offset++;
-            else
-                break;
-        }
-        
-        // Check if actually have any characters left in url after slashes
-        if (domain_name_offset < url.length)
-        {
-            // Look for a path or at least a tailing slash
-            s32 end_domain_name = search_for_char(url, domain_name_offset, '/');
-            if (end_domain_name == -1)
+            // Expecting 2 slashes or URL doesn't have an authority component
+            s32 at = colon + 1;
+            if (url.str[at] == '/' && url.str[at+1] == '/')
             {
-                // No slash after start of domain name
-                end_domain_name = url.length-1;
+                at += 2;
+                
+                // Get rest of authority, either until path slash (/) or end of string
+                s32 authority_end = search_for_char(url, at, '/');
+                if (authority_end == -1)
+                {
+                    authority_end = url.length-1;
+                }
+                else
+                {
+                    authority_end -= 1;
+                }
+                
+                String authority = substr_range(url, at, authority_end);
+                if (authority.length > 0)
+                {
+                    // If authority has a '@' (or ':') it has a userinfo (or port) before (or after) it
+                    
+                    // userinfo followed by at symbol
+                    s32 host_start = 0;
+                    s32 at_symbol = search_for_char(authority, host_start, '@');
+                    if (at_symbol != -1) host_start = at_symbol + 1;
+                    
+                    // port preceded by colon
+                    s32 host_end = authority.length - 1;
+                    s32 port_colon = search_for_char(authority, host_start, ':');
+                    if (port_colon != -1) host_end = port_colon - 1;
+                    
+                    if (host_end - host_start >= 1)
+                    {
+                        // Characters of host not checked (doesn't matter because if doesn't match keyword it won't be recorded anyway)
+                        return substr_range(authority, host_start, host_end);
+                    }
+                }
             }
-            else
-            {
-                end_domain_name -= 1; // char before slash
-            }
-            
-            return substr_range(url, domain_name_offset, end_domain_name);
         }
     }
     else
     {
         // Maybe url just doesn't have protocol component
-        // See if this is common in browser's shortening url?
+        // See if it is common where browsers shorten url?
         Assert(0);
     }
     

@@ -223,14 +223,11 @@ reverse_search_for_char(String str, i32 offset, char c)
 i32
 search_for_char(String str, i32 offset, char c)
 {
-    if (offset < str.length)
+    for (i32 i = offset; i < str.length; ++i)
     {
-        for (i32 i = offset; i >= 0; ++i)
+        if (str.str[i] == c)
         {
-            if (str.str[i] == c)
-            {
-                return i;
-            }
+            return i;
         }
     }
     
