@@ -85,6 +85,8 @@ substr_len(String parent, i32 offset, i32 len)
 String
 substr_range(String parent, i32 start, i32 end)
 {
+    // [start, end] inclusive, inclusive
+    
     // Clipped to parent string's end
     Assert(start < parent.length && start <= end);
     i32 len = end - start + 1;

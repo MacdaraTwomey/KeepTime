@@ -132,7 +132,7 @@ get_day_view(Day_List *day_list)
     
     return day_view;
 }
- 
+
 
 void
 free_day_view(Day_View *day_view)
@@ -234,7 +234,7 @@ debug_add_records(Database *database, Day_List *day_list, date::sys_days cur_dat
             // string_to_lower(&program_name);
             
             App_Id record_id = 0;
-            if (database->id_table.count(program_name) == 0)
+            if (database->local_programs.count(program_name) == 0)
             {
                 App_Id new_id = make_id(database, Record_Exe);
                 
@@ -247,14 +247,14 @@ debug_add_records(Database *database, Day_List *day_list, date::sys_days cur_dat
                 
                 // These don't share the same strings for now
                 String name_2 = copy_alloc_string(program_name);
-                database->id_table.insert({name_2, new_id});
+                database->local_programs.insert({name_2, new_id});
                 
                 record_id = new_id;
             }
             else
             {
                 // get record id
-                record_id = database->id_table[program_name];
+                record_id = database->local_programs[program_name];
             }
             
             add_or_update_record(day_list, record_id, dt_microsecs);
@@ -266,7 +266,8 @@ debug_add_records(Database *database, Day_List *day_list, date::sys_days cur_dat
 void init_database(Database *database, date::sys_days current_date)
 {
     *database = {};
-    database->id_table = std::unordered_map<String, App_Id>(30);
+    database->local_programs = std::unordered_map<String, App_Id>(30);
+    database->domains = std::unordered_map<String, App_Id>(30);
     database->app_names = std::unordered_map<App_Id, App_Info>(80);
     
     database->next_program_id = 1;
@@ -306,36 +307,30 @@ void init_database(Database *database, date::sys_days current_date)
 }
 
 
-void add_keyword(std::vector<Keyword> &keywords, Database *database, char *str, App_Id id = 0)
+void 
+add_keyword(std::vector<String> &keywords, char *str)
 {
     Assert(keywords.size() < MAX_KEYWORD_COUNT);
     Assert(strlen(str) < MAX_KEYWORD_SIZE);
-    Assert(id == 0 || is_firefox(id));
     
     if (keywords.size() < MAX_KEYWORD_COUNT)
     {
-        App_Id assigned_id = id != 0 ? id : make_id(database, Record_Firefox);
-        
-        Keyword k;
-        k.str = copy_alloc_string(str);
-        k.id = assigned_id; 
+        String k = copy_alloc_string(str);
         keywords.push_back(k);
     }
 }
 
-Keyword *
-search_url_for_keywords(String url, std::vector<Keyword> &keywords)
+String *
+search_string_for_keywords(String string, std::vector<String> &keywords)
 {
-    // TODO: Keep looking through keywords for one that fits better (i.e docs.microsoft vs docs.microsoft/buttons).
     // TODO: Sort based on common substrings, or alphabetically, so we don't have to look further.
     for (i32 i = 0; i < keywords.size(); ++i)
     {
-        Keyword *keyword = &keywords[i];
-        if (search_for_substr(url, 0, keyword->str) != -1)
+        if (search_for_substr(string, 0, keywords[i]) != -1)
         {
 			// TODO: When we match keyword move it to the front of array, 
 			// maybe shuffle others down to avoid first and last being swapped and re-swapped repeatedly.
-            return keyword;
+            return &keywords[i];
         }
     }
     
@@ -438,13 +433,63 @@ get_icon_asset(Database *database, App_Id id)
     return default_icon;
 }
 
+String
+extract_domain_name(String url)
+{
+    // URL could just be gibberish
+    s32 colon = search_for_char(url, 0, ':');
+    if (colon != -1)
+    {
+        // Skip over slashes
+        s32 domain_name_offset = colon + 1;
+        while (domain_name_offset < url.length)
+        {
+            if (url.str[domain_name_offset] == '/')
+                domain_name_offset++;
+            else
+                break;
+        }
+        
+        // Check if actually have any characters left in url after slashes
+        if (domain_name_offset < url.length)
+        {
+            // Look for a path or at least a tailing slash
+            s32 end_domain_name = search_for_char(url, domain_name_offset, '/');
+            if (end_domain_name == -1)
+            {
+                // No slash after start of domain name
+                end_domain_name = url.length-1;
+            }
+            else
+            {
+                end_domain_name -= 1; // char before slash
+            }
+            
+            return substr_range(url, domain_name_offset, end_domain_name);
+        }
+    }
+    else
+    {
+        // Maybe url just doesn't have protocol component
+        // See if this is common in browser's shortening url?
+        Assert(0);
+    }
+    
+    String result;
+    result.str = url.str;
+    result.capacity = 0;
+    result.length = 0;
+    
+    return result;
+}
+
 App_Id
 poll_windows(Database *database, Settings *settings)
 {
     ZoneScoped;
     
     // TODO: Probably should just make everything a null terminated String as imgui, windows, curl all want null terminated
-	App_Id record_id = 0;
+    App_Id record_id = Record_Invalid;
     
     char buf[2000];
     size_t len = 0;
@@ -487,30 +532,47 @@ poll_windows(Database *database, Settings *settings)
             String url = make_string_size_cap(url_buf, url_len, array_count(url_buf));
             if (url.length > 0)
             {
-                Keyword *keyword = search_url_for_keywords(url, settings->keywords);
+                String domain_name = extract_domain_name(url);
+                
+                String *keyword = search_string_for_keywords(domain_name, settings->keywords);
                 if (keyword)
                 {
-                    if (database->app_names.count(keyword->id) == 0)
+                    if (database->domains.count(domain_name) == 0)
                     {
+                        // TODO: almost exact same as local programs insert 
+                        
+                        App_Id new_id = make_id(database, Record_Firefox);
+                        
                         App_Info names;
-                        names.long_name = copy_alloc_string(url);
-                        names.short_name = copy_alloc_string(keyword->str);
+                        names.long_name = copy_alloc_string(url);// just for debugging
+                        names.short_name = copy_alloc_string(domain_name); 
                         names.icon_index = -1;
                         
-                        database->app_names.insert({keyword->id, names});
+                        database->app_names.insert({new_id, names});
+                        
+                        // These don't share the same strings for now
+                        String name_2 = copy_alloc_string(domain_name);
+                        database->domains.insert({name_2, new_id});
+                        
+                        record_id = new_id;
+                    }
+                    else
+                    {
+                        record_id = database->domains[domain_name];
+                        Assert(database->app_names.count(record_id) > 0);
                     }
                     
-					// If this url had a keyword then was removed, may be listed in day's records twice with different ids
-                    record_id = keyword->id;
+                    // If this url had a keyword then was removed, may be listed in day's records twice with different ids
                     add_to_executables = false;
                 }
             }
         }
     }
     
+    
     if (add_to_executables)
     {
-        if (database->id_table.count(program_name) == 0)
+        if (database->local_programs.count(program_name) == 0)
         {
             App_Id new_id = make_id(database, Record_Exe);
             
@@ -523,18 +585,18 @@ poll_windows(Database *database, Settings *settings)
             
             // These don't share the same strings for now
             String name_2 = copy_alloc_string(program_name);
-            database->id_table.insert({name_2, new_id});
+            database->local_programs.insert({name_2, new_id});
             
             record_id = new_id;
         }
         else
         {
-            // get record id
-            record_id = database->id_table[program_name];
+            record_id = database->local_programs[program_name];
+            Assert(database->app_names.count(record_id) > 0);
         }
     }
     
-	return record_id;
+    return record_id;
 }
 
 void
@@ -563,11 +625,11 @@ update(Monitor_State *state, SDL_Window *window, time_type dt, u32 window_status
         state->settings.misc_options = options;
         
         // Keywords must be null terminated when given to platform gui
-        add_keyword(state->settings.keywords, &state->database, "CITS3003");
-        add_keyword(state->settings.keywords, &state->database, "youtube");
-        add_keyword(state->settings.keywords, &state->database, "docs.microsoft");
-        add_keyword(state->settings.keywords, &state->database, "google");
-        add_keyword(state->settings.keywords, &state->database, "github");
+        add_keyword(state->settings.keywords, "CITS3003");
+        add_keyword(state->settings.keywords, "youtube");
+        add_keyword(state->settings.keywords, "docs.microsoft");
+        add_keyword(state->settings.keywords, "google");
+        add_keyword(state->settings.keywords, "github");
         
         // maybe allow comma seperated keywords
         // https://www.hero.com/specials/hi&=yes

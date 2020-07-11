@@ -95,6 +95,7 @@ namespace std
     
 }
 
+// TODO: Change to Id_Type
 enum Record_Type
 {
 	Record_Invalid,
@@ -165,14 +166,6 @@ struct Day_View
 
 static_assert(BLOCK_SIZE == sizeof(Block), "");
 
-
-struct Keyword
-{
-    // Null terminated
-    String str;
-    App_Id id;
-};
-
 struct App_Info
 {
     // TODO: Check that full paths saved to file are valid, and update if possible.
@@ -201,11 +194,16 @@ struct Database
     // Hash the exe name (shortname) of program
     // This is used to quickly get an App_Id from a exe name
     // Don't need a corresponding one for websites as we have to test agains all keywords anyway (except maybe we do)
-    std::unordered_map<String, App_Id> id_table;
+    std::unordered_map<String, App_Id> local_programs;
+    
+    // Contains domain name (e.g. developer.mozilla.org)
+    std::unordered_map<String, App_Id> domains;
+    
+    // TODO: remove ids gives to keywords
     
     // Contains websites and local programs
     // We use long_name as a path to load icons from executables
-    // We use long_nameAssigned_Idto download favicon from website
+    // We use long_name to download favicon from website
     // We use shortname when we iterate records and want to display names
     std::unordered_map<App_Id, App_Info> app_names;
     
@@ -252,7 +250,6 @@ struct Edit_Settings
 {
     // This array can have blank strings representing empty input boxes in between valid strings
     char pending[MAX_KEYWORD_COUNT][MAX_KEYWORD_SIZE];
-    s32 input_box_count;
     Misc_Options misc_options;
     int day_start_time_item;
     int poll_start_time_item;
@@ -262,7 +259,9 @@ struct Edit_Settings
 
 struct Settings
 {
-    std::vector<Keyword> keywords;
+    // Keywords act as a filter list to only allow some domain names to be entered into database and to be added as records
+    
+    std::vector<String> keywords; // null terminated strings
     Misc_Options misc_options;
 };
 

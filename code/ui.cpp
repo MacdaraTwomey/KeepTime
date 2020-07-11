@@ -1,7 +1,7 @@
 
 // from monitor.cpp
 Icon_Asset * get_icon_asset(Database *database, App_Id id);
-void add_keyword(std::vector<Keyword> &keywords, Database *database, char *str, App_Id id);
+void add_keyword(std::vector<String> &keywords, char *str);
 bool is_exe(u32 id);
 bool is_firefox(u32 id);
 
@@ -133,49 +133,6 @@ remove_duplicate_and_empty_keyword_strings(char(*keywords)[MAX_KEYWORD_SIZE])
 	return total_count;
 }
 
-void
-update_settings(Edit_Settings *edit_settings, Settings *settings, Database *database)
-{
-    // TODO: Could maybe hash new keyworks to get and ID and check if we have records with that id and if so use that id instead of assigning a new one. Avoids the problem of having multiple records with same keyword and different ids, also tries to avoid re-getting icons and having multiple identical textures.
-    if (!edit_settings->update_settings) return;
-    
-    // Empty input boxes are just zeroed array
-    i32 pending_count = remove_duplicate_and_empty_keyword_strings(edit_settings->pending);
-    
-    App_Id pending_keyword_ids[MAX_KEYWORD_COUNT] = {};
-    
-    // scan all keywords for match
-    for (int i = 0; i < pending_count; ++i)
-    {
-        bool got_an_id = false;
-        for (int j = 0; j < settings->keywords.size(); ++j)
-        {
-            if (string_equals(settings->keywords[j].str, edit_settings->pending[i]))
-            {
-                // Get match's id
-                pending_keyword_ids[i] = settings->keywords[j].id;
-                break;
-            }
-        }
-    }
-    
-    for (int i = 0; i < settings->keywords.size();++i)
-    {
-        Assert(settings->keywords[i].str.str);
-        free(settings->keywords[i].str.str);
-    }
-    
-    settings->keywords.clear();
-    settings->keywords.reserve(pending_count);
-    for (int i = 0; i < pending_count; ++i)
-    {
-        // pending keywords without an id (id = 0) will be assigned an id when zero passed to add_keyword
-        add_keyword(settings->keywords, database, edit_settings->pending[i], pending_keyword_ids[i]);
-    }
-    
-    settings->misc_options = edit_settings->misc_options;
-}
-
 void 
 HelpMarker(const char* desc)
 {
@@ -193,7 +150,6 @@ HelpMarker(const char* desc)
 bool
 do_settings_popup(Edit_Settings *edit_settings)
 {
-    // TODO: Could draw lines under text like a notebook instead of text boxes
     bool finished = false;
     
     float keywords_child_height = ImGui::GetWindowHeight() * 0.6f;
@@ -212,6 +168,9 @@ do_settings_popup(Edit_Settings *edit_settings)
         // - unicode characters (just disallow pasting maybe)
         // NOTE:
         // - Put incorrect format text items in red, and have a red  '* error message...' next to "Keywords"
+        // TODO: Allow pasting but maybe normalise unicode to ascii, UTF8 is allowed in urls I think
+        
+        // Domain names are allowed normal alphabet and numbers and hyphen '-', and the period '.' separator
         
         // IF we get lots of kinds of settings (not ideal), can use tabs
         
@@ -222,21 +181,11 @@ do_settings_popup(Edit_Settings *edit_settings)
         
         // TODO: Copy windows (look at Everything.exe settings) ui style and white on grey colour scheme
         
-        // For coloured text
-        //
-        //ImGui::TextColored(ImVec4(1,1,0,1), "Sailor");
-        //
         
         ImGui::Text("Keyword list:");
-        ImGui::SameLine();
-        HelpMarker("As with every widgets in dear imgui, we never modify values unless there is a user interaction.\nYou can override the clamping limits by using CTRL+Click to input a value.");
-        
-        //ImVec2 start_pos = ImGui::GetCursorScreenPos();
-        //ImGui::SetCursorScreenPos(ImVec2(start_pos.x, start_pos.y + keywords_child_height));
-        
-        //ImGui::SetCursorScreenPos(start_pos);
         
         s32 give_focus = -1;
+        bool error_max_keywords_reached = false;
         if (ImGui::Button("Add..."))
         {
             for (int i = 0; i < MAX_KEYWORD_COUNT; ++i)
@@ -247,6 +196,25 @@ do_settings_popup(Edit_Settings *edit_settings)
                     break;
                 }
             }
+            
+            // TODO: How to make this persist for the right amount of time (what length is this? until they click?)
+            if (give_focus == -1)
+            {
+                // All boxes full
+                error_max_keywords_reached = true;
+            }
+            
+        }
+        
+        ImGui::SameLine();
+        HelpMarker("As with every widgets in dear imgui, we never modify values unless there is a user interaction.\nYou can override the clamping limits by using CTRL+Click to input a value.");
+        
+        
+        error_max_keywords_reached = true;
+        if (error_max_keywords_reached) 
+        {
+            ImGui::SameLine();
+            ImGui::TextColored(ImVec4(200,0,0,255), "   *maximum number of keywords reached");
         }
         
         s32 index_of_last_keyword = 0;
@@ -261,11 +229,6 @@ do_settings_popup(Edit_Settings *edit_settings)
         s32 number_of_boxes = std::min(index_of_last_keyword + 8, MAX_KEYWORD_COUNT);
         
         {
-            
-            //ImGui::BeginChild("List", ImVec2(ImGui::GetWindowWidth()*0.5, ImGui::GetWindowHeight() * 0.6f));
-            
-            // This just pushes some style vars, calls BeginChild, then pops them
-            
             ImGui::BeginChild(222, ImVec2(keywords_child_width, keywords_child_height), true);
             
             // If I use WindowDrawList must subtract padding or else lines are obscured by below text input box
@@ -283,8 +246,24 @@ do_settings_popup(Edit_Settings *edit_settings)
                     give_focus = -1;
                 }
                 
+                auto filter = [](ImGuiTextEditCallbackData* data) -> int {
+                    ImWchar c = data->EventChar;
+                    if ((c >= 'a' && c <= 'z') || 
+                        (c >= 'A' && c <= 'Z') || 
+                        (c >= '0' && c <= '9') ||
+                        c == '-' || 
+                        c == '.')
+                    {
+                        return 0;
+                    }
+                    else
+                    {
+                        return 1;
+                    }
+                };
+                
                 ImGui::PushID(i);
-                bool enter_pressed = ImGui::InputText("", edit_settings->pending[i], array_count(edit_settings->pending[i]));
+                bool enter_pressed = ImGui::InputText("", edit_settings->pending[i], array_count(edit_settings->pending[i]), ImGuiInputTextFlags_CallbackCharFilter, filter);
                 ImGui::PopID();
                 
                 float padding = 3;
@@ -819,12 +798,12 @@ do_debug_window_button(Database *database, Day_View *day_view)
         ImGui::SetNextWindowSize(ImVec2(850, 690), true);
         ImGui::Begin("Debug Window", &debug_menu_open, flags);
         {
-            ImGui::Text("id_table:");
+            ImGui::Text("local_programs:");
             ImGui::SameLine(300);
             ImGui::Text("app_names:");
             
             ImGui::BeginChildFrame(26, ImVec2(200, 600));
-            for (auto const &pair : database->id_table)
+            for (auto const &pair : database->local_programs)
             {
                 // not sure if definately null terminated
                 ImGui::BulletText("%s: %u", pair.first.str, pair.second);
@@ -842,6 +821,18 @@ do_debug_window_button(Database *database, Day_View *day_view)
             }
             ImGui::EndChildFrame();
         }
+        {
+            ImGui::Text("domains:");
+            
+            ImGui::BeginChildFrame(41, ImVec2(500, 600));
+            for (auto const &pair : database->domains)
+            {
+                // not sure if definately null terminated
+                ImGui::BulletText("%s: %u", pair.first.str, pair.second);
+            }
+            ImGui::EndChildFrame();
+        }
+        
         {
             ImGui::Text("__Day_List__");
             ImGui::Text("days:");
@@ -1053,6 +1044,8 @@ void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *data
     // TODO: Make in exact middle
     ImGui::SameLine(ImGui::GetWindowWidth() * .35f);
     {
+        // Date Picker
+        
         Date_Picker *date_picker = &state->date_picker;
         
         date::sys_days oldest_date = day_view->days.front().date;
@@ -1081,43 +1074,63 @@ void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *data
     
     ImGui::SameLine(ImGui::GetWindowWidth() * .85f);
     
-    // @WaitForInput
-    if (ImGui::Button(ICON_MD_SETTINGS))
     {
-        // init edit_settings
-        state->edit_settings = (Edit_Settings *)calloc(1, sizeof(Edit_Settings));
+        // Settings
         
-        // Not sure if should try to leave only one extra or all possible input boxes
-        state->edit_settings->input_box_count = MAX_KEYWORD_COUNT;
-        state->edit_settings->misc_options = state->settings.misc_options;
-        
-        // TODO: Should be a better way than this
-        state->edit_settings->poll_start_time_item = state->settings.misc_options.poll_start_time / 15;
-        state->edit_settings->poll_end_time_item = state->settings.misc_options.poll_end_time / 15;
-        
-        Assert(state->settings.keywords.size() <= MAX_KEYWORD_COUNT);
-        for (s32 i = 0; i < state->settings.keywords.size(); ++i)
+        // @WaitForInput
+        if (ImGui::Button(ICON_MD_SETTINGS))
         {
-            Assert(state->settings.keywords[i].str.length + 1 <= MAX_KEYWORD_SIZE);
-            strcpy(state->edit_settings->pending[i], state->settings.keywords[i].str.str);
+            // init edit_settings
+            state->edit_settings = (Edit_Settings *)calloc(1, sizeof(Edit_Settings));
+            
+            // Not sure if should try to leave only one extra or all possible input boxes
+            state->edit_settings->misc_options = state->settings.misc_options;
+            
+            // TODO: Should be a better way than this
+            state->edit_settings->poll_start_time_item = state->settings.misc_options.poll_start_time / 15;
+            state->edit_settings->poll_end_time_item = state->settings.misc_options.poll_end_time / 15;
+            
+            Assert(state->settings.keywords.size() <= MAX_KEYWORD_COUNT);
+            for (s32 i = 0; i < state->settings.keywords.size(); ++i)
+            {
+                Assert(state->settings.keywords[i].length + 1 <= MAX_KEYWORD_SIZE);
+                strcpy(state->edit_settings->pending[i], state->settings.keywords[i].str);
+            }
+            
+            ImGui::OpenPopup("Settings");
         }
         
-        ImGui::OpenPopup("Settings");
-    }
-    
-    // TODO: Consider not assigning a id with any keyword in settings, but just returning a list, then we have a url we just compare to keywords in list then hash the matching keywords and compare to already hashed keywods that do have id's then assign new and old ids to the record.
-    // This still suffers from the same problem, the need to keep old keywords so we can reuse their ids and not have to merge records with the same keyword but different ids (when a keyword is entered, deleted, and later reentered).
-    bool finished = do_settings_popup(state->edit_settings);
-    if (finished)
-    {
-        update_settings(state->edit_settings, &state->settings, database);
-        free(state->edit_settings);
+        bool finished = do_settings_popup(state->edit_settings);
+        
+        if (finished)
+        {
+            if (!state->edit_settings->update_settings) return;
+            
+            // Empty input boxes are just zeroed array
+            i32 pending_count = remove_duplicate_and_empty_keyword_strings(state->edit_settings->pending);
+            
+            Settings *settings = &state->settings;
+            settings->keywords.clear();
+            settings->keywords.reserve(pending_count);
+            for (int i = 0; i < pending_count; ++i)
+            {
+                // pending keywords without an id (id = 0) will be assigned an id when zero passed to add_keyword
+                add_keyword(settings->keywords, state->edit_settings->pending[i]);
+            }
+            
+            settings->misc_options = state->edit_settings->misc_options;
+            
+            free(state->edit_settings);
+        }
     }
     
     ImGui::SameLine();
     do_debug_window_button(database, day_view);
     
+#if 0
     {
+        // Debug date stuff
+        
         Date_Picker *date_picker = &state->date_picker;
         
         date::sys_days oldest_date = day_view->days.front().date;
@@ -1154,9 +1167,11 @@ void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *data
         buf3 << "      newest_date: " << ymd << ", " <<  ymw;
         ImGui::Text(buf3.str().c_str());
     }
-    
+#endif
     {
-        // To allow frame border
+        // Barplot
+        
+        // To allow frame border (can just use beginchild instead)
         ImGuiWindowFlags child_flags = 0;
         ImGui::BeginChildFrame(55, ImVec2(ImGui::GetWindowSize().x * 0.9, ImGui::GetWindowSize().y * 0.7), child_flags);
         
@@ -1209,21 +1224,6 @@ void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *data
                 ImGui::SameLine();
                 ImVec2 p0 = ImGui::GetCursorScreenPos();
                 
-                //ImVec4 col = ImGui::GetColorU32(ImVec4(0.0f, 1.0f, 0.0f, 1.0f));
-#if 0
-                if (bmp)
-                {
-                    u32 r = ;
-                    for (int y = 0; y < bmp->height; ++y)
-                    {
-                        for (int x = 0; x < bmp->width; ++x)
-                        {
-                            
-                        }
-                    }
-                }
-#endif
-                
                 // TODO: Save records or sizes between frames
                 float bar_width = max_width * ((float)record.duration / (float)max_duration);
                 if (bar_width > 0)
@@ -1246,18 +1246,32 @@ void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *data
                     name = database->app_names[record.id].short_name.str;
                 }
                 
-                double seconds = (double)record.duration / MICROSECS_PER_SEC;
+                u32 seconds = record.duration / MICROSECS_PER_SEC;
                 
                 // This looks better with text more down on bar
                 //if (i < 5) 
-                ImGui::AlignTextToFramePadding();
+                ImGui::AlignTextToFramePadding();  // TODO: text needs to be slightly further down
                 
                 // TODO: Limit name length
-                ImGui::Text("  %s", name); // TODO: Ensure bars unique id
+                ImGui::Text("  %s", name);
                 
                 ImGui::SameLine();
                 ImGui::SetCursorPosX(ImGui::GetWindowSize().x * 0.90);
-                ImGui::Text("%.2fs", seconds); // TODO: Ensure bars unique id
+                
+                if (seconds < 60)
+                {
+                    ImGui::Text("%us", seconds); 
+                }
+                else if (seconds < 3600)
+                {
+                    ImGui::Text("%um", seconds / 60); 
+                }
+                else 
+                {
+                    u32 hours = seconds / 3600;
+                    u32 minutes_remainder = (seconds % 3600) / 60;
+                    ImGui::Text("%uh %um", hours, minutes_remainder); 
+                }
                 
                 ImGui::SameLine();
                 ImGui::InvisibleButton("##gradient1", ImVec2(bar_width + 10, bar_height));
