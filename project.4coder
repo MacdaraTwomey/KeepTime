@@ -29,7 +29,12 @@ command_list = {
     .out = "*run*", .footer_panel = true, .save_dirty_files = false, .cursor_at_end = true,
     .cmd = { { "build\\monitor.exe", .os = "win"}, },
   },
+  { .name = "build_and_run",
+    .out = "*run*", .footer_panel = true, .save_dirty_files = true, .cursor_at_end = true,
+    .cmd = { { "run.bat", .os = "win"}, },
+  },
 };
 
 fkey_command[1] = "build";
 fkey_command[2] = "run";
+fkey_command[3] = "build_and_run";

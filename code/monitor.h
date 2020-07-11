@@ -214,13 +214,11 @@ struct Database
     App_Id next_program_id;      // starts at 0x00000000 1
     App_Id next_website_id;      // starts at 0x80000000 top bit set
     
-    // Temporary, maybe
     // Should use another Material Design or Font Awesome icon to represent all websites (maybe globe icon)
     App_Id firefox_id;
     bool added_firefox;
     
     Day_List day_list;
-    //Day_View day_view;
     
     // Can have:
     // - a path (updated or not) with no corresponding bitmap (either not loaded or unable to be loaded)
@@ -292,8 +290,8 @@ struct Date_Picker
     char date_label[64];
     bool is_backwards_disabled;
     bool is_forwards_disabled;
-    Calendar calendar_range_start;
-    Calendar calendar_range_end;
+    Calendar first_calendar;
+    Calendar second_calendar;
 };
 
 struct

@@ -9,6 +9,39 @@
 
 #include <algorithm>
 
+#include <stdlib.h> // rand (debug)
+
+// TODO: debug
+int 
+rand_between(int low, int high) {
+    static bool first = true;
+    if (first)
+    {
+        time_t time_now;
+        srand((unsigned) time(&time_now));
+        first = false;
+    }
+    
+    float t = (float)rand() / (float)RAND_MAX;
+    float result = round((1.0f - t) * low + t*high);
+    return (int)result;
+}
+
+float
+rand_between(float low, float high) {
+    static bool first = true;
+    if (first)
+    {
+        time_t time_now;
+        srand((unsigned) time(&time_now));
+        first = false;
+    }
+    
+    float t = (float)rand() / (float)RAND_MAX;
+    return (1.0f - t)*low + t*high;
+}
+
+
 // TODO: BETTER HASH FUNCTION
 // TODO: This only returns 32-bit value in windows
 unsigned long djb2(unsigned char *str)

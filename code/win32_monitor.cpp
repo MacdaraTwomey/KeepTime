@@ -826,7 +826,7 @@ platform_get_icon_from_executable(char *path, u32 desired_size,
     // TODO: maybe just use extract icon, or manually extract to avoid shellapi.h maybe shell32.dll
     if(SHDefExtractIconA(path, 0, 0, &icon_handle, &small_icon_handle, desired_size) != S_OK)
     {
-        
+        // NOTE: In finished version we will want to have loaded OS application icon once and made it a texture once, for possibly multiple programs to use.
 #if MONITOR_DEBUG
         // NOTE: Show me that path was actually wrong and it wasn't just failed icon extraction.
         // If we can load the executable, it means we probably should be able to get the icon

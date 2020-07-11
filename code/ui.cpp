@@ -2,8 +2,9 @@
 // from monitor.cpp
 Icon_Asset * get_icon_asset(Database *database, App_Id id);
 void add_keyword(std::vector<Keyword> &keywords, Database *database, char *str, App_Id id);
-void set_day_view_range(Day_View *day_view, date::sys_days start, date::sys_days end);
 bool is_exe(u32 id);
+bool is_firefox(u32 id);
+
 
 const char *
 day_suffix(int day)
@@ -44,6 +45,7 @@ is_leap_year(int year)
 int 
 days_in_month(int month, int year)
 {
+	Assert(month >= 1 && month <= 12);
     switch (month)
     {
         case 1: case 3: case 5:
@@ -69,10 +71,9 @@ const char *
 month_string(int month)
 {
 	Assert(month >= 1 && month <= 12);
-	month -= 1;
 	static const char *months[] = { "January","February","March","April","May","June",
 		"July","August","September","October","November","December" };
-	return months[month];
+	return months[month-1];
 }
 
 s32
@@ -202,7 +203,7 @@ do_settings_popup(Edit_Settings *edit_settings)
     // and maybe base off users monitor w/h
     // TODO: 800 is probably too big for some screens (make this dynamic)
     ImGui::SetNextWindowSize(ImVec2(850, 600));
-    if (ImGui::BeginPopupModal("Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize))
+    if (ImGui::BeginPopupModal("Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize|ImGuiWindowFlags_NoMove))
     {
         // TODO: Remove or don't allow
         // - all spaces strings
@@ -248,30 +249,56 @@ do_settings_popup(Edit_Settings *edit_settings)
             }
         }
         
+        s32 index_of_last_keyword = 0;
+        for (int i = 0; i < MAX_KEYWORD_COUNT; ++i)
         {
+            if (edit_settings->pending[i][0] != '\0')
+            {
+                index_of_last_keyword = i;
+            }
+        }
+        
+        s32 number_of_boxes = std::min(index_of_last_keyword + 8, MAX_KEYWORD_COUNT);
+        
+        {
+            
             //ImGui::BeginChild("List", ImVec2(ImGui::GetWindowWidth()*0.5, ImGui::GetWindowHeight() * 0.6f));
             
             // This just pushes some style vars, calls BeginChild, then pops them
-            ImGuiWindowFlags child_flags = 0;
-            ImGui::BeginChildFrame(222, ImVec2(keywords_child_width, keywords_child_height), child_flags);
             
+            ImGui::BeginChild(222, ImVec2(keywords_child_width, keywords_child_height), true);
+            
+            // If I use WindowDrawList must subtract padding or else lines are obscured by below text input box
+            // can use ForegroundDrawList but this is not clipped to keyword child window
+            ImDrawList* draw_list = ImGui::GetWindowDrawList();
+            //ImDrawList* draw_list = ImGui::GetForeGroundDrawList();
+            
+            ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0);
             ImGui::PushItemWidth(ImGui::GetWindowWidth() * .9f);
-            for (s32 i = 0; i < edit_settings->input_box_count; ++i)
+            for (s32 i = 0; i < number_of_boxes; ++i)
             {
-                ImGui::PushID(i);
-                
                 if (i == give_focus)
                 {
                     ImGui::SetKeyboardFocusHere();
                     give_focus = -1;
                 }
-                bool enter_pressed = ImGui::InputText("", edit_settings->pending[i], array_count(edit_settings->pending[i]));
                 
+                ImGui::PushID(i);
+                bool enter_pressed = ImGui::InputText("", edit_settings->pending[i], array_count(edit_settings->pending[i]));
                 ImGui::PopID();
+                
+                float padding = 3;
+                u32 grey = 150;
+                ImVec2 pos = ImGui::GetCursorScreenPos();
+                pos.y -= padding;
+                draw_list->AddLine(pos, ImVec2(pos.x + keywords_child_width, pos.y), IM_COL32(grey,grey,grey,255), 1.0f);
             }
             ImGui::PopItemWidth();
+            ImGui::PopStyleVar();
+            
             ImGui::EndChildFrame();
         }
+        
         
         //PushStyleColor();
         //PopStyleColor();
@@ -359,32 +386,20 @@ do_settings_popup(Edit_Settings *edit_settings)
     return finished;
 }
 
-void
-push_disable(bool is_disabled)
+bool
+ButtonSpecial(const char* label, bool is_disabled, const ImVec2& size = ImVec2(0, 0))
 {
     if (is_disabled)
     {
         ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true); // imgui_internal.h
         ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.5f);
     }
-}
-
-void
-pop_disable(bool is_disabled)
-{
+    bool result = ImGui::Button(label, size);
     if (is_disabled)
     {
         ImGui::PopItemFlag(); // imgui_internal.h
         ImGui::PopStyleVar();
     }
-}
-
-bool
-ButtonSpecial(const char* label, bool disabled, const ImVec2& size = ImVec2(0, 0))
-{
-    push_disable(disabled);
-    bool result = ImGui::Button(label, size);
-    pop_disable(disabled);
     return result;
 }
 
@@ -747,8 +762,8 @@ do_date_select_popup(Date_Picker *date_picker, date::sys_days oldest_date, date:
                 else if (date_picker->range_type == Range_Type_Custom)
                 {
                     // Either calendar can be before other
-                    date_picker->start = std::min(date_picker->calendar_range_start.selected_date, date_picker->calendar_range_end.selected_date);
-                    date_picker->end = std::max(date_picker->calendar_range_start.selected_date, date_picker->calendar_range_end.selected_date);
+                    date_picker->start = std::min(date_picker->first_calendar.selected_date, date_picker->second_calendar.selected_date);
+                    date_picker->end = std::max(date_picker->first_calendar.selected_date, date_picker->second_calendar.selected_date);
                 }
                 else
                 {
@@ -760,23 +775,23 @@ do_date_select_popup(Date_Picker *date_picker, date::sys_days oldest_date, date:
         }
         
         // @WaitForInput
-        if (do_calendar_button(&date_picker->calendar_range_start, oldest_date, newest_date))
+        if (do_calendar_button(&date_picker->first_calendar, oldest_date, newest_date))
         {
             if (date_picker->range_type == Range_Type_Custom)
             {
                 // NOTE: Maybe we allow start > end for calendars and we always choose oldest one to be start when assigning to date_picker and newest one to be end
-                date_picker->start = std::min(date_picker->calendar_range_start.selected_date, date_picker->calendar_range_end.selected_date);
-                date_picker->end = std::max(date_picker->calendar_range_start.selected_date, date_picker->calendar_range_end.selected_date);
+                date_picker->start = std::min(date_picker->first_calendar.selected_date, date_picker->second_calendar.selected_date);
+                date_picker->end = std::max(date_picker->first_calendar.selected_date, date_picker->second_calendar.selected_date);
                 date_picker_clip_and_update(date_picker, oldest_date, newest_date);
             }
         } 
         ImGui::SameLine();
-        if (do_calendar_button(&date_picker->calendar_range_end, oldest_date, newest_date))
+        if (do_calendar_button(&date_picker->second_calendar, oldest_date, newest_date))
         {
             if (date_picker->range_type == Range_Type_Custom)
             {
-                date_picker->start = std::min(date_picker->calendar_range_start.selected_date, date_picker->calendar_range_end.selected_date);
-                date_picker->end = std::max(date_picker->calendar_range_start.selected_date, date_picker->calendar_range_end.selected_date);
+                date_picker->start = std::min(date_picker->first_calendar.selected_date, date_picker->second_calendar.selected_date);
+                date_picker->end = std::max(date_picker->first_calendar.selected_date, date_picker->second_calendar.selected_date);
                 date_picker_clip_and_update(date_picker, oldest_date, newest_date);
             }
         }
@@ -1019,7 +1034,7 @@ void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *data
     style.GrabRounding = style.FrameRounding; // Make GrabRounding always the same value as FrameRounding
     style.FrameBorderSize = 1.0f;
     style.PopupBorderSize = 1.0f;
-    style.ChildBorderSize = 0.0f;
+    style.ChildBorderSize = 1.0f;
     style.WindowRounding = 0.0f;
     
     ImGuiWindowFlags flags =
@@ -1090,6 +1105,8 @@ void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *data
         ImGui::OpenPopup("Settings");
     }
     
+    // TODO: Consider not assigning a id with any keyword in settings, but just returning a list, then we have a url we just compare to keywords in list then hash the matching keywords and compare to already hashed keywods that do have id's then assign new and old ids to the record.
+    // This still suffers from the same problem, the need to keep old keywords so we can reuse their ids and not have to merge records with the same keyword but different ids (when a keyword is entered, deleted, and later reentered).
     bool finished = do_settings_popup(state->edit_settings);
     if (finished)
     {
@@ -1113,6 +1130,14 @@ void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *data
         buf << "start_date: " << ymd << ", " <<  ymw;
         ImGui::Text(buf.str().c_str());
         
+        ImGui::SameLine();
+        ymd = date::year_month_day{oldest_date};
+        ymw = date::year_month_weekday{oldest_date};
+        std::ostringstream buf2;
+        
+        buf2 << "     oldest_date; " << ymd << ", " <<  ymw;
+        ImGui::Text(buf2.str().c_str());
+        
         ymd = date::year_month_day{date_picker->end};
         ymw = date::year_month_weekday{date_picker->end};
         std::ostringstream buf1;
@@ -1120,18 +1145,13 @@ void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *data
         buf1 << "end_date: " << ymd << ", " <<  ymw;
         ImGui::Text(buf1.str().c_str());
         
-        ymd = date::year_month_day{oldest_date};
-        ymw = date::year_month_weekday{oldest_date};
-        std::ostringstream buf2;
-        
-        buf2 << "oldest_date; " << ymd << ", " <<  ymw;
-        ImGui::Text(buf2.str().c_str());
+        ImGui::SameLine();
         
         ymd = date::year_month_day{newest_date};
         ymw = date::year_month_weekday{newest_date};
         std::ostringstream buf3;
         
-        buf3 << "newest_date: " << ymd << ", " <<  ymw;
+        buf3 << "      newest_date: " << ymd << ", " <<  ymw;
         ImGui::Text(buf3.str().c_str());
     }
     
@@ -1148,15 +1168,20 @@ void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *data
         Record *records = get_records_in_date_range(day_view, &record_count, state->date_picker.start, state->date_picker.end);
         if (records)
         {
-            time_type max_duration = records[0].duration; // +- rand amount?
+            time_type max_duration = records[0].duration;
             
-            // calc item width does what...?
-            ImVec2 max_size = ImVec2(ImGui::CalcItemWidth() * 0.85, ImGui::GetFrameHeight());
+            float max_width = ImGui::GetWindowWidth() * 0.6f;
+            float bar_height = 32;//ImGui::GetFrameHeight();
+            //ImVec2 max_size = ImVec2(ImGui::CalcItemWidth() * rand_between(0.7f, 0.9f), ImGui::GetFrameHeight());
             
             for (i32 i = 0; i < record_count; ++i)
             {
                 Record &record = records[i];
                 
+                // try with and without id == 0 record
+                sum_duration += record.duration; // DEBUG
+                
+                Bitmap *bmp = nullptr;
                 if (is_exe(record.id))
                 {
                     // DEBUG:
@@ -1171,10 +1196,12 @@ void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *data
                         icon = get_icon_asset(database, record.id);
                     }
                     
+                    bmp = &icon->bitmap;
+                    
                     // Don't need to bind texture before this because imgui binds it before draw call
                     ImGui::Image((ImTextureID)(intptr_t)icon->texture_handle, ImVec2((float)icon->bitmap.width, (float)icon->bitmap.height));
                 }
-                else
+                else if (is_firefox(record.id))
                 {
                     ImGui::Text(ICON_MD_PUBLIC);
                 }
@@ -1182,18 +1209,30 @@ void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *data
                 ImGui::SameLine();
                 ImVec2 p0 = ImGui::GetCursorScreenPos();
                 
-                ImVec2 bar_size = max_size;
-                bar_size.x *= ((float)record.duration / (float)max_duration);
-                if (bar_size.x > 0)
+                //ImVec4 col = ImGui::GetColorU32(ImVec4(0.0f, 1.0f, 0.0f, 1.0f));
+#if 0
+                if (bmp)
                 {
-                    ImVec2 p1 = ImVec2(p0.x + bar_size.x, p0.y + bar_size.y);
+                    u32 r = ;
+                    for (int y = 0; y < bmp->height; ++y)
+                    {
+                        for (int x = 0; x < bmp->width; ++x)
+                        {
+                            
+                        }
+                    }
+                }
+#endif
+                
+                // TODO: Save records or sizes between frames
+                float bar_width = max_width * ((float)record.duration / (float)max_duration);
+                if (bar_width > 0)
+                {
+                    ImVec2 p1 = ImVec2(p0.x + bar_width, p0.y + bar_height);
                     ImU32 col_a = ImGui::GetColorU32(ImVec4(0.0f, 1.0f, 0.0f, 1.0f));
-                    ImU32 col_b = ImGui::GetColorU32(ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
+                    ImU32 col_b = ImGui::GetColorU32(ImVec4(0.2f, 0.4f, 0.0f, 1.0f));
                     draw_list->AddRectFilledMultiColor(p0, p1, col_a, col_b, col_b, col_a);
                 }
-                
-                // try with and without id == 0 record
-                sum_duration += record.duration;
                 
                 // This is a hash table search
                 // DEBUG
@@ -1209,18 +1248,19 @@ void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *data
                 
                 double seconds = (double)record.duration / MICROSECS_PER_SEC;
                 
-                // Get cursor pos before writing text
-                ImVec2 pos = ImGui::GetCursorScreenPos();
+                // This looks better with text more down on bar
+                //if (i < 5) 
+                ImGui::AlignTextToFramePadding();
                 
                 // TODO: Limit name length
-                ImGui::Text("%s", name); // TODO: Ensure bars unique id
+                ImGui::Text("  %s", name); // TODO: Ensure bars unique id
                 
                 ImGui::SameLine();
                 ImGui::SetCursorPosX(ImGui::GetWindowSize().x * 0.90);
                 ImGui::Text("%.2fs", seconds); // TODO: Ensure bars unique id
                 
                 ImGui::SameLine();
-                ImGui::InvisibleButton("##gradient1", ImVec2(bar_size.x + 10, bar_size.y));
+                ImGui::InvisibleButton("##gradient1", ImVec2(bar_width + 10, bar_height));
             }
             
             free(records);

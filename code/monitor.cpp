@@ -132,69 +132,7 @@ get_day_view(Day_List *day_list)
     
     return day_view;
 }
-
-void
-set_day_view_range(Day_View *day_view, date::sys_days start, date::sys_days end)
-{
-#if 0
-    // TODO:
-    Assert(day_view->days.size() > 0);
-    Assert(start >= end);
-    
-    i32 start_range = -1;
-    i32 end_range = -1;
-    
-    if (start > day_view->days.back().date ||
-        end < day_view->days[0].date)
-    {
-        day_view->has_days = false;
-    }
-    else
-    {
-        bool have_end = false;
-        if (start < day_view->days[0].date)
-        {
-            start_range = 0;
-        }
-        if (end > day_view->days.back().date)
-        {
-            end_range = day_view->days.size() - 1;
-            have_end = true;
-        }
-        
-        for (i32 day_index = day_view->days.size() - 1; day_index >= 0; --day_index)
-        {
-            date::sys_days d = day_view->days[day_index].date;
-            if (d <= end && !have_end)
-            {
-                end_range = day_index;
-                have_end = true;
-            }
-            if (d <= start)
-            {
-                // We are guarenteed to have a smaller date, or have already set start_range to 0
-                if (d < start) start_range = day_index + 1;
-                else if (d == start) start_range = day_index;
-                break;
-            }
-        }
-        
-        
-        Assert(have_end);
-        Assert(start_range != -1);
-        Assert(end_range != -1);
-        
-        day_view->has_days = true;
-    }
-    
-    day_view->start = start;
-    day_view->end = end;
-    day_view->start_range = start_range;
-    day_view->end_range = end_range;
-    //range_count = range_count;
-#endif
-}
-
+ 
 
 void
 free_day_view(Day_View *day_view)
@@ -274,23 +212,6 @@ debug_add_records(Database *database, Day_List *day_list, date::sys_days cur_dat
     // Should be no days in day list
     Assert(day_list->days.size() == 0);
     
-    
-#include <stdlib.h> // rand (debug)
-    
-    auto rand_between = [](int low, int high) -> int {
-        static bool first = true;
-        if (first)
-        {
-            time_t time_now;
-            srand((unsigned) time(&time_now));
-            first = false;
-        }
-        
-        float t = (float)rand() / (float)RAND_MAX;
-        float result = round((1.0f - t) * low + t*high);
-        return (int)result;
-    };
-    
     date::sys_days start  = cur_date - date::days{70};
     
     for (date::sys_days d = start; d < cur_date; d += date::days{1})
@@ -350,9 +271,6 @@ void init_database(Database *database, date::sys_days current_date)
     
     database->next_program_id = 1;
     database->next_website_id = 1 << 31;
-    
-    database->firefox_id = 0;
-    database->added_firefox = false;
     
     database->day_list = {};
     database->day_list.blocks = new_block(nullptr);
@@ -482,9 +400,11 @@ get_icon_asset(Database *database, App_Id id)
 {
     if (is_firefox(id))
     {
-        // HACK: We just use firefox icon
-        id = database->firefox_id;
+        // We should use font id, when no website icon
         //get_favicon_from_website(url);
+        
+        Assert(0); // no firefox icons for now
+        return nullptr;
     }
     
     if (is_exe(id))
@@ -508,15 +428,13 @@ get_icon_asset(Database *database, App_Id id)
         {
             Icon_Asset *icon = database->icons + program_info.icon_index;
             Assert(icon->texture_handle != 0);
-            glBindTexture(GL_TEXTURE_2D, icon->texture_handle);
             return icon;
         }
     }
     
-    // DEBUG a use default
+    // Use default OS icon for application
     Icon_Asset *default_icon = database->icons + database->default_icon_index;
     Assert(default_icon->texture_handle != 0);
-    glBindTexture(GL_TEXTURE_2D, default_icon->texture_handle);
     return default_icon;
 }
 
@@ -546,7 +464,6 @@ poll_windows(Database *database, Settings *settings)
     if (program_name.length == 0) return 0;
     
     // string_to_lower(&program_name);
-    
     
     bool program_is_firefox = string_equals(program_name, "firefox");
     bool add_to_executables = true;
@@ -588,29 +505,6 @@ poll_windows(Database *database, Settings *settings)
                     add_to_executables = false;
                 }
             }
-        }
-    }
-    
-    // @Temporary, for when we get firefox website, before we have added firefox program
-    if (program_is_firefox && !add_to_executables)
-    {
-        if (!database->added_firefox)
-        {
-            App_Id new_id = make_id(database, Record_Exe);
-            
-            App_Info names;
-            names.long_name = copy_alloc_string(full_path);
-            names.short_name = copy_alloc_string(program_name);
-            names.icon_index = -1;
-            
-            database->app_names.insert({new_id, names});
-            
-            // These don't share the same strings for now
-            String name_2 = copy_alloc_string(program_name);
-            database->id_table.insert({name_2, new_id});
-            
-            database->firefox_id = new_id;
-            database->added_firefox = true;
         }
     }
     
@@ -690,9 +584,17 @@ update(Monitor_State *state, SDL_Window *window, time_type dt, u32 window_status
         
         // This will set once per program execution
         Date_Picker &picker = state->date_picker;
+        
+#if 0
         picker.range_type = Range_Type_Daily;
         picker.start = current_date;
         picker.end = current_date;
+#else
+        // DEBUG: Default to monthly
+        auto ymd = date::year_month_day{current_date};
+        picker.start = date::sys_days{ymd.year()/ymd.month()/1};
+        picker.end   = date::sys_days{ymd.year()/ymd.month()/date::last};
+#endif
         
         date::sys_days oldest_date = state->database.day_list.days.front().date;
         date::sys_days newest_date = state->database.day_list.days.back().date;
@@ -700,8 +602,8 @@ update(Monitor_State *state, SDL_Window *window, time_type dt, u32 window_status
         // sets label and if buttons are disabled 
         date_picker_clip_and_update(&picker, oldest_date, newest_date);
         
-        init_calendar(&picker.calendar_range_start, current_date, oldest_date, newest_date);
-        init_calendar(&picker.calendar_range_end, current_date, oldest_date, newest_date);
+        init_calendar(&picker.first_calendar, current_date, oldest_date, newest_date);
+        init_calendar(&picker.second_calendar, current_date, oldest_date, newest_date);
         
         state->is_initialised = true;
     }
