@@ -6,6 +6,108 @@ static constexpr i32 MaxPathLen = 2048;
 static constexpr char SaveFileName[] = "monitor_save.pmd";
 static constexpr char DebugSaveFileName[] = "debug_monitor_save.txt";
 
+// Monitor Binary File
+struct MBF_Header
+{
+    u32 magic_number;
+    u32 version; 
+    
+    App_Id next_program_id;
+    App_Id next_website_id;
+    u32 settings;        // fixed size
+    u32 ids;     
+    u32 days;            // record_count for each day
+    u32 strings_lengths; 
+    u32 records;
+    
+    u32 id_count;
+    u32 day_count;
+    u32 string_block_size;
+    u32 record_count;
+};
+
+struct MBF_Day
+{
+    date::sys_days date;
+    u32 record_count;
+};
+
+struct MBF
+{
+    // we make this then pass to write?
+    // we recieve this from read?
+};
+
+u32 
+write_MBF(char *string_block, String s, u32 *cur_offset)
+{
+    memcpy(string_block + cur_offset, s.str, s.length);
+    *cur_offset += s.length;
+    return s.length;;
+}
+
+
+bool
+write_savefile(Serial_State serial_state, FILE *file)
+{
+    // Strings are not stored as null terminated
+    // Could store string lengths or offsets into the block, not sure which better
+    
+    Database *database = &state->database;
+    
+    // TODO: This will be cleaner if I use a arena for hash tables I think
+    size_t all_strings_length = 0;
+    u32 string_offsets = 0;
+    for (std::pair<App_Id, App_Info> &pair : database->app_names) 
+    {
+        all_strings_length += pair.second.short_name.length;
+        string_offsets += 1;
+#if MONITOR_DEBUG
+        all_strings_length += pair.second.full_name.length;
+        string_offsets += 1;
+#else
+        if (is_local_program(pair.first)) {
+            all_strings_length += pair.second.full_name.length;
+            string_offsets += 1;
+        }
+#endif
+    }
+    
+    // must store sizeof string block so can tell length of last string
+    size_t string_block_size = all_strings_length;
+    u32 *string_lengths = (char *)malloc(sizeof(u32) * string_offsets);
+    char *string_block = (char *)malloc(all_strings_length);
+    App_Ids *ids = (App_Ids *)malloc(sizeof(App_Id) * database->app_names.size()));
+    
+    u32 count = 0;
+    size_t string_block_cur_offset = 0;
+    for (std::pair<App_Id, App_Info> &pair : database->app_names) 
+    {
+        App_Id id = pair.first;
+        App_Info info = pair.second;
+        
+        ids[count] = id;
+        string_lengths[count] = write_string_to_block(string_block, info.short_name, &string_block_cur_offset);
+        string_lengths[count] = write_string_to_block(string_block, info.full_name, &string_block_cur_offset);
+        count += 1;
+    }
+    
+    Serial_Day *days = (Serial_Day*)malloc(sizeof(Serial_Day) * database->day_list.size());
+    for (u32 i = 0; i < database->day_list.size(); ++i)
+    {
+        days[i].date = database->day_list[i].date;
+        days[i].record_count = database->day_list[i].record_count;
+        
+        // also need way to get which block records are in
+    }
+    
+}
+
+
+
+
+
+
 u64 file_program_names_block_offset(Header header) {
     return sizeof(Header);
 }
@@ -21,6 +123,8 @@ u64 file_indexes_offset(Header header) {
 u64 file_records_offset(Header header) {
     return file_indexes_offset(header) + (sizeof(u32) * header.day_count);
 }
+
+
 
 bool
 make_empty_savefile(char *filepath)

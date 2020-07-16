@@ -33,9 +33,7 @@ Platform_Window platform_get_active_window();
 
 bool platform_get_program_from_window(Platform_Window window, char *buf, size_t *length);
 
-bool platform_get_firefox_url(Platform_Window window, char *buf, int buf_size, size_t *length);
-
-bool platform_get_firefox_url2(Platform_Window window, char *buf, int buf_size, size_t *length);
+bool platform_get_firefox_url(Platform_Window window, char *buf, size_t *length);
 
 bool platform_get_icon_from_executable(char *path, u32 desired_size, 
                                        i32 *width, i32 *height, i32 *pitch, u32 **pixels, 

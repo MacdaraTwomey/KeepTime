@@ -1,6 +1,62 @@
 #include "string.h"
 #include <curl/curl.h>
 
+bool request_favicon_from_website(String url, Size_Mem *icon_file);
+
+Bitmap
+get_favicon_from_website(String url)
+{
+    // Url must be null terminated
+    
+    // mit very screwed
+    // stack overflow, google has extra row on top?
+    // onesearch.library.uwa.edu.au is 8 bit
+    // teaching.csse.uwa.edu.au hangs forever, maybe because not SSL?
+    // https://www.scotthyoung.com/ 8 bit bitmap, seems fully transparent, maybe aren't using AND mask right? FAIL
+    // http://ukulelehunt.com/ not SSL, getting Success read 0 bytes
+    // forum.ukuleleunderground.com 15x16 icon, seemed to render fine though...
+    // onesearch has a biSizeImage = 0, and bitCount = 8, and did set the biClrUsed field to 256, when icons shouldn't
+    // voidtools.com
+    // getmusicbee.com
+    
+    // This is the site, must have /en-US on end
+    // https://www.mozilla.org/en-US/ 8bpp seems the and mask is empty the way i'm trying to read it
+    
+    // lots of smaller websites dont have an icon under /favicon.ico, e.g. ukulele sites
+    
+    // maths doesn't seem to work out calcing and_mask size ourmachinery.com
+    
+    // https://craftinginterpreters.com/ is in BGR format just like youtube but stb image doesn't detect
+    
+    
+    // TODO: Validate url and differentiate from user just typing in address bar
+    
+    
+    //String url = make_string_from_literal("https://craftinginterpreters.com/");
+    
+    
+    Bitmap favicon = {};
+    Size_Mem icon_file = {};
+    bool request_success = request_favicon_from_website(url, &icon_file);
+    if (request_success)
+    {
+        tprint("Request success");
+        favicon = decode_favicon_file(icon_file);
+        free(icon_file.memory);
+    }
+    else
+    {
+        tprint("Request failure");
+    }
+    
+    if (!favicon.pixels)
+    {
+        favicon = make_bitmap(10, 10, RGBA(190, 25, 255, 255));
+    }
+    
+    return favicon;
+}
+
 
 String
 search_html_for_icon_url(String html_page)

@@ -8,36 +8,19 @@
 #include <unordered_map>
 #include <chrono>
 
-// TODO: Think of better way than just having error prone max amounts.
-static constexpr u32 MaxDailyRecords = 1000;
-static constexpr u32 MaxDays = 1000; // temporary
-static constexpr u32 DefaultDayAllocationCount = 30;
-static constexpr i32 MaxWebsiteCount = 50; // this used?
 static constexpr i32 MAX_KEYWORD_COUNT = 100;
 static constexpr i32 MAX_KEYWORD_SIZE = 101;
-
 static constexpr i32 MICROSECS_PER_SEC = 1000000;
+
+static_assert(sizeof(date::sys_days) == sizeof(u32), "");
+static_assert(sizeof(date::year_month_day) == sizeof(u32), "");
 
 // u32 can overflows after 50 days when usning milliseconds, this might be ok
 // as we only get this when summing multiple days, but for now KISS.
 typedef s64 time_type;
 typedef u32 App_Id;
 
-// Steady clock typically uses system startup time as epoch, and system clock uses systems epoch like 1970-1-1 00:00
-// Clocks have a starting point (epoch) and tick rate (e.g. 1 tick per second)
-// A Time Point is a duration of time that has passed since a clocks epoch
-// A Duration consists of a span of time, defined as a number of ticks of some time unit (e.g. 12 ticks in millisecond unit)
-
-// System clock gives time in UTC (which means system clock doesn't need to be reset when PC travels the world)
-// Can translate sys_time into local time when needed for human consumption
-// For now I will just store everything as local time
-using System_Clock = std::chrono::system_clock; // gives according to utc time
-
-// May want store date in seconds rather than days since epoch
-// But storing days allows easy comparison like if (day_view->start_range == cur_date)
-// whereas a storing time in seconds it can be the same day but seconds are not equal
-
-// should i be using local_days instead of sys_days (does it actually matter, using sys days and the get_localtime function I did fix the "day not changing after midnight because of utc time" issue)
+// TODO: should i be using local_days instead of sys_days (does it actually matter, using sys days and the get_localtime function I did fix the "day not changing after midnight because of utc time" issue)
 
 
 date::sys_days
@@ -57,11 +40,6 @@ get_localtime()
     //Assert(using local_days    = local_time<days>;
     return now;
 }
-
-struct Header
-{
-    // u32 version; // version 0
-};
 
 // custom specialization of std::hash can be injected in namespace std
 namespace std
@@ -95,12 +73,11 @@ namespace std
     
 }
 
-// TODO: Change to Id_Type
-enum Record_Type
+enum Id_Type
 {
-	Record_Invalid,
-	Record_Exe,     // Start at 0
-	Record_Firefox, // Start at 0x800000
+	Id_Invalid,
+	Id_LocalProgram,     // Start at 1
+	Id_Website, // Start at 0x800000
 };
 struct Record
 {
@@ -172,7 +149,7 @@ struct App_Info
     // (full url, keyword) or
     // (path, exe name)
     
-    String long_name; // this must be null terminated because passed to curl as url or OS as a path
+    String full_name; // this must be null terminated because passed to curl as url or OS as a path
     String short_name;
     
     // I don't really want this here
@@ -188,45 +165,37 @@ struct Icon_Asset
     u32 texture_handle;
 };
 
+
 struct Database
 {
-	// Contains local programs only
-    // Hash the exe name (shortname) of program
-    // This is used to quickly get an App_Id from a exe name
-    // Don't need a corresponding one for websites as we have to test agains all keywords anyway (except maybe we do)
+    // TODO: make class that treats these three tables as one two way table
+    
+    // Contains local programs
     std::unordered_map<String, App_Id> local_programs;
-    
-    // Contains domain name (e.g. developer.mozilla.org)
-    std::unordered_map<String, App_Id> domains;
-    
-    // TODO: remove ids gives to keywords
+    // Contains domain names (e.g. developer.mozilla.org)
+    std::unordered_map<String, App_Id> domain_names;
     
     // Contains websites and local programs
-    // We use long_name as a path to load icons from executables
-    // We use long_name to download favicon from website
-    // We use shortname when we iterate records and want to display names
+    // We use full_name as a path to load icons from executables
+    // full_name for websites isn't used
     std::unordered_map<App_Id, App_Info> app_names;
     
-    // dont like passing database to give this to the settings code
-    // 0 is illegal
+    Arena names_arena;
+    
     App_Id next_program_id;      // starts at 0x00000000 1
     App_Id next_website_id;      // starts at 0x80000000 top bit set
     
-    // Should use another Material Design or Font Awesome icon to represent all websites (maybe globe icon)
-    App_Id firefox_id;
-    bool added_firefox;
-    
+    // Just allocate 100 days + days we already have to stop repeated allocs and potential failure
+    // Also say we can have max of 1000 daily records or so, so we can just alloc a 1000 record chunk from arena per day to easily ensure it will be contiguous.
     Day_List day_list;
     
-    // Can have:
-    // - a path (updated or not) with no corresponding bitmap (either not loaded or unable to be loaded)
-    // - a path (updated or not) with a bitmap
-    //Bitmap icons[200]; // Loaded on demand
-    //Bitmap website_icons[200]; // Loaded on demand
+    // Also make a malloc failure routine that writes to savefile and maybe exits gracefully
+    // except imgui and SDL wont use it i suppose
     
+    
+    // TODO: Maybe don't want this stuff in database. It is needed when other database stuff is needed (by UI) but it doesn't have the same lifetime, nor the same relation as others
     // loaded at startup
     i32 default_icon_index;
-    
     u32 icon_count;
     Icon_Asset icons[200]; // 200 icons isn't really that much, should make like 1000
 };
@@ -234,16 +203,15 @@ struct Database
 
 struct Misc_Options
 {
-    // TODO: These may want to be different datatypes (tradeoff file IO ease vs imgui datatypes conversion)
+    // solution just make them u32 for gods sake
     
     // In minute of the day 0-1439
-    u16 day_start_time;  // Changing this won't trigger conversion of previously saved records
-    u16 poll_start_time; // Default 0 (12:00AM) (if start == end, always poll)
-    u16 poll_end_time;   // Default 0 (12:00AM)
+    u32 day_start_time;  // Changing this won't trigger conversion of previously saved records
+    u32 poll_start_time; // Default 0 (12:00AM) (if start == end, always poll)
+    u32 poll_end_time;   // Default 0 (12:00AM)
     
-    bool16 run_at_system_startup;   
+    bool32 run_at_system_startup;   
     u32 poll_frequency_microseconds;   
-    
 };
 
 struct Edit_Settings
@@ -261,7 +229,9 @@ struct Settings
 {
     // Keywords act as a filter list to only allow some domain names to be entered into database and to be added as records
     
-    std::vector<String> keywords; // null terminated strings
+    // contains at most MAX_KEYWORD_COUNT 
+    // each of length MAX_KEYWORD_SIZE
+    Array<String, MAX_KEYWORD_COUNT> keywords; // null terminated strings
     Misc_Options misc_options;
 };
 
@@ -297,21 +267,21 @@ struct
 Monitor_State
 {
     bool is_initialised;
-    Header header;
-    Database database;
     
+    // Persists on disk
+    Database database; // mostly
+    Arena keyword_arena;
+    Settings settings;
     
     // persists ui open/closes
-    Settings settings;
+    Date_Picker date_picker;
+    
     Edit_Settings *edit_settings; // allocated when needed
     
     // microsecs
     time_type accumulated_time;
     
-    Date_Picker date_picker;
-    
     // debug temporary
     time_type total_runtime;
     LARGE_INTEGER startup_time;
-    s32 extra_days;
 };

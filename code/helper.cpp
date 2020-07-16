@@ -9,6 +9,94 @@
 
 #include <algorithm>
 
+// ---------------------------------------------- 
+// Arena
+
+#if 0
+struct Arena
+{
+    // Just for strings so un-aligned
+    size_t size;
+    size_t offset;
+    char *buffer;
+};
+#endif
+
+void
+init_arena(Arena *arena, char *buffer, size_t size)
+{
+    arena->size = size;
+    arena->offset = 0;
+    arena->buffer = buffer;
+}
+
+char *
+push_size(Arena *arena, size_t size)
+{
+    if (arena->offset + size > arena->size)
+    {
+        // No expansion of arena for now
+        Assert(0);
+        return nullptr;
+    }
+    
+    char *ptr = arena->buffer + arena->offset;
+    arena->offset += size;
+    return ptr;
+}
+
+String
+push_string(Arena *arena, String string)
+{
+    // Passed string doesn't need to be null terminated
+    // Returns null terminated string
+    
+    char *mem = push_size(arena, string.length+1);
+    memcpy(mem, string.str, string.length);
+    mem[string.length] = '\0';
+    
+    String s;
+    s.str = mem;
+    s.length = string.length;
+    s.capacity = s.length;
+    return s;
+}
+
+String
+push_string(Arena *arena, char *string)
+{
+    // Passed string must be null terminated
+    // Returns null terminated string
+    size_t len = strlen(string);
+    char *mem = push_size(arena, len+1);
+    memcpy(mem, string, len+1);
+    
+    String s;
+    s.str = mem;
+    s.length = len;
+    s.capacity = len;
+    return s;
+}
+
+void
+arena_reset(Arena *arena)
+{
+    arena->offset = 0;
+}
+
+void
+arena_free(Arena *arena)
+{
+    // Could also say caller must free memory passed to arena
+    arena->size = 0;
+    arena->offset = 0;
+    free(arena->buffer);
+    arena->buffer = nullptr;
+}
+
+// -----------------------------------------------------------
+
+
 #include <stdlib.h> // rand (debug)
 
 // TODO: debug

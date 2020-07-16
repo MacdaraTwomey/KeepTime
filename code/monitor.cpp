@@ -10,9 +10,6 @@
 
 #include "date.h"
 
-static_assert(sizeof(date::sys_days) == sizeof(u32), "");
-static_assert(sizeof(date::year_month_day) == sizeof(u32), "");
-
 #include "monitor.h"
 #include "platform.h"
 
@@ -21,6 +18,17 @@ static_assert(sizeof(date::year_month_day) == sizeof(u32), "");
 #include "ui.cpp"
 
 #define ICON_SIZE 32
+
+
+bool is_local_program(App_Id id)
+{
+    return !(id & (1 << 31));
+}
+
+bool is_website(App_Id id)
+{
+    return !is_local_program(id);
+}
 
 i32
 load_icon_and_add_to_database(Database *database, Bitmap bitmap)
@@ -36,6 +44,49 @@ load_icon_and_add_to_database(Database *database, Bitmap bitmap)
     icon->bitmap = bitmap;
     
     return icon_index;
+}
+
+Icon_Asset *
+get_icon_asset(Database *database, App_Id id)
+{
+    if (is_website(id))
+    {
+        // We should use font id, when no website icon
+        //get_favicon_from_website(url);
+        
+        Assert(0); // no firefox icons for now
+        return nullptr;
+    }
+    
+    if (is_local_program(id))
+    {
+        Assert(database->app_names.count(id) > 0);
+        App_Info &program_info = database->app_names[id];
+        if (program_info.icon_index == -1)
+        {
+            Assert(program_info.full_name.length > 0);
+            Bitmap bitmap;
+            bool success = platform_get_icon_from_executable(program_info.full_name.str, ICON_SIZE, 
+                                                             &bitmap.width, &bitmap.height, &bitmap.pitch, &bitmap.pixels);
+            if (success)
+            {
+                // TODO: Maybe mark old paths that couldn't get correct icon for deletion.
+                program_info.icon_index = load_icon_and_add_to_database(database, bitmap);
+                return database->icons + program_info.icon_index;
+            }
+        }
+        else
+        {
+            Icon_Asset *icon = database->icons + program_info.icon_index;
+            Assert(icon->texture_handle != 0);
+            return icon;
+        }
+    }
+    
+    // Use default OS icon for application
+    Icon_Asset *default_icon = database->icons + database->default_icon_index;
+    Assert(default_icon->texture_handle != 0);
+    return default_icon;
 }
 
 Block *
@@ -73,6 +124,7 @@ void
 add_or_update_record(Day_List *day_list, App_Id id, time_type dt)
 {
     // Assumes a day's records are sequential in memory
+    
     // DEBUG: Record id can be 0, used to denote 'no program'
     Assert(day_list->days.size() > 0);
     
@@ -146,34 +198,24 @@ free_day_view(Day_View *day_view)
     *day_view = {};
 }
 
-bool is_exe(u32 id)
+u32 make_id(Database *database, Id_Type type)
 {
-    return !(id & (1 << 31));
-}
-
-bool is_firefox(u32 id)
-{
-    return !is_exe(id);
-}
-
-u32 make_id(Database *database, Record_Type type)
-{
-    Assert(type != Record_Invalid);
+    Assert(type != Id_Invalid);
     u32 id = 0;
     
-    if (type == Record_Exe)
+    if (type == Id_LocalProgram)
     {
         // No high bit set
         id = database->next_program_id;
         database->next_program_id += 1;
     }
-    else if (type == Record_Firefox)
+    else if (type == Id_Website)
     {
         id = database->next_website_id;
         database->next_website_id += 1;
     }
     
-    Assert(is_exe(id) || is_firefox(id));
+    Assert(is_local_program(id) || is_website(id));
     
     return id;
 }
@@ -233,42 +275,27 @@ debug_add_records(Database *database, Day_List *day_list, date::sys_days cur_dat
             
             // string_to_lower(&program_name);
             
-            App_Id record_id = 0;
-            if (database->local_programs.count(program_name) == 0)
-            {
-                App_Id new_id = make_id(database, Record_Exe);
-                
-                App_Info names;
-                names.long_name = copy_alloc_string(full_path);
-                names.short_name = copy_alloc_string(program_name);
-                names.icon_index = -1;
-                
-                database->app_names.insert({new_id, names});
-                
-                // These don't share the same strings for now
-                String name_2 = copy_alloc_string(program_name);
-                database->local_programs.insert({name_2, new_id});
-                
-                record_id = new_id;
-            }
-            else
-            {
-                // get record id
-                record_id = database->local_programs[program_name];
-            }
+            // forward declare
+            App_Id get_id_and_add_if_new(Database *database, String key, String full_name, Id_Type id_type);
             
+            
+            App_Id record_id = get_id_and_add_if_new(database, program_name, full_path, Id_LocalProgram);
             add_or_update_record(day_list, record_id, dt_microsecs);
         }
     }
 }
 
-
 void init_database(Database *database, date::sys_days current_date)
 {
     *database = {};
     database->local_programs = std::unordered_map<String, App_Id>(30);
-    database->domains = std::unordered_map<String, App_Id>(30);
+    database->domain_names = std::unordered_map<String, App_Id>(30);
     database->app_names = std::unordered_map<App_Id, App_Info>(80);
+    
+    size_t size = Kilobytes(50);
+    char *buffer = (char *)malloc(size);
+    Assert(buffer);
+    init_arena(&database->names_arena, buffer, size);
     
     database->next_program_id = 1;
     database->next_website_id = 1 << 31;
@@ -308,20 +335,15 @@ void init_database(Database *database, date::sys_days current_date)
 
 
 void 
-add_keyword(std::vector<String> &keywords, char *str)
+add_keyword(Arena *arena, Array<String, MAX_KEYWORD_COUNT> &keywords, char *str)
 {
-    Assert(keywords.size() < MAX_KEYWORD_COUNT);
     Assert(strlen(str) < MAX_KEYWORD_SIZE);
-    
-    if (keywords.size() < MAX_KEYWORD_COUNT)
-    {
-        String k = copy_alloc_string(str);
-        keywords.push_back(k);
-    }
+    String k = push_string(arena, str);
+    keywords.add_item(k);
 }
 
-String *
-search_string_for_keywords(String string, std::vector<String> &keywords)
+bool
+string_matches_keyword(String string, std::vector<String> &keywords)
 {
     // TODO: Sort based on common substrings, or alphabetically, so we don't have to look further.
     for (i32 i = 0; i < keywords.size(); ++i)
@@ -330,112 +352,45 @@ search_string_for_keywords(String string, std::vector<String> &keywords)
         {
 			// TODO: When we match keyword move it to the front of array, 
 			// maybe shuffle others down to avoid first and last being swapped and re-swapped repeatedly.
-            return &keywords[i];
+            return true;
         }
     }
     
-    return nullptr;
+    return false;
 }
 
-Bitmap
-get_favicon_from_website(String url)
+size_t
+scheme_length(String url)
 {
-    // Url must be null terminated
+    // "A URL-scheme string must be one ASCII alpha, followed by zero or more of ASCII alphanumeric, U+002B (+), U+002D (-), and U+002E (.)" - https://url.spec.whatwg.org/#url-scheme-string
+    // such as http, file, dict
+    // can have file:///c:/ in which case host will still have /c:/ in front of it, but this is fine we only handle http(s) type urls
     
-    // mit very screwed
-    // stack overflow, google has extra row on top?
-    // onesearch.library.uwa.edu.au is 8 bit
-    // teaching.csse.uwa.edu.au hangs forever, maybe because not SSL?
-    // https://www.scotthyoung.com/ 8 bit bitmap, seems fully transparent, maybe aren't using AND mask right? FAIL
-    // http://ukulelehunt.com/ not SSL, getting Success read 0 bytes
-    // forum.ukuleleunderground.com 15x16 icon, seemed to render fine though...
-    // onesearch has a biSizeImage = 0, and bitCount = 8, and did set the biClrUsed field to 256, when icons shouldn't
-    // voidtools.com
-    // getmusicbee.com
-    
-    // This is the site, must have /en-US on end
-    // https://www.mozilla.org/en-US/ 8bpp seems the and mask is empty the way i'm trying to read it
-    
-    // lots of smaller websites dont have an icon under /favicon.ico, e.g. ukulele sites
-    
-    // maths doesn't seem to work out calcing and_mask size ourmachinery.com
-    
-    // https://craftinginterpreters.com/ is in BGR format just like youtube but stb image doesn't detect
-    
-    
-    // TODO: Validate url and differentiate from user just typing in address bar
-    
-    
-    //String url = make_string_from_literal("https://craftinginterpreters.com/");
-    
-    Bitmap favicon = {};
-    Size_Mem icon_file = {};
-    bool request_success = request_favicon_from_website(url, &icon_file);
-    if (request_success)
+    size_t len = 0;
+    for (size_t i = 0; i < url.length - 2; ++i)
     {
-        tprint("Request success");
-        favicon = decode_favicon_file(icon_file);
-        free(icon_file.memory);
-    }
-    else
-    {
-        tprint("Request failure");
-    }
-    
-    if (!favicon.pixels)
-    {
-        favicon = make_bitmap(10, 10, RGBA(190, 25, 255, 255));
-    }
-    
-    return favicon;
-}
-
-Icon_Asset *
-get_icon_asset(Database *database, App_Id id)
-{
-    if (is_firefox(id))
-    {
-        // We should use font id, when no website icon
-        //get_favicon_from_website(url);
+        char c = url.str[i];
+        if (c == ':' && url.str[i+1] == '/' && url.str[i+2] == '/')
+        {
+            len = i + 3;
+            break;
+        }
         
-        Assert(0); // no firefox icons for now
-        return nullptr;
-    }
-    
-    if (is_exe(id))
-    {
-        Assert(database->app_names.count(id) > 0);
-        App_Info &program_info = database->app_names[id];
-        if (program_info.icon_index == -1)
+        if (!(is_upper(c) || is_lower(c) || c == '+' || c == '-' || c == '.'))
         {
-            Assert(program_info.long_name.length > 0);
-            Bitmap bitmap;
-            bool success = platform_get_icon_from_executable(program_info.long_name.str, ICON_SIZE, 
-                                                             &bitmap.width, &bitmap.height, &bitmap.pitch, &bitmap.pixels);
-            if (success)
-            {
-                // TODO: Maybe mark old paths that couldn't get correct icon for deletion.
-                program_info.icon_index = load_icon_and_add_to_database(database, bitmap);
-                return database->icons + program_info.icon_index;
-            }
-        }
-        else
-        {
-            Icon_Asset *icon = database->icons + program_info.icon_index;
-            Assert(icon->texture_handle != 0);
-            return icon;
+            // non_valid scheme string character
+            break;
         }
     }
     
-    // Use default OS icon for application
-    Icon_Asset *default_icon = database->icons + database->default_icon_index;
-    Assert(default_icon->texture_handle != 0);
-    return default_icon;
+    return len;
 }
 
 String
 extract_domain_name(String url)
 {
+    // Other good reference: https://github.com/curl/curl/blob/master/lib/urlapi.c
+    
     // From wikipedia: (where [component] means optional)
     
     // URI       = scheme:[//authority]path[?query][#fragment]
@@ -456,58 +411,44 @@ extract_domain_name(String url)
     
     // NOTE: URL could just be gibberish (page wan't loaded and user was just typing in url bar)
     
-    // Skip over scheme
-    s32 colon = search_for_char(url, 0, ':');
-    if (colon != -1)
+    // path slash after host can also be omitted and instead end in query '?' like  http://www.url.com?id=2380
+    // This is not valid but may occur and seems to be accepted by broswer
+    
+    // Browsers also accept multiple slashes where there should be one in path
+    
+    // If this finds a port number or username password or something, when there is no http://, then it just wont satisfy other double-slash condition.
+    
+    // We don't handle weird urls very well, or file:// 
+    size_t start = scheme_length(url);
+    
+    // Look for end of host
+    s32 slash_end = search_for_char(url, start, '/');
+    s32 question_mark_end = search_for_char(url, start, '?');
+    if (slash_end == -1) slash_end = url.length;
+    if (question_mark_end == -1) question_mark_end = url.length;
+    
+    s32 end = std::min(slash_end, question_mark_end) - 1; // -1 to get last char of url or one before / or ?
+    
+    String authority = substr_range(url, start, end);
+    if (authority.length > 0)
     {
-        if (colon + 3 < url.length) // need at least 3 characters after colon for host (//c) where c is the domain
+        // If authority has a '@' (or ':') it has a userinfo (or port) before (or after) it
+        
+        // userinfo followed by at symbol
+        s32 host_start = 0;
+        s32 at_symbol = search_for_char(authority, host_start, '@');
+        if (at_symbol != -1) host_start = at_symbol + 1;
+        
+        // port preceded by colon
+        s32 host_end = authority.length - 1;
+        s32 port_colon = search_for_char(authority, host_start, ':');
+        if (port_colon != -1) host_end = port_colon - 1;
+        
+        if (host_end - host_start >= 1)
         {
-            // Expecting 2 slashes or URL doesn't have an authority component
-            s32 at = colon + 1;
-            if (url.str[at] == '/' && url.str[at+1] == '/')
-            {
-                at += 2;
-                
-                // Get rest of authority, either until path slash (/) or end of string
-                s32 authority_end = search_for_char(url, at, '/');
-                if (authority_end == -1)
-                {
-                    authority_end = url.length-1;
-                }
-                else
-                {
-                    authority_end -= 1;
-                }
-                
-                String authority = substr_range(url, at, authority_end);
-                if (authority.length > 0)
-                {
-                    // If authority has a '@' (or ':') it has a userinfo (or port) before (or after) it
-                    
-                    // userinfo followed by at symbol
-                    s32 host_start = 0;
-                    s32 at_symbol = search_for_char(authority, host_start, '@');
-                    if (at_symbol != -1) host_start = at_symbol + 1;
-                    
-                    // port preceded by colon
-                    s32 host_end = authority.length - 1;
-                    s32 port_colon = search_for_char(authority, host_start, ':');
-                    if (port_colon != -1) host_end = port_colon - 1;
-                    
-                    if (host_end - host_start >= 1)
-                    {
-                        // Characters of host not checked (doesn't matter because if doesn't match keyword it won't be recorded anyway)
-                        return substr_range(authority, host_start, host_end);
-                    }
-                }
-            }
+            // Characters of host not checked (doesn't matter because if doesn't match keyword it won't be recorded anyway)
+            return substr_range(authority, host_start, host_end);
         }
-    }
-    else
-    {
-        // Maybe url just doesn't have protocol component
-        // See if it is common where browsers shorten url?
-        Assert(0);
     }
     
     String result;
@@ -519,134 +460,240 @@ extract_domain_name(String url)
 }
 
 App_Id
+get_id_and_add_if_new(Database *database, String key, String full_name, Id_Type id_type)
+{
+    Assert(id_type == Id_LocalProgram || id_type == Id_Website);
+    
+    std::unordered_map<String, App_Id> &table = 
+        (id_type == Id_LocalProgram) ? database->local_programs : database->domain_names;
+    
+    App_Id result = Id_Invalid;
+    
+    if (table.count(key) == 0)
+    {
+        App_Id new_id = make_id(database, id_type);
+        
+        App_Info app_info;
+        app_info.short_name = copy_alloc_string(key);
+        app_info.full_name = copy_alloc_string(full_name);
+        app_info.icon_index = -1;
+        
+        database->app_names.insert({new_id, app_info});
+        
+        String key_copy = copy_alloc_string(key);
+        table.insert({key_copy, new_id});
+        
+        result = new_id;
+    }
+    else
+    {
+        result = table[key];
+        Assert(database->app_names.count(result) > 0);
+    }
+    
+    return result;
+}
+
+#if 0
+App_Id
+get_id_and_add_if_new(Database *database, String key, String full_name, Id_Type id_type)
+{
+    // TODO: Make hash tables have their own arena for strings maybe, and make short_name point into full_name for locals and for website just alloc short_name. because imgui can take length string, not null terminated
+    
+    // TODO: Could just alloc 1 megabyte + sizeof strings in file at startup, and do a realloc + fixing all the pointers if we need a rare resize
+    
+    // or could store indexes (only difference is that the mov instruction just has to add offset into its index, after loading offset into a register), so no real difference.
+    
+    // TODO: String of shortname can point into string of full_name for paths
+    
+    // if using custom hash table impl can use open addressing, and since nothing is ever deleted don't need a occupancy flag or whatever can just use id == 0 or string == null to denote empty.
+    
+    Assert(id_type == Id_LocalProgram || id_type == Id_Website);
+    
+    std::unordered_map<String, App_Id> &table = 
+        (id_type == Id_LocalProgram) ? database->local_programs : database->domain_names;
+    
+    App_Id result = Id_Invalid;
+    
+    if (table.count(key) == 0)
+    {
+        App_Id new_id = make_id(database, id_type);
+        
+        String key_copy = push_string(&database->names_arena, key);
+        
+        App_Info app_info;
+        app_info.short_name = key_copy;
+        app_info.icon_index = -1;
+        
+#if MONITOR_DEBUG
+        app_info.full_name = push_string(&database->names_arena, full_name); 
+#else
+        if (id_type == Id_LocalProgram)
+        {
+            app_info.full_name = push_string(&database->names_arena, full_name); 
+        }
+        else
+        {
+            app_info.full_name = String{" ", 0, 0};
+        }
+#endif
+        
+        database->app_names.insert({new_id, app_info});
+        
+        // Shares string with app_info struct
+        table.insert({key_copy, new_id});
+        
+        result = new_id;
+    }
+    else
+    {
+        result = table[key];
+        Assert(database->app_names.count(result) > 0);
+    }
+    
+    return result;
+}
+#endif
+#if 0
+// Bad with unordered map, and quite complex too...
+bool
+resize_database_names_arena(Database *database)
+{
+    size_t new_size = database->names_arena.size + Kilobytes(50);
+    char *new_buffer = (char *)malloc(new_size);
+    if (new_buffer == nullptr) return false;
+    
+    Arena new_arena;
+    init_arena(&new_arena, new_buffer, new_size);
+    
+    char *old_arena_base_ptr = database->names_arena.buffer;
+    char *new_arena_base_ptr = new_arena.buffer;
+    
+    String ab = {};
+    String c = ab;
+    {
+        //std::unordered_map<String, App_Id>::iterator it = database->local_programs.begin();
+        //while (it != database->local_programs.end())
+        //for(std::unordered_map<String, App_Id>::iterator iter = database->local_programs.begin(); iter != database->local_programs.end(); ++iter)
+        
+        for (std::pair<String, App_Id> &pair : database->local_programs)
+        {
+            String s = pair.first;
+            
+            ptrdiff_t offset = s.str - old_arena_base_ptr;
+            assert(offset >= 0);
+            
+            s.str = new_arena_base_ptr + offset;
+            pair.first = s;
+        }
+    }
+    {
+        auto it = database->domain_names.begin();
+        while (it != database->domain_names.end())
+        {
+            ptrdiff_t offset = it->first.str - old_arena_base_ptr;
+            assert(offset >= 0);
+            
+            it->first.str = new_arena_base_ptr + offset;
+            ++it;
+        }
+    }
+    {
+        auto it = database->local_programs.begin();
+        while (it != database->app_names.end())
+        {
+            ptrdiff_t offset = it->second.short_name.str - old_arena_base_ptr;
+            assert(offset >= 0);
+            
+            it->second.short_name.str = new_arena_base_ptr + offset;
+            if (is_local_program(it->first))
+            {
+                offset = it->second.full_name.str - old_arena_base_ptr;
+                assert(offset >= 0);
+                
+                it->second.full_name.str = new_arena_base_ptr + offset;
+            }
+            
+            ++it;
+        }
+    }
+}
+#endif
+
+App_Id
 poll_windows(Database *database, Settings *settings)
 {
+    
     ZoneScoped;
     
-    // TODO: Probably should just make everything a null terminated String as imgui, windows, curl all want null terminated
-    App_Id record_id = Record_Invalid;
-    
-    char buf[2000];
+    char buf[PLATFORM_MAX_PATH_LEN];
     size_t len = 0;
     
     Platform_Window window = platform_get_active_window();
-    if (!window.is_valid) return 0;
+    if (!window.is_valid) 
+        return Id_Invalid;
     
     // If this failed it might be a desktop or other things like alt-tab screen or something
     bool got_path = platform_get_program_from_window(window, buf, &len);
-    if (!got_path) return 0;
+    if (!got_path) 
+        return Id_Invalid;
     
     String full_path = make_string_size_cap(buf, len, array_count(buf));
     String program_name = get_filename_from_path(full_path);
-    if (program_name.length == 0) return 0;
+    if (program_name.length == 0) 
+        return Id_Invalid;
     
     remove_extension(&program_name);
-    if (program_name.length == 0) return 0;
+    if (program_name.length == 0) 
+        return Id_Invalid;
     
     // string_to_lower(&program_name);
     
     bool program_is_firefox = string_equals(program_name, "firefox");
-    bool add_to_executables = true;
-    
     if (program_is_firefox)
     {
-        // Get url
-        // match against keywords
-        // add to website if match, else add to programs as 'firefox' program
-        
         // TODO: Maybe cache last url to quickly get record without comparing with keywords, retrieving record etc
         // We wan't to detect, incomplete urls and people just typing garbage into url bar, but
-        // urls can validly have no www. or https:// and still be valid.
-        char url_buf[2000];
+        char url_buf[PLATFORM_MAX_URL_LEN];
         size_t url_len = 0;
-        
-        // If any of this stuff fails we just add duration as firefox exe
-        bool got_url = platform_get_firefox_url(window, url_buf, array_count(url_buf), &url_len);
-        if (got_url)
+        if (platform_get_firefox_url(window, url_buf, &url_len))
         {
-            String url = make_string_size_cap(url_buf, url_len, array_count(url_buf));
+            String url = make_string(url_buf, url_len);
             if (url.length > 0)
             {
                 String domain_name = extract_domain_name(url);
-                
-                String *keyword = search_string_for_keywords(domain_name, settings->keywords);
-                if (keyword)
+                if (domain_name.length > 0)
                 {
-                    if (database->domains.count(domain_name) == 0)
+#if MONITOR_DEBUG
+                    // match will all urls we can get a domain from
+                    return get_id_and_add_if_new(database, domain_name, url, Id_Website);
+#else
+                    if (string_matches_keyword(domain_name, settings->keywords))
                     {
-                        // TODO: almost exact same as local programs insert 
-                        
-                        App_Id new_id = make_id(database, Record_Firefox);
-                        
-                        App_Info names;
-                        names.long_name = copy_alloc_string(url);// just for debugging
-                        names.short_name = copy_alloc_string(domain_name); 
-                        names.icon_index = -1;
-                        
-                        database->app_names.insert({new_id, names});
-                        
-                        // These don't share the same strings for now
-                        String name_2 = copy_alloc_string(domain_name);
-                        database->domains.insert({name_2, new_id});
-                        
-                        record_id = new_id;
+                        return get_id_and_add_if_new(database, domain_name, url, Id_Website);
                     }
-                    else
-                    {
-                        record_id = database->domains[domain_name];
-                        Assert(database->app_names.count(record_id) > 0);
-                    }
-                    
-                    // If this url had a keyword then was removed, may be listed in day's records twice with different ids
-                    add_to_executables = false;
+#endif
                 }
             }
         }
     }
     
-    
-    if (add_to_executables)
-    {
-        if (database->local_programs.count(program_name) == 0)
-        {
-            App_Id new_id = make_id(database, Record_Exe);
-            
-            App_Info names;
-            names.long_name = copy_alloc_string(full_path);
-            names.short_name = copy_alloc_string(program_name);
-            names.icon_index = -1;
-            
-            database->app_names.insert({new_id, names});
-            
-            // These don't share the same strings for now
-            String name_2 = copy_alloc_string(program_name);
-            database->local_programs.insert({name_2, new_id});
-            
-            record_id = new_id;
-        }
-        else
-        {
-            record_id = database->local_programs[program_name];
-            Assert(database->app_names.count(record_id) > 0);
-        }
-    }
-    
-    return record_id;
+    // If program wasn't a browser, or it was a browser but the url didn't match any keywords, get browser's program id
+    return get_id_and_add_if_new(database, program_name, full_path, Id_LocalProgram);
 }
 
 void
-update(Monitor_State *state, SDL_Window *window, time_type dt, u32 window_status)
+update(Monitor_State *state, SDL_Window *window, time_type dt_microseconds, u32 window_status)
 {
     ZoneScoped;
     
-    date::sys_days current_date = get_localtime(); // + date::days{state->extra_days};;
+    date::sys_days current_date = get_localtime();
     if (!state->is_initialised)
     {
         //remove(global_savefile_path);
         //remove(global_debug_savefile_path);
         
         *state = {};
-        state->header = {};
         
         init_database(&state->database, current_date);
         
@@ -659,23 +706,22 @@ update(Monitor_State *state, SDL_Window *window, time_type dt, u32 window_status
         
         state->settings.misc_options = options;
         
+        char *buffer = (char *)malloc(MAX_KEYWORD_COUNT * MAX_KEYWORD_SIZE);
+        Assert(buffer);
+        init_arena(&state->keyword_arena, buffer, MAX_KEYWORD_COUNT * MAX_KEYWORD_SIZE);
+        
         // Keywords must be null terminated when given to platform gui
-        add_keyword(state->settings.keywords, "CITS3003");
-        add_keyword(state->settings.keywords, "youtube");
-        add_keyword(state->settings.keywords, "docs.microsoft");
-        add_keyword(state->settings.keywords, "google");
-        add_keyword(state->settings.keywords, "github");
-        
-        // maybe allow comma seperated keywords
-        // https://www.hero.com/specials/hi&=yes
-        // hero, specials
-        
+        state->settings.keywords;
+        add_keyword(&state->keyword_arena, state->settings.keywords, "CITS3003");
+        add_keyword(&state->keyword_arena, state->settings.keywords, "youtube");
+        add_keyword(&state->keyword_arena, state->settings.keywords, "docs.microsoft");
+        add_keyword(&state->keyword_arena, state->settings.keywords, "google");
+        add_keyword(&state->keyword_arena, state->settings.keywords, "github");
         
         
         state->accumulated_time = 0;
         state->total_runtime = 0;
         state->startup_time = win32_get_time();
-        
         
         // UI initialisation
         
@@ -689,6 +735,7 @@ update(Monitor_State *state, SDL_Window *window, time_type dt, u32 window_status
 #else
         // DEBUG: Default to monthly
         auto ymd = date::year_month_day{current_date};
+        picker.range_type = Range_Type_Monthly;
         picker.start = date::sys_days{ymd.year()/ymd.month()/1};
         picker.end   = date::sys_days{ymd.year()/ymd.month()/date::last};
 #endif
@@ -724,9 +771,9 @@ update(Monitor_State *state, SDL_Window *window, time_type dt, u32 window_status
     // Also true if on a browser and the tab changed
     // platform_get_changed_window();
     
-    state->accumulated_time += dt;
-    state->total_runtime += dt;
-    time_type poll_window_freq = 10000;
+    state->accumulated_time += dt_microseconds;
+    state->total_runtime += dt_microseconds;
+    time_type poll_window_freq = 100000;
     if (state->accumulated_time >= poll_window_freq)
     {
         App_Id id = poll_windows(database, &state->settings);
@@ -751,7 +798,7 @@ update(Monitor_State *state, SDL_Window *window, time_type dt, u32 window_status
     
     if (window_status & Window_Visible)
     {
-        draw_ui_and_update(window, state, database, current_date, &day_view);
+        draw_ui_and_update(window, state, database, &day_view);
     }
     
     free_day_view(&day_view);

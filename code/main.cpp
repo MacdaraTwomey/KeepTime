@@ -37,15 +37,10 @@
 #include "tracy.hpp"
 #include "../tracy/TracyClient.cpp"
 
-// temporarily used by monitor
-static s64 global_performance_frequency; // win32
-
 #include "utilities.cpp" // xalloc, string copy, concat string, make filepath, get_filename_from_path
 #include "bitmap.cpp"
 #include "win32_monitor.cpp" // needs bitmap functions
 #include "monitor.cpp"
-
-#define CONSOLE_ON 0
 
 static char *global_savefile_path;
 static char *global_debug_savefile_path;
@@ -429,10 +424,4 @@ int main(int argc, char* argv[])
     SDL_Quit();
     
     return 0;
-}
-
-void swap_win_profiled(SDL_Window *window)
-{
-    //OPTICK_EVENT();
-    SDL_GL_SwapWindow(window);
 }

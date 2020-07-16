@@ -121,6 +121,7 @@
     <ClInclude Include="..\code\helper.h" />
     <ClInclude Include="..\code\icon.h" />
     <ClInclude Include="..\code\monitor.h" />
+    <ClInclude Include="..\code\monitor_string.h" />
     <ClInclude Include="..\code\resource.h" />
     <ClInclude Include="..\code\stb_image.h" />
     <ClInclude Include="..\code\stb_truetype.h" />

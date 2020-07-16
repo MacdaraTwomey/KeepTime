@@ -11,8 +11,9 @@
 
 :: ..\imgui\imgui_demo.cpp just for Imgui::showDemoWindow()
 
-SET DefineFlags=-DMONITOR_DEBUG -DRECORD_ALL_ACTIVE_WINDOWS 
+SET DefineFlags=-DMONITOR_DEBUG
 :: -DTRACY_ENABLE
+:: -DRECORD_ALL_ACTIVE_WINDOWS 
 
 set LinkedLibraries=..\SDL2\SDL2.lib ..\SDL2\SDL2main.lib ..\GLEW21\glew32.lib ..\freetype\freetype.lib opengl32.lib user32.lib shell32.lib Gdi32.lib Comctl32.lib ..\curl_7.69.1\x64_debug_dll_MDd\libcurl_debug.lib
 

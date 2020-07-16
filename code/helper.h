@@ -3,6 +3,39 @@
 
 #include <type_traits>
 
+
+struct Arena
+{
+    // Just for strings so un-aligned
+    size_t size;
+    size_t offset;
+    char *buffer;
+};
+
+template<typename T, size_t N>
+struct Array
+{
+    T data[N];
+    size_t count;
+    
+    Array() { count = 0; }
+    
+    void add_item(T item) {
+        //Assert(count < N);
+        data[count] = item;
+        count += 1;
+    }
+    
+    void clear() { count = 0; }
+    
+    T &operator[](size_t index)
+    {
+        Assert(index >= 0 && index < count);
+        return data[index];
+    }
+};
+
+
 // Need to declare these, so hash and equals specialisations can see them
 unsigned long djb2(unsigned char *str);
 unsigned long djb2(unsigned char *str, size_t len);

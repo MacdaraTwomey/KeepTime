@@ -22,6 +22,9 @@ struct Win32_Context
     HWND hwnd;
     // HINSTANCE instance = info.info.win.hinstance;
     
+    HWND desktop_window;
+    HWND shell_window;
+    
 #if 0
     HWINEVENTHOOK window_changed_hook;
     HWINEVENTHOOK browser_title_changed_hook;
@@ -125,6 +128,10 @@ init_win32_context(HWND hwnd)
     
     QueryPerformanceFrequency(&win32_context.performance_frequency);
     
+    // If these are null make sure platform_get_active_window doesn't compare a null window with these null windows
+    win32_context.desktop_window = GetDesktopWindow();
+    win32_context.shell_window = GetShellWindow();
+    
 #if 0    
     // Out of context hooks are asynchronous, but events are guaranteed to be in sequential order
     // TODO: Might want WINEVENT_SKIPOWNPROCESS
@@ -221,7 +228,6 @@ void
 win32_free_context()
 {
     Shell_NotifyIconA(NIM_DELETE, &win32_context.nid);
-    //FreeConsole();
     
 #if 0    
     if (win32_context.window_changed_hook) UnhookWinEvent(win32_context.window_changed_hook);
@@ -305,7 +311,6 @@ opengl_create_texture(Database *database, Bitmap bitmap)
     return image_texture;
 }
 
-
 HANDLE
 win32_create_console()
 {
@@ -378,9 +383,9 @@ platform_get_active_window()
     HWND foreground_win = GetForegroundWindow();
     Platform_Window window = {};
     window.handle = foreground_win;
-    window.is_valid = (foreground_win != 0);
+    //window.is_valid = (foreground_win != 0 && foreground_win != win32_context.desktop_window && foreground_win != win32_context.shell_window);
+    window.is_valid = (foreground_win != 0); // TODO: For now we say desktop and shell are valid so we can get their paths, in future make them invalid.
 #endif
-    
     
     return window;
 }
@@ -406,8 +411,26 @@ platform_get_program_from_window(Platform_Window window, char *buf, size_t *leng
     // TODO: check against desktop and shell windows
     // TODO: Return utf8 path
     
-    // On success fills buf will null terminated string, and sets length to string length (not including null terminator)
+    // On success fills buf will contiain null terminated string, and sets length to string length (not including null terminator)
     HWND handle = window.handle;
+    
+    // TODO: Just for debugging
+    if (handle == win32_context.desktop_window)
+    {
+        char *win = "Desktop Window";
+        strcpy(buf, win);
+        *length = strlen(win);
+        return true;
+    }
+    if (handle == win32_context.shell_window)
+    {
+        char *win = "Shell Window";
+        strcpy(buf, win);
+        *length = strlen(win);
+        return true;
+    }
+    
+    
     Process_Ids process_ids = {0, 0};
     GetWindowThreadProcessId(handle, &process_ids.parent);
     process_ids.child = process_ids.parent; // In case it is a normal process
@@ -454,7 +477,8 @@ win32_BSTR_to_utf8(BSTR url, char *buf, int buf_size, size_t *length)
                                                 buf, buf_size, NULL, NULL);
         if (converted_len == len+1)
         {
-            *length = converted_len;
+            // This converted_len includes the null terminator, so subtract 1 from length
+            *length = converted_len - 1;
             result = true;
         }
     }
@@ -584,7 +608,7 @@ bool win32_firefox_get_url_from_element(IUIAutomationElement *element, char *buf
 }
 
 bool
-platform_get_firefox_url(Platform_Window window, char *buf, int buf_size, size_t *length)
+platform_get_firefox_url(Platform_Window window, char *buf, size_t *length)
 {
     // To get the URL of the active tab in Firefox Window:
     // Mozilla firefox window          ControlType: UIA_WindowControlTypeId (0xC370) LocalizedControlType: "window"
@@ -638,7 +662,7 @@ platform_get_firefox_url(Platform_Window window, char *buf, int buf_size, size_t
             {
                 // TODO: Assert that this is onscreen (the current tab)
                 
-                if (win32_firefox_get_url_from_element(document, buf, buf_size, length))
+                if (win32_firefox_get_url_from_element(document, buf, PLATFORM_MAX_URL_LEN, length))
                 {
                     // Don't release element (try to reuse next time)
                     success = true;
@@ -657,7 +681,7 @@ platform_get_firefox_url(Platform_Window window, char *buf, int buf_size, size_t
             }
             if (editbox)
             {
-                if (win32_firefox_get_url_from_element(editbox, buf, buf_size, length))
+                if (win32_firefox_get_url_from_element(editbox, buf, PLATFORM_MAX_URL_LEN, length))
                 {
                     // Don't release element (try to reuse next time)
                     success = true;
@@ -685,7 +709,7 @@ platform_get_firefox_url(Platform_Window window, char *buf, int buf_size, size_t
         
         if (element)
         {
-            if (win32_firefox_get_url_from_element(element, buf, buf_size, length))
+            if (win32_firefox_get_url_from_element(element, buf, PLATFORM_MAX_URL_LEN, length))
             {
                 // Don't release element (try to reuse next time)
                 success = true;

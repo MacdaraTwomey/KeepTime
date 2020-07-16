@@ -1,9 +1,9 @@
 
 // from monitor.cpp
 Icon_Asset * get_icon_asset(Database *database, App_Id id);
-void add_keyword(std::vector<String> &keywords, char *str);
-bool is_exe(u32 id);
-bool is_firefox(u32 id);
+void add_keyword(Arena *arena, Array<String, MAX_KEYWORD_COUNT> &keywords, char *str);
+bool is_local_program(App_Id id);
+bool is_website(App_Id id);
 
 
 const char *
@@ -817,7 +817,7 @@ do_debug_window_button(Database *database, Day_View *day_view)
             {
                 // not sure if definately null terminated
                 ImGui::BulletText("%u: %s   (%s)", pair.first, 
-                                  pair.second.short_name.str, pair.second.long_name.str);
+                                  pair.second.short_name.str, pair.second.full_name.str);
             }
             ImGui::EndChildFrame();
         }
@@ -825,7 +825,7 @@ do_debug_window_button(Database *database, Day_View *day_view)
             ImGui::Text("domains:");
             
             ImGui::BeginChildFrame(41, ImVec2(500, 600));
-            for (auto const &pair : database->domains)
+            for (auto const &pair : database->domain_names)
             {
                 // not sure if definately null terminated
                 ImGui::BulletText("%s: %u", pair.first.str, pair.second);
@@ -1004,10 +1004,9 @@ get_records_in_date_range(Day_View *day_view, u32 *record_count, date::sys_days 
     return result;
 }
 
-// Database only needed for app_names, and generating new settings ids
-// current_date not really needed
-// State needed for calendar and settings structs
-void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *database, date::sys_days current_date, Day_View *day_view)
+// Database only needed for app_names, icons, and debug menu
+// State needed for datepicker and settings
+void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *database, Day_View *day_view)
 {
     ZoneScoped;
     
@@ -1090,8 +1089,8 @@ void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *data
             state->edit_settings->poll_start_time_item = state->settings.misc_options.poll_start_time / 15;
             state->edit_settings->poll_end_time_item = state->settings.misc_options.poll_end_time / 15;
             
-            Assert(state->settings.keywords.size() <= MAX_KEYWORD_COUNT);
-            for (s32 i = 0; i < state->settings.keywords.size(); ++i)
+            Assert(state->settings.keywords.count <= MAX_KEYWORD_COUNT);
+            for (s32 i = 0; i < state->settings.keywords.count; ++i)
             {
                 Assert(state->settings.keywords[i].length + 1 <= MAX_KEYWORD_SIZE);
                 strcpy(state->edit_settings->pending[i], state->settings.keywords[i].str);
@@ -1104,21 +1103,20 @@ void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *data
         
         if (finished)
         {
-            if (!state->edit_settings->update_settings) return;
-            
-            // Empty input boxes are just zeroed array
-            i32 pending_count = remove_duplicate_and_empty_keyword_strings(state->edit_settings->pending);
-            
-            Settings *settings = &state->settings;
-            settings->keywords.clear();
-            settings->keywords.reserve(pending_count);
-            for (int i = 0; i < pending_count; ++i)
+            if (state->edit_settings->update_settings)
             {
-                // pending keywords without an id (id = 0) will be assigned an id when zero passed to add_keyword
-                add_keyword(settings->keywords, state->edit_settings->pending[i]);
+                // Empty input boxes are just zeroed array
+                i32 pending_count = remove_duplicate_and_empty_keyword_strings(state->edit_settings->pending);
+                
+                Settings *settings = &state->settings;
+                settings->keywords.clear();
+                for (int i = 0; i < pending_count; ++i)
+                {
+                    add_keyword(&state->keyword_arena, settings->keywords, state->edit_settings->pending[i]);
+                }
+                
+                settings->misc_options = state->edit_settings->misc_options;
             }
-            
-            settings->misc_options = state->edit_settings->misc_options;
             
             free(state->edit_settings);
         }
@@ -1197,7 +1195,7 @@ void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *data
                 sum_duration += record.duration; // DEBUG
                 
                 Bitmap *bmp = nullptr;
-                if (is_exe(record.id))
+                if (is_local_program(record.id))
                 {
                     // DEBUG:
                     Icon_Asset *icon = 0;
@@ -1216,7 +1214,7 @@ void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *data
                     // Don't need to bind texture before this because imgui binds it before draw call
                     ImGui::Image((ImTextureID)(intptr_t)icon->texture_handle, ImVec2((float)icon->bitmap.width, (float)icon->bitmap.height));
                 }
-                else if (is_firefox(record.id))
+                else if (is_website(record.id))
                 {
                     ImGui::Text(ICON_MD_PUBLIC);
                 }
@@ -1237,13 +1235,16 @@ void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *data
                 // This is a hash table search
                 // DEBUG
                 char *name = "sdfsdf";
+                u32 len = 0;
                 if (record.id == 0)
                 {
                     name = "Not polled time";
+                    len = strlen(name);
                 }
                 else
                 {
                     name = database->app_names[record.id].short_name.str;
+                    len = database->app_names[record.id].short_name.length;
                 }
                 
                 u32 seconds = record.duration / MICROSECS_PER_SEC;
@@ -1253,11 +1254,16 @@ void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *data
                 ImGui::AlignTextToFramePadding();  // TODO: text needs to be slightly further down
                 
                 // TODO: Limit name length
-                ImGui::Text("  %s", name);
+                // TextUnformatted doesn't require null terminator, and avoids memory copy also
+                ImGui::TextUnformatted(name, name + len);
                 
                 ImGui::SameLine();
                 ImGui::SetCursorPosX(ImGui::GetWindowSize().x * 0.90);
                 
+#if MONITOR_DEBUG
+                float real_seconds = (float)record.duration / MICROSECS_PER_SEC;
+                ImGui::Text("%.2fs", real_seconds); 
+#else
                 if (seconds < 60)
                 {
                     ImGui::Text("%us", seconds); 
@@ -1273,6 +1279,7 @@ void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *data
                     ImGui::Text("%uh %um", hours, minutes_remainder); 
                 }
                 
+#endif
                 ImGui::SameLine();
                 ImGui::InvisibleButton("##gradient1", ImVec2(bar_width + 10, bar_height));
             }
