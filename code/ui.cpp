@@ -1,9 +1,10 @@
 
+#include "monitor.h"
+
 // from monitor.cpp
 Icon_Asset * get_icon_asset(Database *database, App_Id id);
 void add_keyword(Arena *arena, Array<String, MAX_KEYWORD_COUNT> &keywords, char *str);
-bool is_local_program(App_Id id);
-bool is_website(App_Id id);
+String get_name_from_id(App_List *apps, App_Id id);
 
 
 const char *
@@ -782,6 +783,8 @@ do_date_select_popup(Date_Picker *date_picker, date::sys_days oldest_date, date:
 void
 do_debug_window_button(Database *database, Day_View *day_view)
 {
+    App_List *apps = &database->apps;
+    
     static bool debug_menu_open = false;
     if (ImGui::Button("Debug"))
     {
@@ -797,38 +800,29 @@ do_debug_window_button(Database *database, Day_View *day_view)
         
         ImGui::SetNextWindowSize(ImVec2(850, 690), true);
         ImGui::Begin("Debug Window", &debug_menu_open, flags);
+        
         {
-            ImGui::Text("local_programs:");
-            ImGui::SameLine(300);
-            ImGui::Text("app_names:");
-            
+            ImGui::Text("short_name : ids in local_program_ids and website_ids");
             ImGui::BeginChildFrame(26, ImVec2(200, 600));
-            for (auto const &pair : database->local_programs)
+            for (auto &pair : apps->local_program_ids)
             {
                 // not sure if definately null terminated
                 ImGui::BulletText("%s: %u", pair.first.str, pair.second);
             }
-            ImGui::EndChildFrame();
-            
-            ImGui::SameLine();
-            
-            ImGui::BeginChildFrame(27, ImVec2(500, 600));
-            for (auto const &pair : database->app_names)
+            for (auto &pair : apps->website_ids)
             {
                 // not sure if definately null terminated
-                ImGui::BulletText("%u: %s   (%s)", pair.first, 
-                                  pair.second.short_name.str, pair.second.full_name.str);
+                ImGui::BulletText("%s: %u", pair.first.str, pair.second);
             }
             ImGui::EndChildFrame();
         }
         {
-            ImGui::Text("domains:");
-            
-            ImGui::BeginChildFrame(41, ImVec2(500, 600));
-            for (auto const &pair : database->domain_names)
+            ImGui::Text("full names in local_programs");
+            ImGui::BeginChildFrame(27, ImVec2(200, 600));
+            for (auto &info : apps->local_programs)
             {
                 // not sure if definately null terminated
-                ImGui::BulletText("%s: %u", pair.first.str, pair.second);
+                ImGui::BulletText("%s", info.full_name);
             }
             ImGui::EndChildFrame();
         }
@@ -872,6 +866,7 @@ do_debug_window_button(Database *database, Day_View *day_view)
             
             ImGui::SameLine();
             
+#if 0
             ImGui::BeginChildFrame(28, ImVec2(300, 600));
             Block *b = day_list->blocks;
             int total_block_count = 0;
@@ -886,6 +881,7 @@ do_debug_window_button(Database *database, Day_View *day_view)
                 total_block_count += 1;
             }
             ImGui::EndChildFrame();
+#endif
         }
         {
             ImGui::Text("Day_View");
@@ -1009,6 +1005,8 @@ get_records_in_date_range(Day_View *day_view, u32 *record_count, date::sys_days 
 void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *database, Day_View *day_view)
 {
     ZoneScoped;
+    
+    App_List *apps = &database->apps;
     
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplSDL2_NewFrame(window);
@@ -1234,28 +1232,32 @@ void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *data
                 
                 // This is a hash table search
                 // DEBUG
-                char *name = "sdfsdf";
-                u32 len = 0;
+                String name = {};
                 if (record.id == 0)
                 {
-                    name = "Not polled time";
-                    len = strlen(name);
+                    name = make_string_from_literal("Not polled time");
                 }
                 else
                 {
-                    name = database->app_names[record.id].short_name.str;
-                    len = database->app_names[record.id].short_name.length;
+                    // returns string with just a space " " if for some reason there is no app with that id
+                    name = get_name_from_id(apps, record.id);
                 }
                 
                 u32 seconds = record.duration / MICROSECS_PER_SEC;
                 
-                // This looks better with text more down on bar
+                
                 //if (i < 5) 
                 ImGui::AlignTextToFramePadding();  // TODO: text needs to be slightly further down
                 
+                ImVec2 pos = ImGui::GetCursorScreenPos();
+                pos.x += 5;
+                // pos.y += 3; // this seems to make lots of space between text lines and can't be undone by subtracting the pixels after the text is written
+                ImGui::SetCursorScreenPos(pos);
+                
                 // TODO: Limit name length
-                // TextUnformatted doesn't require null terminator, and avoids memory copy also
-                ImGui::TextUnformatted(name, name + len);
+                //     TextUnformatted doesn't require null terminator, and avoids memory copy also
+                ImGui::TextUnformatted(name.str, name.str + name.length);
+                
                 
                 ImGui::SameLine();
                 ImGui::SetCursorPosX(ImGui::GetWindowSize().x * 0.90);

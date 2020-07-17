@@ -12,36 +12,61 @@
 // ---------------------------------------------- 
 // Arena
 
-#if 0
-struct Arena
-{
-    // Just for strings so un-aligned
-    size_t size;
-    size_t offset;
-    char *buffer;
-};
-#endif
-
+// Not necessary to call this is arena is 0 initialised then can just start allocating from it
 void
-init_arena(Arena *arena, char *buffer, size_t size)
+init_arena(Arena *arena, size_t size)
 {
-    arena->size = size;
-    arena->offset = 0;
-    arena->buffer = buffer;
+    u64 real_size = size + Kilobytes(10);
+    
+    Assert(real_size > size);
+    
+    Assert(arena->block == nullptr);
+    
+    // TODO: Just abort if malloc fails, not to much we can do, and can restore from savefile
+    Block *block = (Block *)calloc(1, real_size + sizeof(Block));
+    Assert(block);
+    
+    u8 *buffer = (u8 *)(block + 1); // buffer starts after block
+    block->buffer = buffer;
+    block->size = real_size;
+    block->used = 0;
+    block->prev = nullptr;
+    
+    arena->block = block;
 }
 
-char *
+void *
 push_size(Arena *arena, size_t size)
 {
-    if (arena->offset + size > arena->size)
+    // NOTE: No heed paid to alignment, should be file as we only allocate strings and fixed size records in arenas and the initial alignment is on a 16-byte boundary.
+    
+    if (arena->block == nullptr ||
+        arena->block->used + size > arena->block->size)
     {
-        // No expansion of arena for now
-        Assert(0);
-        return nullptr;
+        // Make arena point to a new block in list of blocks
+        u64 real_size = size + Kilobytes(10);
+        
+        Assert(real_size > size);
+        
+        // TODO: Just abort if malloc fails, not to much we can do, and can restore from savefile
+        Block *block = (Block *)calloc(1, real_size + sizeof(Block));
+        Assert(block);
+        
+        u8 *buffer = (u8 *)(block + 1); // buffer starts after block
+        block->buffer = buffer;
+        block->size = real_size;
+        block->used = 0;
+        block->prev = arena->block;
+        
+        arena->block = block;
     }
     
-    char *ptr = arena->buffer + arena->offset;
-    arena->offset += size;
+    Assert(arena->block);
+    Assert(arena->block->used + size <= arena->block->size);
+    
+    void *ptr = arena->block->buffer + arena->block->used;
+    arena->block->used += size;
+    
     return ptr;
 }
 
@@ -51,7 +76,7 @@ push_string(Arena *arena, String string)
     // Passed string doesn't need to be null terminated
     // Returns null terminated string
     
-    char *mem = push_size(arena, string.length+1);
+    char *mem = (char *)push_size(arena, string.length+1);
     memcpy(mem, string.str, string.length);
     mem[string.length] = '\0';
     
@@ -68,7 +93,7 @@ push_string(Arena *arena, char *string)
     // Passed string must be null terminated
     // Returns null terminated string
     size_t len = strlen(string);
-    char *mem = push_size(arena, len+1);
+    char *mem = (char *)push_size(arena, len+1);
     memcpy(mem, string, len+1);
     
     String s;
@@ -81,18 +106,17 @@ push_string(Arena *arena, char *string)
 void
 arena_reset(Arena *arena)
 {
-    arena->offset = 0;
+    // frees all blocks but the first and sets used to 0
+    
+    // Use this for freeing last days records after we get a new day
+    
 }
 
-void
-arena_free(Arena *arena)
-{
-    // Could also say caller must free memory passed to arena
-    arena->size = 0;
-    arena->offset = 0;
-    free(arena->buffer);
-    arena->buffer = nullptr;
-}
+// for record allocator each day do a big alloc and say thats the max number of records for that day
+// it doesn't matter if this is not filled because long term we'll be writing past records to a file
+// and they wont be in memory anyway.
+// Can tune amount of 'extra' if any that the arena gives, because we might not want any extra for records
+// maybe assign variable to arena that says the minmumum allocation size or the amount extra it gives.
 
 // -----------------------------------------------------------
 

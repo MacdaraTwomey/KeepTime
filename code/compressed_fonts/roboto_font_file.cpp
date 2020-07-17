@@ -1,7 +1,7 @@
-// File: 'Roboto-Medium.ttf' (162588 bytes)
+// File: 'build\fonts\Roboto-Medium.ttf' (162588 bytes)
 // Exported using binary_to_compressed_c.cpp
-static const unsigned int MyFont_compressed_size = 115741;
-static const unsigned int MyFont_compressed_data[115744/4] =
+static const unsigned int roboto_font_file_compressed_size = 115741;
+static const unsigned int roboto_font_file_compressed_data[115744/4] =
 {
     0x0000bc57, 0x00000000, 0x1c7b0200, 0x00000400, 0x00010025, 0x82110000, 0x042e0804, 0x50471000, 0xaa7d534f, 0x02008c71, 0x0000a808, 0x53470c59, 
     0x9c4c4255, 0x0200e028, 0x0000b461, 0x534f6819, 0x0ba1322f, 0x0000b6b1, 0x35829801, 0x6d63603c, 0x26407061, 0x00007248, 0x00006c1a, 0x7663c812, 

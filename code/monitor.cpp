@@ -14,21 +14,11 @@
 #include "platform.h"
 
 #include "icon.cpp"    // Deals with win32 icon interface TODO: Move platform dependent parts to win
+#include "file.cpp"
 #include "network.cpp"
 #include "ui.cpp"
 
 #define ICON_SIZE 32
-
-
-bool is_local_program(App_Id id)
-{
-    return !(id & (1 << 31));
-}
-
-bool is_website(App_Id id)
-{
-    return !is_local_program(id);
-}
 
 i32
 load_icon_and_add_to_database(Database *database, Bitmap bitmap)
@@ -49,6 +39,8 @@ load_icon_and_add_to_database(Database *database, Bitmap bitmap)
 Icon_Asset *
 get_icon_asset(Database *database, App_Id id)
 {
+    App_List *apps = &database->apps;
+    
     if (is_website(id))
     {
         // We should use font id, when no website icon
@@ -60,24 +52,28 @@ get_icon_asset(Database *database, App_Id id)
     
     if (is_local_program(id))
     {
-        Assert(database->app_names.count(id) > 0);
-        App_Info &program_info = database->app_names[id];
-        if (program_info.icon_index == -1)
+        u32 name_index = index_from_id(id);
+        
+        Assert(name_index < apps->local_programs.size());
+        Assert(apps->local_programs.size() > 0);
+        
+        Local_Program_Info &info = apps->local_programs[name_index];
+        if (info.icon_index == -1)
         {
-            Assert(program_info.full_name.length > 0);
+            Assert(info.full_name.length > 0);
             Bitmap bitmap;
-            bool success = platform_get_icon_from_executable(program_info.full_name.str, ICON_SIZE, 
+            bool success = platform_get_icon_from_executable(info.full_name.str, ICON_SIZE, 
                                                              &bitmap.width, &bitmap.height, &bitmap.pitch, &bitmap.pixels);
             if (success)
             {
                 // TODO: Maybe mark old paths that couldn't get correct icon for deletion.
-                program_info.icon_index = load_icon_and_add_to_database(database, bitmap);
-                return database->icons + program_info.icon_index;
+                info.icon_index = load_icon_and_add_to_database(database, bitmap);
+                return database->icons + info.icon_index;
             }
         }
         else
         {
-            Icon_Asset *icon = database->icons + program_info.icon_index;
+            Icon_Asset *icon = database->icons + info.icon_index;
             Assert(icon->texture_handle != 0);
             return icon;
         }
@@ -89,14 +85,66 @@ get_icon_asset(Database *database, App_Id id)
     return default_icon;
 }
 
-Block *
-new_block(Block *head)
+
+date::sys_days
+get_local_time_day()
 {
-    Block *block = (Block *)calloc(1, BLOCK_SIZE);
-    block->next = head;
-    block->count = 0;
-    block->full = false;
-    return block;
+    time_t rawtime;
+    time( &rawtime );
+    
+    struct tm *info;
+    // tm_mday;        /* day of the month, range 1 to 31  */
+    // tm_mon;         /* month, range 0 to 11             */
+    // tm_year;        /* The number of years since 1900   */
+    // tm_hour; hours since midnight    0-23
+    // tm_min; minutes after the hour   0-59
+    // tm_sec; seconds after the minute 0-61* (*generally 0-59 extra range to accomodate leap secs in some systems)
+    // tm_isdst; Daylight Saving Time flag 
+    /* is greater than zero if Daylight Saving Time is in effect, zero if Daylight Saving Time is not in effect, and less than zero if the information is not available. */
+    
+    info = localtime( &rawtime );
+    auto now = date::sys_days{date::month{(unsigned)(info->tm_mon + 1)}/date::day{(unsigned)info->tm_mday}/date::year{info->tm_year + 1900}};
+    
+    //auto test_date = std::floor<date::local_days>()};
+    //Assert(using local_days    = local_time<days>;
+    return now;
+}
+
+time_type
+microseconds_until_tomorrow()
+{
+    time_t rawtime;
+    time( &rawtime );
+    
+    struct tm *info;
+    info = localtime( &rawtime );
+    
+    // 23 * 3600 + 59 * 60 + 59 = 86399 (last second of the day)
+    s64 second_of_day = info->tm_hour * 3600 + info->tm_min * 60 + info->tm_sec;
+    s64 seconds_left_in_day = (86400 - 1) - second_of_day;
+    time_type microseconds_left_in_day = seconds_left_in_day * MICROSECS_PER_SEC;
+    
+    // returns 0 for last second of the day
+    return microseconds_left_in_day;
+}
+
+date::sys_days
+get_current_date(Monitor_State *state, time_type dt_microseconds)
+{
+    date::sys_days result = state->current_date;
+    
+    state->microseconds_until_next_day -= dt_microseconds;
+    if (state->microseconds_until_next_day < 0)
+    {
+        state->microseconds_until_next_day = microseconds_until_tomorrow();
+        state->current_date = get_local_time_day();
+        
+        Assert(state->current_date != result);
+        
+        result = state->current_date;
+    }
+    
+    return result;
 }
 
 void
@@ -106,19 +154,11 @@ start_new_day(Day_List *day_list, date::sys_days date)
     Day new_day = {};
     new_day.record_count = 0;
     new_day.date = date;
-    
-    if (day_list->blocks->count == BLOCK_MAX_RECORDS)
-    {
-        day_list->blocks = new_block(day_list->blocks);
-        new_day.records = day_list->blocks->records;
-    }
-    else
-    {
-        new_day.records = &day_list->blocks->records[day_list->blocks->count];
-    }
+    new_day.records = (Record *)push_size(&day_list->arena, MAX_DAILY_RECORDS * sizeof(Record));
     
     day_list->days.push_back(new_day);
 }
+
 
 void
 add_or_update_record(Day_List *day_list, App_Id id, time_type dt)
@@ -133,34 +173,24 @@ add_or_update_record(Day_List *day_list, App_Id id, time_type dt)
 	{
 		if (id == cur_day->records[i].id)
 		{
+            // Existing id today
 			cur_day->records[i].duration += dt;
 			return;
 		}
 	}
     
-    // Add a new record 
-    // If no room in current block and move days from one block to a new block (keeping them sequential)
-    if (day_list->blocks->count + 1 > BLOCK_MAX_RECORDS)
+    if (cur_day->record_count < MAX_DAILY_RECORDS)
     {
-        Record *day_start_in_old_block = cur_day->records;
         
-        // Update old block
-        day_list->blocks->count -= cur_day->record_count;
-        day_list->blocks->full = true;
-        
-        day_list->blocks = new_block(day_list->blocks);
-        day_list->blocks->count += cur_day->record_count;
-        
-        // Copy old and a new records to new block
-        cur_day->records = day_list->blocks->records;
-        memcpy(cur_day->records, day_start_in_old_block, cur_day->record_count * sizeof(Record));
-        cur_day->records += cur_day->record_count;
+        // Add new record to block
+        cur_day->records[cur_day->record_count] = Record{ id, dt };
+        cur_day->record_count += 1;
     }
-    
-    // Add new record to block
-    cur_day->records[cur_day->record_count] = Record{ id, dt };
-    cur_day->record_count += 1;
-    day_list->blocks->count += 1;
+    else
+    {
+        // TODO: in release we will just not add record if above daily limit (which is extremely high)
+        Assert(0);
+    }
 }
 
 Day_View
@@ -185,7 +215,6 @@ get_day_view(Day_List *day_list)
     return day_view;
 }
 
-
 void
 free_day_view(Day_View *day_view)
 {
@@ -198,21 +227,22 @@ free_day_view(Day_View *day_view)
     *day_view = {};
 }
 
-u32 make_id(Database *database, Id_Type type)
+App_Id 
+make_id(App_List *apps, Id_Type type)
 {
     Assert(type != Id_Invalid);
-    u32 id = 0;
+    App_Id id = 0;
     
     if (type == Id_LocalProgram)
     {
         // No high bit set
-        id = database->next_program_id;
-        database->next_program_id += 1;
+        id = apps->next_program_id;
+        apps->next_program_id += 1;
     }
     else if (type == Id_Website)
     {
-        id = database->next_website_id;
-        database->next_website_id += 1;
+        id = apps->next_website_id;
+        apps->next_website_id += 1;
     }
     
     Assert(is_local_program(id) || is_website(id));
@@ -221,7 +251,88 @@ u32 make_id(Database *database, Id_Type type)
 }
 
 void
-debug_add_records(Database *database, Day_List *day_list, date::sys_days cur_date)
+add_new_local_program(App_List *apps, String short_name, String full_name)
+{
+    Local_Program_Info info;
+    info.full_name = push_string(&apps->names_arena, full_name); 
+    info.short_name = push_string(&apps->names_arena, short_name); // string intern this from fullname
+    info.icon_index = -1;
+    
+    apps->local_programs.push_back(info);
+}
+
+void
+add_new_website(App_List *apps, String short_name)
+{
+    Website_Info info;
+    info.short_name = push_string(&apps->names_arena, short_name); 
+    info.icon_index = -1;
+    
+    apps->websites.push_back(info);
+}
+
+App_Id
+get_id_and_add_if_new(App_List *apps, String short_name, String full_name, Id_Type id_type)
+{
+    // TODO: String of shortname can point into string of full_name for paths
+    // imgui can use non null terminated strings so interning a string is fine
+    
+    // if using custom hash table impl can use open addressing, and since nothing is ever deleted don't need a occupancy flag or whatever can just use id == 0 or string == null to denote empty.
+    
+    Assert(id_type == Id_LocalProgram || id_type == Id_Website);
+    
+    auto &ids = (id_type == Id_LocalProgram) ? apps->local_program_ids : apps->website_ids;
+    
+    App_Id result = Id_Invalid;
+    
+    if (ids.count(short_name) == 0)
+    {
+        App_Id new_id = make_id(apps, id_type);
+        
+        if (id_type == Id_LocalProgram) 
+            add_new_local_program(apps, short_name, full_name);
+        else 
+            add_new_website(apps, short_name);
+        
+        // TODO: Make this share short_name given to above functions
+        String key_copy = push_string(&apps->names_arena, short_name);
+        ids.insert({key_copy, new_id});
+        
+        result = new_id;
+    }
+    else
+    {
+        // if for some reason this is not here this should return 
+        result = ids[short_name];
+    }
+    
+    return result;
+}
+
+String 
+get_name_from_id(App_List *apps, App_Id id)
+{
+    String result;
+    
+    u32 index = index_from_id(id);
+    if (is_local_program(id))
+    {
+        result = apps->local_programs[index].short_name;
+    }
+    else if (is_website(id))
+    {
+        result = apps->websites[index].short_name;
+    }
+    else
+    {
+        result = make_string_from_literal(" ");
+    }
+    
+    return result;
+}
+
+void
+debug_add_records(App_List *apps, Day_List *day_list, date::sys_days cur_date)
 {
     static char *names[] = {
         "C:\\Program Files\\Krita (x64)\\bin\\krita.exe",
@@ -273,13 +384,7 @@ debug_add_records(Database *database, Day_List *day_list, date::sys_days cur_dat
             remove_extension(&program_name);
             Assert(program_name.length != 0);
             
-            // string_to_lower(&program_name);
-            
-            // forward declare
-            App_Id get_id_and_add_if_new(Database *database, String key, String full_name, Id_Type id_type);
-            
-            
-            App_Id record_id = get_id_and_add_if_new(database, program_name, full_path, Id_LocalProgram);
+            App_Id record_id = get_id_and_add_if_new(apps, program_name, full_path, Id_LocalProgram);
             add_or_update_record(day_list, record_id, dt_microsecs);
         }
     }
@@ -288,25 +393,30 @@ debug_add_records(Database *database, Day_List *day_list, date::sys_days cur_dat
 void init_database(Database *database, date::sys_days current_date)
 {
     *database = {};
-    database->local_programs = std::unordered_map<String, App_Id>(30);
-    database->domain_names = std::unordered_map<String, App_Id>(30);
-    database->app_names = std::unordered_map<App_Id, App_Info>(80);
     
-    size_t size = Kilobytes(50);
-    char *buffer = (char *)malloc(size);
-    Assert(buffer);
-    init_arena(&database->names_arena, buffer, size);
+    App_List *apps = &database->apps;
+    apps->local_program_ids = std::unordered_map<String, App_Id>(30);
+    apps->website_ids = std::unordered_map<String, App_Id>(30);
     
-    database->next_program_id = 1;
-    database->next_website_id = 1 << 31;
+    apps->local_programs.reserve(30);
+    apps->websites.reserve(30);
     
-    database->day_list = {};
-    database->day_list.blocks = new_block(nullptr);
+    apps->next_program_id = 1;
+    apps->next_website_id = 1 << 31;
+    
+    size_t size = Kilobytes(30);
+    init_arena(&apps->names_arena, size);
+    
+    
+    Day_List *day_list = &database->day_list;
+    
+    // not needed just does the allocation here rather than during firsts push_size
+    init_arena(&day_list->arena, Kilobytes(10));
     
     // add fake days before current_date
-    debug_add_records(database, &database->day_list, current_date);
+    debug_add_records(apps, day_list, current_date);
     
-    start_new_day(&database->day_list, current_date);
+    start_new_day(day_list, current_date);
     
 #if 0
     for (int i = 0; i < array_count(state->database.ms_icons); ++i)
@@ -460,171 +570,11 @@ extract_domain_name(String url)
 }
 
 App_Id
-get_id_and_add_if_new(Database *database, String key, String full_name, Id_Type id_type)
+poll_windows(App_List *apps, Settings *settings)
 {
-    Assert(id_type == Id_LocalProgram || id_type == Id_Website);
-    
-    std::unordered_map<String, App_Id> &table = 
-        (id_type == Id_LocalProgram) ? database->local_programs : database->domain_names;
-    
-    App_Id result = Id_Invalid;
-    
-    if (table.count(key) == 0)
-    {
-        App_Id new_id = make_id(database, id_type);
-        
-        App_Info app_info;
-        app_info.short_name = copy_alloc_string(key);
-        app_info.full_name = copy_alloc_string(full_name);
-        app_info.icon_index = -1;
-        
-        database->app_names.insert({new_id, app_info});
-        
-        String key_copy = copy_alloc_string(key);
-        table.insert({key_copy, new_id});
-        
-        result = new_id;
-    }
-    else
-    {
-        result = table[key];
-        Assert(database->app_names.count(result) > 0);
-    }
-    
-    return result;
-}
-
-#if 0
-App_Id
-get_id_and_add_if_new(Database *database, String key, String full_name, Id_Type id_type)
-{
-    // TODO: Make hash tables have their own arena for strings maybe, and make short_name point into full_name for locals and for website just alloc short_name. because imgui can take length string, not null terminated
-    
-    // TODO: Could just alloc 1 megabyte + sizeof strings in file at startup, and do a realloc + fixing all the pointers if we need a rare resize
-    
-    // or could store indexes (only difference is that the mov instruction just has to add offset into its index, after loading offset into a register), so no real difference.
-    
-    // TODO: String of shortname can point into string of full_name for paths
-    
-    // if using custom hash table impl can use open addressing, and since nothing is ever deleted don't need a occupancy flag or whatever can just use id == 0 or string == null to denote empty.
-    
-    Assert(id_type == Id_LocalProgram || id_type == Id_Website);
-    
-    std::unordered_map<String, App_Id> &table = 
-        (id_type == Id_LocalProgram) ? database->local_programs : database->domain_names;
-    
-    App_Id result = Id_Invalid;
-    
-    if (table.count(key) == 0)
-    {
-        App_Id new_id = make_id(database, id_type);
-        
-        String key_copy = push_string(&database->names_arena, key);
-        
-        App_Info app_info;
-        app_info.short_name = key_copy;
-        app_info.icon_index = -1;
-        
-#if MONITOR_DEBUG
-        app_info.full_name = push_string(&database->names_arena, full_name); 
-#else
-        if (id_type == Id_LocalProgram)
-        {
-            app_info.full_name = push_string(&database->names_arena, full_name); 
-        }
-        else
-        {
-            app_info.full_name = String{" ", 0, 0};
-        }
-#endif
-        
-        database->app_names.insert({new_id, app_info});
-        
-        // Shares string with app_info struct
-        table.insert({key_copy, new_id});
-        
-        result = new_id;
-    }
-    else
-    {
-        result = table[key];
-        Assert(database->app_names.count(result) > 0);
-    }
-    
-    return result;
-}
-#endif
-#if 0
-// Bad with unordered map, and quite complex too...
-bool
-resize_database_names_arena(Database *database)
-{
-    size_t new_size = database->names_arena.size + Kilobytes(50);
-    char *new_buffer = (char *)malloc(new_size);
-    if (new_buffer == nullptr) return false;
-    
-    Arena new_arena;
-    init_arena(&new_arena, new_buffer, new_size);
-    
-    char *old_arena_base_ptr = database->names_arena.buffer;
-    char *new_arena_base_ptr = new_arena.buffer;
-    
-    String ab = {};
-    String c = ab;
-    {
-        //std::unordered_map<String, App_Id>::iterator it = database->local_programs.begin();
-        //while (it != database->local_programs.end())
-        //for(std::unordered_map<String, App_Id>::iterator iter = database->local_programs.begin(); iter != database->local_programs.end(); ++iter)
-        
-        for (std::pair<String, App_Id> &pair : database->local_programs)
-        {
-            String s = pair.first;
-            
-            ptrdiff_t offset = s.str - old_arena_base_ptr;
-            assert(offset >= 0);
-            
-            s.str = new_arena_base_ptr + offset;
-            pair.first = s;
-        }
-    }
-    {
-        auto it = database->domain_names.begin();
-        while (it != database->domain_names.end())
-        {
-            ptrdiff_t offset = it->first.str - old_arena_base_ptr;
-            assert(offset >= 0);
-            
-            it->first.str = new_arena_base_ptr + offset;
-            ++it;
-        }
-    }
-    {
-        auto it = database->local_programs.begin();
-        while (it != database->app_names.end())
-        {
-            ptrdiff_t offset = it->second.short_name.str - old_arena_base_ptr;
-            assert(offset >= 0);
-            
-            it->second.short_name.str = new_arena_base_ptr + offset;
-            if (is_local_program(it->first))
-            {
-                offset = it->second.full_name.str - old_arena_base_ptr;
-                assert(offset >= 0);
-                
-                it->second.full_name.str = new_arena_base_ptr + offset;
-            }
-            
-            ++it;
-        }
-    }
-}
-#endif
-
-App_Id
-poll_windows(Database *database, Settings *settings)
-{
-    
     ZoneScoped;
+    
+    // Returns 0 if we return early
     
     char buf[PLATFORM_MAX_PATH_LEN];
     size_t len = 0;
@@ -656,6 +606,7 @@ poll_windows(Database *database, Settings *settings)
         // We wan't to detect, incomplete urls and people just typing garbage into url bar, but
         char url_buf[PLATFORM_MAX_URL_LEN];
         size_t url_len = 0;
+        
         if (platform_get_firefox_url(window, url_buf, &url_len))
         {
             String url = make_string(url_buf, url_len);
@@ -666,11 +617,11 @@ poll_windows(Database *database, Settings *settings)
                 {
 #if MONITOR_DEBUG
                     // match will all urls we can get a domain from
-                    return get_id_and_add_if_new(database, domain_name, url, Id_Website);
+                    return get_id_and_add_if_new(apps, domain_name, url, Id_Website);
 #else
                     if (string_matches_keyword(domain_name, settings->keywords))
                     {
-                        return get_id_and_add_if_new(database, domain_name, url, Id_Website);
+                        return get_id_and_add_if_new(apps, domain_name, url, Id_Website);
                     }
 #endif
                 }
@@ -679,7 +630,7 @@ poll_windows(Database *database, Settings *settings)
     }
     
     // If program wasn't a browser, or it was a browser but the url didn't match any keywords, get browser's program id
-    return get_id_and_add_if_new(database, program_name, full_path, Id_LocalProgram);
+    return get_id_and_add_if_new(apps, program_name, full_path, Id_LocalProgram);
 }
 
 void
@@ -687,7 +638,6 @@ update(Monitor_State *state, SDL_Window *window, time_type dt_microseconds, u32 
 {
     ZoneScoped;
     
-    date::sys_days current_date = get_localtime();
     if (!state->is_initialised)
     {
         //remove(global_savefile_path);
@@ -695,7 +645,14 @@ update(Monitor_State *state, SDL_Window *window, time_type dt_microseconds, u32 
         
         *state = {};
         
-        init_database(&state->database, current_date);
+        state->accumulated_time = 0;
+        state->total_runtime = 0;
+        state->startup_time = win32_get_time();
+        
+        state->current_date = get_local_time_day();
+        state->microseconds_until_next_day = microseconds_until_tomorrow();
+        
+        init_database(&state->database, state->current_date);
         
         Misc_Options options = {};
         options.day_start_time = 0;
@@ -706,9 +663,7 @@ update(Monitor_State *state, SDL_Window *window, time_type dt_microseconds, u32 
         
         state->settings.misc_options = options;
         
-        char *buffer = (char *)malloc(MAX_KEYWORD_COUNT * MAX_KEYWORD_SIZE);
-        Assert(buffer);
-        init_arena(&state->keyword_arena, buffer, MAX_KEYWORD_COUNT * MAX_KEYWORD_SIZE);
+        init_arena(&state->keyword_arena, MAX_KEYWORD_COUNT * MAX_KEYWORD_SIZE);
         
         // Keywords must be null terminated when given to platform gui
         state->settings.keywords;
@@ -718,10 +673,6 @@ update(Monitor_State *state, SDL_Window *window, time_type dt_microseconds, u32 
         add_keyword(&state->keyword_arena, state->settings.keywords, "google");
         add_keyword(&state->keyword_arena, state->settings.keywords, "github");
         
-        
-        state->accumulated_time = 0;
-        state->total_runtime = 0;
-        state->startup_time = win32_get_time();
         
         // UI initialisation
         
@@ -734,7 +685,7 @@ update(Monitor_State *state, SDL_Window *window, time_type dt_microseconds, u32 
         picker.end = current_date;
 #else
         // DEBUG: Default to monthly
-        auto ymd = date::year_month_day{current_date};
+        auto ymd = date::year_month_day{state->current_date};
         picker.range_type = Range_Type_Monthly;
         picker.start = date::sys_days{ymd.year()/ymd.month()/1};
         picker.end   = date::sys_days{ymd.year()/ymd.month()/date::last};
@@ -746,13 +697,16 @@ update(Monitor_State *state, SDL_Window *window, time_type dt_microseconds, u32 
         // sets label and if buttons are disabled 
         date_picker_clip_and_update(&picker, oldest_date, newest_date);
         
-        init_calendar(&picker.first_calendar, current_date, oldest_date, newest_date);
-        init_calendar(&picker.second_calendar, current_date, oldest_date, newest_date);
+        init_calendar(&picker.first_calendar, state->current_date, oldest_date, newest_date);
+        init_calendar(&picker.second_calendar, state->current_date, oldest_date, newest_date);
         
         state->is_initialised = true;
     }
     
+    date::sys_days current_date = get_current_date(state, dt_microseconds);
+    
     Database *database = &state->database;
+    App_List *apps = &database->apps;
     
     // TODO: Just use google or duckduckgo service for now (look up how duckduckgo browser does it, ever since they switched from using their service...)
     
@@ -766,8 +720,6 @@ update(Monitor_State *state, SDL_Window *window, time_type dt_microseconds, u32 
         start_new_day(&database->day_list, current_date);
     }
     
-    // maybe start_new_day equivalent for day view (without adding records) just to keep track of current day for ui
-    
     // Also true if on a browser and the tab changed
     // platform_get_changed_window();
     
@@ -776,8 +728,8 @@ update(Monitor_State *state, SDL_Window *window, time_type dt_microseconds, u32 
     time_type poll_window_freq = 100000;
     if (state->accumulated_time >= poll_window_freq)
     {
-        App_Id id = poll_windows(database, &state->settings);
-        if (id != 0)
+        App_Id id = poll_windows(apps, &state->settings);
+        if (id != Id_Invalid)
         {
             add_or_update_record(&database->day_list, id, state->accumulated_time);
         }

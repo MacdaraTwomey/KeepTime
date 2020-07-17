@@ -1,8 +1,9 @@
 @echo off
 
+
 call build.bat
 
-@if %ERRORLEVEL% == 0 (
+if %errorlevel%==0 (
    goto good
 )
 

@@ -1,10 +1,14 @@
 #pragma once
+
 // NOTE: Most of this inspired/created by Allen Webster in the 4coder_string.h string library.
 // https://4coder.handmade.network/
 
 // TODO: Pre/post condition tests for all calls in this library
 
+
 #include <string.h> // just for strlen, could just implement
+
+// probably don't even need a capacity
 
 struct String
 {
@@ -12,6 +16,8 @@ struct String
     i32 length;
     i32 capacity;
 };
+
+typedef String CString;
 
 template<size_t N>
 constexpr String make_const_string(const char (&a)[N])

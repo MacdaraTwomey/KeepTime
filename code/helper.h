@@ -3,13 +3,19 @@
 
 #include <type_traits>
 
+struct Block
+{
+    u64 size;
+    u64 used;
+    u8 *buffer;
+    Block *prev;
+};
+
+static_assert(sizeof(Block) == 32, ""); // For alignment of buffer after block
 
 struct Arena
 {
-    // Just for strings so un-aligned
-    size_t size;
-    size_t offset;
-    char *buffer;
+    Block *block;
 };
 
 template<typename T, size_t N>

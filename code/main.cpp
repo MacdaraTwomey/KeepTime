@@ -49,88 +49,6 @@ static bool global_running = true;
 #define WINDOW_WIDTH 1240
 #define WINDOW_HEIGHT 720
 
-#if 0
-// put this at/around wher ImGui::NewFrame() is
-// Start the Dear ImGui frame
-if (freetype_test.UpdateRebuild())
-{
-    // REUPLOAD FONT TEXTURE TO GPU
-    ImGui_ImplOpenGL3_DestroyDeviceObjects();
-    ImGui_ImplOpenGL3_CreateDeviceObjects();
-}
-ImGui::NewFrame();
-freetype_test.ShowFreetypeOptionsWindow();
-
-struct FreeTypeTest
-{
-    enum FontBuildMode
-    {
-        FontBuildMode_FreeType,
-        FontBuildMode_Stb
-    };
-    
-    FontBuildMode BuildMode;
-    bool          WantRebuild;
-    float         FontsMultiply;
-    int           FontsPadding;
-    unsigned int  FontsFlags;
-    
-    FreeTypeTest()
-    {
-        BuildMode = FontBuildMode_FreeType;
-        WantRebuild = true;
-        FontsMultiply = 1.0f;
-        FontsPadding = 1;
-        FontsFlags = 0;
-    }
-    
-    // Call _BEFORE_ NewFrame()
-    bool UpdateRebuild()
-    {
-        if (!WantRebuild)
-            return false;
-        ImGuiIO& io = ImGui::GetIO();
-        io.Fonts->TexGlyphPadding = FontsPadding;
-        for (int n = 0; n < io.Fonts->ConfigData.Size; n++)
-        {
-            ImFontConfig* font_config = (ImFontConfig*)&io.Fonts->ConfigData[n];
-            font_config->RasterizerMultiply = FontsMultiply;
-            font_config->RasterizerFlags = (BuildMode == FontBuildMode_FreeType) ? FontsFlags : 0x00;
-        }
-        if (BuildMode == FontBuildMode_FreeType)
-            ImGuiFreeType::BuildFontAtlas(io.Fonts, FontsFlags);
-        else if (BuildMode == FontBuildMode_Stb)
-            io.Fonts->Build();
-        WantRebuild = false;
-        return true;
-    }
-    
-    // Call to draw interface
-    void ShowFreetypeOptionsWindow()
-    {
-        ImGui::Begin("FreeType Options");
-        ImGui::ShowFontSelector("Fonts");
-        WantRebuild |= ImGui::RadioButton("FreeType", (int*)&BuildMode, FontBuildMode_FreeType);
-        ImGui::SameLine();
-        WantRebuild |= ImGui::RadioButton("Stb (Default)", (int*)&BuildMode, FontBuildMode_Stb);
-        WantRebuild |= ImGui::DragFloat("Multiply", &FontsMultiply, 0.001f, 0.0f, 2.0f);
-        WantRebuild |= ImGui::DragInt("Padding", &FontsPadding, 0.1f, 0, 16);
-        if (BuildMode == FontBuildMode_FreeType)
-        {
-            WantRebuild |= ImGui::CheckboxFlags("NoHinting",     &FontsFlags, ImGuiFreeType::NoHinting);
-            WantRebuild |= ImGui::CheckboxFlags("NoAutoHint",    &FontsFlags, ImGuiFreeType::NoAutoHint);
-            WantRebuild |= ImGui::CheckboxFlags("ForceAutoHint", &FontsFlags, ImGuiFreeType::ForceAutoHint);
-            WantRebuild |= ImGui::CheckboxFlags("LightHinting",  &FontsFlags, ImGuiFreeType::LightHinting);
-            WantRebuild |= ImGui::CheckboxFlags("MonoHinting",   &FontsFlags, ImGuiFreeType::MonoHinting);
-            WantRebuild |= ImGui::CheckboxFlags("Bold",          &FontsFlags, ImGuiFreeType::Bold);
-            WantRebuild |= ImGui::CheckboxFlags("Oblique",       &FontsFlags, ImGuiFreeType::Oblique);
-            WantRebuild |= ImGui::CheckboxFlags("Monochrome",    &FontsFlags, ImGuiFreeType::Monochrome);
-        }
-        ImGui::End();
-    }
-};
-#endif
-
 int main(int argc, char* argv[])
 {
     ZoneScoped;
@@ -168,7 +86,7 @@ int main(int argc, char* argv[])
     
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    ImGuiIO& io = ImGui::GetIO(); 
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
     io.IniFilename = NULL; // Disable imgui.ini filecreation
     
@@ -183,7 +101,9 @@ int main(int argc, char* argv[])
     //io.Fonts->AddFontFromFileTTF("c:\\windows\\fonts\\times.ttf", 16.0f);
     //io.Fonts->AddFontDefault();
     
-    
+    //#include "compressed_fonts/roboto_font_file.cpp"
+    //ImFont* font = 
+    //io.Fonts->AddFontFromMemoryCompressedTTF(roboto_font_file_compressed_data, roboto_font_file_compressed_size, 22.0f);
     
     // make just add ascii characters?
     io.Fonts->AddFontFromFileTTF("c:\\windows\\fonts\\seguisym.ttf", 22.0f);
@@ -211,10 +131,10 @@ int main(int argc, char* argv[])
     builder_22.BuildRanges(&range_22);                          
     
     icons_config.GlyphOffset = ImVec2(0, 13); // move glyphs down or else they render too high
-    io.Fonts->AddFontFromFileTTF("c:\\dev\\projects\\monitor\\build\\MaterialIcons-Regular.ttf", 32.0f, &icons_config, range_32.Data);
+    io.Fonts->AddFontFromFileTTF("c:\\dev\\projects\\monitor\\build\\fonts\\MaterialIcons-Regular.ttf", 32.0f, &icons_config, range_32.Data);
     
     icons_config.GlyphOffset = ImVec2(0, 4); // move glyphs down or else they render too high
-    io.Fonts->AddFontFromFileTTF("c:\\dev\\projects\\monitor\\build\\MaterialIcons-Regular.ttf", 22.0f, &icons_config, range_22.Data);
+    io.Fonts->AddFontFromFileTTF("c:\\dev\\projects\\monitor\\build\\fonts\\MaterialIcons-Regular.ttf", 22.0f, &icons_config, range_22.Data);
     
     
     unsigned int flags = ImGuiFreeType::NoHinting;
@@ -425,3 +345,86 @@ int main(int argc, char* argv[])
     
     return 0;
 }
+
+
+#if 0
+// put this at/around wher ImGui::NewFrame() is
+// Start the Dear ImGui frame
+if (freetype_test.UpdateRebuild())
+{
+    // REUPLOAD FONT TEXTURE TO GPU
+    ImGui_ImplOpenGL3_DestroyDeviceObjects();
+    ImGui_ImplOpenGL3_CreateDeviceObjects();
+}
+ImGui::NewFrame();
+freetype_test.ShowFreetypeOptionsWindow();
+
+struct FreeTypeTest
+{
+    enum FontBuildMode
+    {
+        FontBuildMode_FreeType,
+        FontBuildMode_Stb
+    };
+    
+    FontBuildMode BuildMode;
+    bool          WantRebuild;
+    float         FontsMultiply;
+    int           FontsPadding;
+    unsigned int  FontsFlags;
+    
+    FreeTypeTest()
+    {
+        BuildMode = FontBuildMode_FreeType;
+        WantRebuild = true;
+        FontsMultiply = 1.0f;
+        FontsPadding = 1;
+        FontsFlags = 0;
+    }
+    
+    // Call _BEFORE_ NewFrame()
+    bool UpdateRebuild()
+    {
+        if (!WantRebuild)
+            return false;
+        ImGuiIO& io = ImGui::GetIO();
+        io.Fonts->TexGlyphPadding = FontsPadding;
+        for (int n = 0; n < io.Fonts->ConfigData.Size; n++)
+        {
+            ImFontConfig* font_config = (ImFontConfig*)&io.Fonts->ConfigData[n];
+            font_config->RasterizerMultiply = FontsMultiply;
+            font_config->RasterizerFlags = (BuildMode == FontBuildMode_FreeType) ? FontsFlags : 0x00;
+        }
+        if (BuildMode == FontBuildMode_FreeType)
+            ImGuiFreeType::BuildFontAtlas(io.Fonts, FontsFlags);
+        else if (BuildMode == FontBuildMode_Stb)
+            io.Fonts->Build();
+        WantRebuild = false;
+        return true;
+    }
+    
+    // Call to draw interface
+    void ShowFreetypeOptionsWindow()
+    {
+        ImGui::Begin("FreeType Options");
+        ImGui::ShowFontSelector("Fonts");
+        WantRebuild |= ImGui::RadioButton("FreeType", (int*)&BuildMode, FontBuildMode_FreeType);
+        ImGui::SameLine();
+        WantRebuild |= ImGui::RadioButton("Stb (Default)", (int*)&BuildMode, FontBuildMode_Stb);
+        WantRebuild |= ImGui::DragFloat("Multiply", &FontsMultiply, 0.001f, 0.0f, 2.0f);
+        WantRebuild |= ImGui::DragInt("Padding", &FontsPadding, 0.1f, 0, 16);
+        if (BuildMode == FontBuildMode_FreeType)
+        {
+            WantRebuild |= ImGui::CheckboxFlags("NoHinting",     &FontsFlags, ImGuiFreeType::NoHinting);
+            WantRebuild |= ImGui::CheckboxFlags("NoAutoHint",    &FontsFlags, ImGuiFreeType::NoAutoHint);
+            WantRebuild |= ImGui::CheckboxFlags("ForceAutoHint", &FontsFlags, ImGuiFreeType::ForceAutoHint);
+            WantRebuild |= ImGui::CheckboxFlags("LightHinting",  &FontsFlags, ImGuiFreeType::LightHinting);
+            WantRebuild |= ImGui::CheckboxFlags("MonoHinting",   &FontsFlags, ImGuiFreeType::MonoHinting);
+            WantRebuild |= ImGui::CheckboxFlags("Bold",          &FontsFlags, ImGuiFreeType::Bold);
+            WantRebuild |= ImGui::CheckboxFlags("Oblique",       &FontsFlags, ImGuiFreeType::Oblique);
+            WantRebuild |= ImGui::CheckboxFlags("Monochrome",    &FontsFlags, ImGuiFreeType::Monochrome);
+        }
+        ImGui::End();
+    }
+};
+#endif

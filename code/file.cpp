@@ -2,9 +2,10 @@
 #include "monitor.h"
 #include <stdio.h>
 
-static constexpr i32 MaxPathLen = 2048;
 static constexpr char SaveFileName[] = "monitor_save.pmd";
 static constexpr char DebugSaveFileName[] = "debug_monitor_save.txt";
+static constexpr u32 MAGIC_NUMBER = 0xDACA571E;
+static constexpr u32 CURRENT_VERSION = 0;
 
 // Monitor Binary File
 struct MBF_Header
@@ -14,16 +15,26 @@ struct MBF_Header
     
     App_Id next_program_id;
     App_Id next_website_id;
-    u32 settings;        // fixed size
-    u32 ids;     
+    Misc_Options misc_options;      
+    
+    u32 ids;             // all local programs, then all websites
     u32 days;            // record_count for each day
-    u32 strings_lengths; 
+    u32 string_lengths; // all local_programs (short_name, full_name), then all website (short_name), then keywords
     u32 records;
+    
+    // in this order
+    // [short, full] ... for local programs
+    // [short] ... for websites
+    // [keyword] ... for keywords
+    u32 strings;  
     
     u32 id_count;
     u32 day_count;
-    u32 string_block_size;
     u32 record_count;
+    u32 local_program_count;
+    u32 website_count;
+    u32 keyword_count;
+    u32 string_block_size;
 };
 
 struct MBF_Day
@@ -32,106 +43,216 @@ struct MBF_Day
     u32 record_count;
 };
 
-struct MBF
+struct Read_MBF
 {
-    // we make this then pass to write?
-    // we recieve this from read?
+    App_Id next_program_id;
+    App_Id next_website_id;
+    Settings *settings; //10k
+    
+    App_Id *ids;     
+    Day *days;            // record_count for each day
+    Local_Program_Info *local_programs;
+    Website_Info *websites;
+    Record *records;
+    
+    u32 id_count;
+    u32 day_count;
+    //u32 app_info_count;
+    u32 record_count;
 };
 
-u32 
-write_MBF(char *string_block, String s, u32 *cur_offset)
+void 
+copy_to_string_block(String s, char *string_block, u32 *cur_offset)
 {
-    memcpy(string_block + cur_offset, s.str, s.length);
+    memcpy(string_block + *cur_offset, s.str, s.length);
     *cur_offset += s.length;
-    return s.length;;
 }
 
+u32
+write_memory_to_file(void *memory, size_t size, FILE *file)
+{
+    // Returns -1 on error
+    // Returns offset in file of start of memory, or 0 if memory size was 0.
+    long offset = ftell(file);
+    size_t num_written = fwrite(memory, size, 1, file);
+    if (num_written == 1)
+    {
+        return offset;
+    }
+    else
+    {
+        return 0;
+    }
+}
 
 bool
-write_savefile(Serial_State serial_state, FILE *file)
+write_to_MBF(Monitor_State *state, FILE *file)
 {
-    // Strings are not stored as null terminated
     // Could store string lengths or offsets into the block, not sure which better
-    
     Database *database = &state->database;
+    App_List *apps = &state->database.apps;
+    Settings *settings = &state->settings;
     
-    // TODO: This will be cleaner if I use a arena for hash tables I think
+    // assumes no deleted ids
+    u32 local_program_count = apps->local_program_ids.size();
+    u32 website_count = apps->website_ids.size();
+    u32 id_count = local_program_count + website_count;
+    
+    App_Id *ids = (App_Id *)malloc(sizeof(App_Id) * id_count);
+    defer(free(ids));
+    if (!ids) return false;
+    
+    u32 id_idx = 0;
+    for (App_Id gen_id = 1; id_idx < apps->local_program_ids.size(); ++id_idx, ++gen_id)
+    {
+        Assert(is_local_program(gen_id));
+        ids[id_idx] = gen_id; // starts at 1
+    }
+    for (App_Id gen_id = 0; id_idx < apps->website_ids.size(); ++id_idx, ++gen_id)
+    {
+        Assert(is_website(gen_id));
+        ids[id_idx] = gen_id & (1 << 31);
+    }
+    
+    u32 keyword_count = settings->keywords.count;
+    u32 string_count = (local_program_count * 2) + website_count + keyword_count;
+    
+    u32 *string_lengths = (u32 *)malloc(sizeof(u32) * string_count); // upper bound
+    defer(free(string_lengths));
+    if (!string_lengths) return false;
+    
     size_t all_strings_length = 0;
-    u32 string_offsets = 0;
-    for (std::pair<App_Id, App_Info> &pair : database->app_names) 
+    
+    u32 string_idx = 0;
+    for (u32 i = 0; i < apps->local_programs.size(); ++i)
     {
-        all_strings_length += pair.second.short_name.length;
-        string_offsets += 1;
-#if MONITOR_DEBUG
-        all_strings_length += pair.second.full_name.length;
-        string_offsets += 1;
-#else
-        if (is_local_program(pair.first)) {
-            all_strings_length += pair.second.full_name.length;
-            string_offsets += 1;
-        }
-#endif
+        String &short_name = apps->local_programs[i].short_name;
+        String &full_name = apps->local_programs[i].full_name;
+        
+        string_lengths[string_idx++] = short_name.length;
+        all_strings_length += short_name.length;
+        
+        string_lengths[string_idx++] = full_name.length;
+        all_strings_length += full_name.length;
+    }
+    for (u32 i = 0; i < apps->websites.size(); ++i)
+    {
+        String &short_name = apps->websites[i].short_name;
+        
+        string_lengths[string_idx++] = short_name.length;
+        all_strings_length += short_name.length;
+    }
+    for (u32 i = 0; i < settings->keywords.count; ++i)
+    {
+        string_lengths[string_idx++] = settings->keywords[i].length;
+        all_strings_length += settings->keywords[i].length;
     }
     
-    // must store sizeof string block so can tell length of last string
     size_t string_block_size = all_strings_length;
-    u32 *string_lengths = (char *)malloc(sizeof(u32) * string_offsets);
-    char *string_block = (char *)malloc(all_strings_length);
-    App_Ids *ids = (App_Ids *)malloc(sizeof(App_Id) * database->app_names.size()));
+    char *string_block = (char *)malloc(string_block_size);
+    defer(free(string_block));
+    if (!string_block) return false;
     
-    u32 count = 0;
-    size_t string_block_cur_offset = 0;
-    for (std::pair<App_Id, App_Info> &pair : database->app_names) 
+    u32 string_block_cur_offset = 0;
+    for (auto &info : apps->local_programs)
     {
-        App_Id id = pair.first;
-        App_Info info = pair.second;
-        
-        ids[count] = id;
-        string_lengths[count] = write_string_to_block(string_block, info.short_name, &string_block_cur_offset);
-        string_lengths[count] = write_string_to_block(string_block, info.full_name, &string_block_cur_offset);
-        count += 1;
+        copy_to_string_block(info.short_name, string_block, &string_block_cur_offset);
+        copy_to_string_block(info.full_name, string_block, &string_block_cur_offset);
+    }
+    for (auto &info : apps->websites)
+    {
+        copy_to_string_block(info.short_name, string_block, &string_block_cur_offset);
+    }
+    for (int i = 0; i < settings->keywords.count; ++i)
+    {
+        copy_to_string_block(settings->keywords[i], string_block, &string_block_cur_offset);
     }
     
-    Serial_Day *days = (Serial_Day*)malloc(sizeof(Serial_Day) * database->day_list.size());
-    for (u32 i = 0; i < database->day_list.size(); ++i)
+    u32 day_count = database->day_list.days.size();
+    MBF_Day *days = (MBF_Day *)malloc(sizeof(MBF_Day) * day_count);
+    defer(free(days));
+    if (!days) return false;
+    
+    u32 total_record_count = 0;
+    for (u32 i = 0; i < day_count; ++i)
     {
-        days[i].date = database->day_list[i].date;
-        days[i].record_count = database->day_list[i].record_count;
+        Day *day = &database->day_list.days[i];
+        MBF_Day *dest_day = &days[i];
         
-        // also need way to get which block records are in
+        dest_day->date = day->date;
+        dest_day->record_count = day->record_count;
+        
+        total_record_count += day->record_count;
     }
     
+    Record *records = (Record *)malloc(sizeof(Record) * total_record_count);
+    defer(free(records));
+    if (!records) return false;
+    
+    u32 record_offset = 0;
+    for (u32 i = 0; i < day_count; ++i)
+    {
+        Day *day = &database->day_list.days[i];
+        memcpy(records + record_offset, day->records, day->record_count * sizeof(Record));
+        record_offset += day->record_count;
+    }
+    
+    // seek past header at start of file
+    fseek(file, sizeof(MBF_Header), SEEK_SET);
+    
+    MBF_Header header = {};
+    header.magic_number = MAGIC_NUMBER;
+    header.version = CURRENT_VERSION;
+    header.next_program_id = apps->next_program_id;
+    header.next_website_id = apps->next_website_id;
+    header.misc_options = settings->misc_options;      
+    
+    // Doesnt work coz header 0 inited
+    u32 id_offset = write_memory_to_file(ids, id_count * sizeof(App_Id), file);
+    u32 day_offset = write_memory_to_file(days, day_count * sizeof(MBF_Day), file);     
+    u32 string_lengths_offset = write_memory_to_file(string_lengths, string_count * sizeof(u32), file); 
+    u32 records_offset = write_memory_to_file(records, total_record_count * sizeof(Record), file);
+    u32 string_block_offset = write_memory_to_file(string_block, string_block_size, file);
+    
+    if (id_offset == -1 || day_offset == -1 || string_lengths_offset == -1 || records_offset == -1 || string_block_offset == -1)
+    {
+        // write failed
+        return false;
+    }
+    
+    // 0 if the corresponding count is also 0 (i.e. no elements are written to file)
+    header.ids = id_offset;
+    header.days = day_offset;
+    header.string_lengths = string_lengths_offset; 
+    header.records = records_offset;
+    header.strings = string_block_offset;
+    
+    header.id_count = id_count;
+    header.day_count = day_count;
+    header.record_count = total_record_count;
+    header.local_program_count = local_program_count;
+    header.website_count = website_count;
+    header.keyword_count = settings->keywords.count;
+    header.string_block_size = string_block_size;
+    
+    // go back to start of file and write header
+    fseek(file, 0, SEEK_SET);
+    size_t num_written = fwrite(&header, sizeof(MBF_Header), 1, file);
+    if (num_written != 1)
+    {
+        return false;
+    }
+    
+    return true;
 }
-
-
-
-
-
-
-u64 file_program_names_block_offset(Header header) {
-    return sizeof(Header);
-}
-u64 file_program_ids_offset(Header header) {
-    return sizeof(Header) + header.program_names_block_size;
-}
-u64 file_dates_offset(Header header) {
-    return file_program_ids_offset(header) + (sizeof(u32) * header.total_program_count);
-}
-u64 file_indexes_offset(Header header) {
-    return file_dates_offset(header) + (sizeof(sys_days) * header.day_count);
-}
-u64 file_records_offset(Header header) {
-    return file_indexes_offset(header) + (sizeof(u32) * header.day_count);
-}
-
 
 
 bool
 make_empty_savefile(char *filepath)
 {
     FILE *file = fopen(filepath, "wb");
-    Header header = {};
-    fwrite(&header, sizeof(header), 1, file);
+    //Header header = {};
+    //fwrite(&header, sizeof(header), 1, file);
     fclose(file);
     return true;
 }
@@ -164,411 +285,28 @@ s64 get_file_size(char *filepath)
 }
 
 
-void
-read_programs_from_savefile(FILE *savefile, Header header, Hash_Table *programs)
-{
-    if (header.total_program_count > 0)
-    {
-        char *program_names = (char *)xalloc(header.program_names_block_size);
-        u32 *program_ids = (u32 *)xalloc(header.total_program_count * sizeof(u32));
-        
-        fseek(savefile, sizeof(Header), SEEK_SET);
-        fread(program_names, 1, header.program_names_block_size, savefile);
-        fread(program_ids, sizeof(u32), header.total_program_count, savefile);
-        
-        char *p = program_names;
-        u32 name_index = 0;
-        while (name_index < header.total_program_count)
-        {
-            if (*p == '\0')
-            {
-                programs->add_item(program_names, program_ids[name_index]); // TODO: read full path from file
-                ++name_index;
-                program_names = p+1;
-            }
-            
-            ++p;
-        }
-        
-        free(program_names);
-        free(program_ids);
-    }
-}
-
-void
-read_all_days_from_savefile(FILE *savefile, Header header, Day *days)
-{
-    Assert(savefile);
-    Assert(days);
-    
-    if (header.day_count > 0)
-    {
-        sys_days         *dates = (sys_days *)xalloc(header.day_count * sizeof(sys_days));
-        u32             *counts = (u32 *)xalloc(header.day_count * sizeof(u32));
-        Program_Record *records = (Program_Record *)xalloc(header.total_record_count * sizeof(Program_Record));
-        
-        {
-            Header test_header = {};
-            fread(&test_header, sizeof(Header), 1, savefile);
-            fseek(savefile, 0, SEEK_SET);
-            Assert(test_header.program_names_block_size == header.program_names_block_size &&
-                   test_header.total_program_count == header.total_program_count &&
-                   test_header.day_count == header.day_count &&
-                   test_header.total_record_count == header.total_record_count);
-        }
-        
-        fseek(savefile, file_dates_offset(header), SEEK_SET);
-        fread(dates, sizeof(sys_days), header.day_count, savefile);
-        fread(counts, sizeof(u32), header.day_count, savefile);
-        fread(records, sizeof(Program_Record), header.total_record_count, savefile);
-        
-        Program_Record *src = records;
-        for (u32 i = 0; i < header.day_count; ++i)
-        {
-            Day *day = &days[i];
-            day->date = dates[i];
-            day->record_count = counts[i];
-            
-            // TODO: In future just pass a big block and will copy all records in and point their pointers to correct records.
-            day->records = (Program_Record *)xalloc(sizeof(Program_Record) * day->record_count);
-            memcpy(day->records, src, sizeof(Program_Record) * day->record_count);
-            src += day->record_count;
-        }
-        
-        free(dates);
-        free(counts);
-        free(records);
-    }
-}
-
-void convert_savefile_to_text_file(char *savefile_path, char *text_file_path)
-{
-    FILE *savefile = fopen(savefile_path, "rb");
-    defer(fclose(savefile));
-    
-    // Header
-    // null terminated names, in a block    # programs (null terminated strings)
-    // corresponding ids                    # programs (u32)
-    // Dates of each day                    # days     (u32)
-    // Counts of days records               # days     (u32)
-    // Array of all prorgam records clumped by day      # total records (Program_Record)
-    
-    String_Builder sb = create_string_builder();
-    
-    auto datetime = System_Clock::now();
-    time_t time = System_Clock::to_time_t(datetime);
-    sb.append(ctime(&time));
-    
-    Header header = {};
-    fread(&header, sizeof(Header), 1, savefile);
-    
-    sb.appendf("\nHeader //-----------------------------------------\n"
-               "%-25s %4lu \n"
-               "%-25s %4lu \n"
-               "%-25s %4lu \n"
-               "%-25s %4lu \n",
-               "program_names_block_size",  header.program_names_block_size,
-               "total_program_count",       header.total_program_count,
-               "day_count",                 header.day_count,
-               "total_record_count",      header.total_record_count);
-    
-    if (header.total_program_count > 0)
-    {
-        char     *program_names = (char *)xalloc(header.program_names_block_size);
-        u32        *program_ids = (u32 *)xalloc(header.total_program_count * sizeof(u32));
-        sys_days         *dates = (sys_days *)xalloc(header.day_count * sizeof(sys_days));
-        u32             *counts = (u32 *)xalloc(header.day_count * sizeof(u32));
-        Program_Record *records = (Program_Record *)xalloc(header.total_record_count * sizeof(Program_Record));
-        
-        fread(program_names, 1, header.program_names_block_size, savefile);
-        fread(program_ids, sizeof(u32), header.total_program_count, savefile);
-        fread(dates, sizeof(sys_days), header.day_count, savefile);
-        fread(counts, sizeof(u32), header.day_count, savefile);
-        fread(records, sizeof(Program_Record), header.total_record_count, savefile);
-        
-        sb.appendf("\nPrograms //---------------------------------\n");
-        char *p = program_names;
-        char *name = program_names;
-        u32 name_index = 0;
-        while (name_index < header.total_program_count)
-        {
-            if (*p == '\0')
-            {
-                // Weird symbols to align to columns
-                sb.appendf("%-15s %lu \n", name, program_ids[name_index]);
-                ++name_index;
-                name = p+1;
-            }
-            
-            ++p;
-        }
-        
-        sb.appendf("\nDates //--------------------------------------\n");
-        for (u32 i = 0; i < header.day_count; ++i)
-        {
-            // day is 1-31, month is 1-12 for this type
-            auto d = year_month_day(dates[i]);
-            sb.appendf("%u: [%u/%u/%i]   ", i, (unsigned int)d.day(), (unsigned int)d.month(), (int)d.year());
-        }
-        sb.appendf("\n\nCounts //------------------------------------\n");
-        for (u32 i = 0; i < header.day_count; ++i)
-        {
-            sb.appendf("%lu,  ", counts[i]);
-        }
-        
-        sb.appendf("\n\nRecords //------------------------------------\n");
-        sb.appendf("[ID:  Duration]\n");
-        u32 day = 0;
-        u32 sum = 0;
-        for (u32 i = 0; i < header.total_record_count; ++i)
-        {
-            sb.appendf("[%lu:  %lf]   Day %lu \n", records[i].id, records[i].duration, day);
-            ++sum;
-            if (sum == counts[day])
-            {
-                sum = 0;
-                ++day;
-            }
-        }
-        
-        free(program_names);
-        free(program_ids);
-        free(dates);
-        free(counts);
-        free(records);
-    }
-    
-    FILE *text_file = fopen(text_file_path, "wb");
-    fwrite(sb.str, 1, sb.len, text_file);
-    fclose(text_file);
-    
-    free_string_builder(&sb);
-}
-
-
-
+#if 0
 bool valid_savefile(char *filepath)
 {
-    // Assumes file exists
-    s64 file_size = get_file_size(filepath);
-    if (file_size < sizeof(Header))
+}
+
+{
+    if (!file_exists(global_savefile_path))
     {
-        return false;
-    }
-    
-    FILE *savefile = fopen(filepath, "rb");
-    if (!savefile)
-    {
-        return false;
-    }
-    
-    Header header = {};
-    if (fread(&header, sizeof(Header), 1, savefile) != 1)
-    {
-        fclose(savefile);
-        return false;
-    }
-    
-    bool valid = true;
-    
-    if (header.program_names_block_size > 0 &&
-        header.total_program_count > 0 &&
-        header.day_count > 0 &&
-        header.total_record_count > 0)
-    {
-        // All are non-zero
-        s64 expected_size = file_records_offset(header) + (sizeof(Program_Record) * header.total_record_count);
-        if (expected_size != file_size)
-        {
-            valid = false;
-        }
+        // Create database
+        make_empty_savefile(global_savefile_path);
+        Assert(valid_savefile(global_savefile_path));
     }
     else
     {
-        if (header.program_names_block_size == 0 &&
-            header.total_program_count == 0 &&
-            header.day_count == 0 &&
-            header.total_record_count == 0)
+        // check database in valid state
+        if (!valid_savefile(global_savefile_path))
         {
-            // All are zero
-            if (file_size > sizeof(Header))
-            {
-                valid = false;
-            }
-        }
-        else
-        {
-            // Only some are zero
-            valid = false;
+            tprint("Error: savefile corrupted");
+            return 1;
         }
     }
     
-    // TODO: check values of saved data (e.g. id must be smaller than program count)
     
-    fclose(savefile);
     
-    return valid;
-}
-
-void update_savefile(char *filepath,
-                     Header *header,
-                     char *program_names_block, u32 program_names_block_size,
-                     u32 *program_ids, u32 program_ids_count,
-                     sys_days *dates, u32 dates_count,
-                     u32 *daily_record_counts, u32 count_of_daily_record_counts,
-                     Program_Record *records, u32 record_count)
-{
-    FILE *savefile = fopen(filepath, "wb");
-    fwrite(header, 1, sizeof(Header), savefile);
-    fwrite(program_names_block, 1, program_names_block_size, savefile);
-    fwrite(program_ids, sizeof(u32), program_ids_count, savefile);
-    fwrite(dates, sizeof(sys_days), dates_count, savefile);
-    fwrite(daily_record_counts, sizeof(u32), count_of_daily_record_counts, savefile);
-    fwrite(records, sizeof(Program_Record), record_count, savefile);
-    fclose(savefile);
-}
-
-#if 0
-// Save all to file
-
-{
-    // NOTE: Always create a new savefile for now
-    Header new_header = header;
-    
-    String_Builder sb = create_string_builder(); // We will build strings will add_string to allow null terminators to be interspersed
-    
-    u32 total_record_count = 0;
-    for (u32 i = 0; i < day_count; ++i)
-    {
-        total_record_count += days[i].record_count;
-    }
-    
-    std::vector<u32> program_ids;
-    std::vector<sys_days> dates;
-    std::vector<u32> counts;
-    std::vector<Program_Record> records;
-    
-    program_ids.reserve(all_programs.count);
-    dates.reserve(day_count);
-    counts.reserve(day_count);
-    records.reserve(total_record_count);
-    
-    u32 test = 0; // TODO: remove this
-    for (s64 i = 0; i < all_programs.size; ++i)
-    {
-        if (all_programs.occupancy[i] == Hash_Table::OCCUPIED)
-        {
-            // add null terminator
-            sb.add_bytes(all_programs.buckets[i].key, strlen(all_programs.buckets[i].key) + 1);
-            
-            program_ids.push_back(all_programs.buckets[i].value);
-            
-            test += strlen(all_programs.buckets[i].key) + 1;
-        }
-    }
-    
-    Assert(test == sb.len);
-    Assert(program_ids.size() == all_programs.count);
-    
-    // TODO: Not sure whether to keep days as AOS or SOA
-    // SOA wouldn't need to do this kind of thing when saving to file
-    
-    new_header.program_names_block_size = sb.len;
-    new_header.total_program_count = all_programs.count;
-    new_header.day_count = day_count;
-    new_header.total_record_count = total_record_count;
-    
-    u32 index = 0;
-    for (u32 i = 0; i < day_count; ++i)
-    {
-        dates.push_back(days[i].date);
-        counts.push_back(days[i].record_count);
-        for (u32 j = 0; j < days[i].record_count; ++j)
-        {
-            records.push_back(days[i].records[j]);
-        }
-    }
-    
-    update_savefile(global_savefile_path,
-                    &new_header,
-                    sb.str, sb.len,
-                    program_ids.data(), program_ids.size(),
-                    dates.data(), dates.size(),
-                    counts.data(), counts.size(),
-                    records.data(), records.size());
-    
-    convert_savefile_to_text_file(global_savefile_path, global_debug_savefile_path);
-}
-
-read_from_file()
-
-// TODO: This is bad and error prone
-// Consider a separate array, or linked list of chunks to hold records, when the days then point into.
-// Easy to just allocate a big chunk add all the days, then easily add more days, with no resizing/reallocating
-{
-    // Can there be no records for a day in the file, or there be days with no programs and vice versa?
-    FILE *savefile = fopen(global_savefile_path, "rb");
-    fread(&header, sizeof(Header), 1, savefile);
-    
-    // If there are zero days or progams it sets size to 30
-    init_hash_table(&all_programs, header.total_program_count*2 + 30);
-    
-    u32 max_days = std::max(MaxDays, (header.day_count*2) + DefaultDayAllocationCount);
-    days = (Day *)xalloc(sizeof(Day) * max_days);
-    
-    read_programs_from_savefile(savefile, header, &all_programs);
-    read_all_days_from_savefile(savefile, header, days);
-    
-    day_count = header.day_count;
-    
-    sys_days now = floor<date::days>(System_Clock::now());
-    
-    // Leave space for 30 days
-    if (day_count > 0)
-    {
-        if (now == days[day_count-1].date)
-        {
-            cur_day = day_count-1;
-            days[day_count-1].records = (Program_Record *)realloc(days[day_count-1].records, sizeof(Program_Record) * MaxDailyRecords);
-        }
-        else
-        {
-            cur_day = day_count;
-            day_count += 1;
-            days[cur_day].records = (Program_Record *)xalloc(sizeof(Day) * MaxDailyRecords);
-            days[cur_day].date = now;
-            days[cur_day].record_count = 0;
-        }
-    }
-    else
-    {
-        cur_day = 0;
-        day_count = 1;
-        days[cur_day].records = (Program_Record *)xalloc(sizeof(Program_Record) * MaxDailyRecords);
-        days[cur_day].date = now;
-        days[cur_day].record_count = 0;
-    }
-    
-    fclose(savefile);
-}
-
-
-if (!file_exists(global_savefile_path))
-{
-    // Create database
-    make_empty_savefile(global_savefile_path);
-    Assert(valid_savefile(global_savefile_path));
-}
-else
-{
-    // check database in valid state
-    if (!valid_savefile(global_savefile_path))
-    {
-        tprint("Error: savefile corrupted");
-        return 1;
-    }
-}
-
-
-
 #endif

@@ -8,9 +8,9 @@
 #include <unordered_map>
 #include <chrono>
 
-static constexpr i32 MAX_KEYWORD_COUNT = 100;
-static constexpr i32 MAX_KEYWORD_SIZE = 101;
-static constexpr i32 MICROSECS_PER_SEC = 1000000;
+static constexpr s32 MAX_KEYWORD_COUNT = 100;
+static constexpr s32 MAX_KEYWORD_SIZE = 101;
+static constexpr s32 MICROSECS_PER_SEC = 1000000;
 
 static_assert(sizeof(date::sys_days) == sizeof(u32), "");
 static_assert(sizeof(date::year_month_day) == sizeof(u32), "");
@@ -23,22 +23,29 @@ typedef u32 App_Id;
 // TODO: should i be using local_days instead of sys_days (does it actually matter, using sys days and the get_localtime function I did fix the "day not changing after midnight because of utc time" issue)
 
 
-date::sys_days
-get_localtime()
+bool is_local_program(App_Id id)
 {
-    time_t rawtime;
-    time( &rawtime );
+    return !(id & (1 << 31));
+}
+
+bool is_website(App_Id id)
+{
+    return id & (1 << 31);
+}
+
+u32
+index_from_id(App_Id id)
+{
+    Assert(id != 0);
     
-    struct tm *info;
-    //int tm_mday;        /* day of the month, range 1 to 31  */
-    //int tm_mon;         /* month, range 0 to 11             */
-    //int tm_year;        /* The number of years since 1900   */
-    info = localtime( &rawtime );
-    auto now = date::sys_days{date::month{(unsigned)(info->tm_mon + 1)}/date::day{(unsigned)info->tm_mday}/date::year{info->tm_year + 1900}};
     
-    //auto test_date = std::floor<date::local_days>()};
-    //Assert(using local_days    = local_time<days>;
-    return now;
+    u32 index = id & (0x8000 - 1);
+    if (is_local_program(id)) index -= 1;
+    
+    Assert(index < id);
+    Assert(index >= 0 && (index <= (0x8000 - 1)));
+    
+    return index;
 }
 
 // custom specialization of std::hash can be injected in namespace std
@@ -75,9 +82,9 @@ namespace std
 
 enum Id_Type
 {
-	Id_Invalid,
+	Id_Invalid, 
 	Id_LocalProgram,     // Start at 1
-	Id_Website, // Start at 0x800000
+	Id_Website,          // Start at 0x800000
 };
 struct Record
 {
@@ -85,6 +92,10 @@ struct Record
     App_Id id;
     time_type duration; // microseconds
 };
+
+// might want to set with attention paid to arena size, and extra size that is added etc
+static constexpr u32 MAX_DAILY_RECORDS = 1000;
+static constexpr u32 DEFAULT_DAILY_RECORDS_ARENA_SIZE = MAX_DAILY_RECORDS * sizeof(Record);
 
 // Days (and records) are:
 //  - append only
@@ -103,26 +114,16 @@ struct Record
 // and then just append normal sized blocks during runtime.
 // This probably means blocks must have a block_size field, because they can be variable size
 
-static constexpr u32 BLOCK_SIZE = 1024 * sizeof(Record); // 16384
-static constexpr u32 BLOCK_MAX_RECORDS = 1023;
-
 struct Day
 {
     Record *records;
     date::sys_days date;
     u32 record_count;
 };
-struct Block
-{
-    Record records[BLOCK_MAX_RECORDS];
-    Block *next;
-    u32 count;
-    bool32 full; // needed? because we imediately start a new block when this would be set to true
-    //u32 padding;
-};
+
 struct Day_List
 {
-    Block *blocks;
+    Arena arena;
     std::vector<Day> days;
 };
 
@@ -141,18 +142,17 @@ struct Day_View
     Record *copy_of_current_days_records;
 };
 
-static_assert(BLOCK_SIZE == sizeof(Block), "");
-
-struct App_Info
+struct Local_Program_Info
 {
-    // TODO: Check that full paths saved to file are valid, and update if possible.
-    // (full url, keyword) or
-    // (path, exe name)
+    String short_name;
+    i32 icon_index;   // -1 means not loaded
     
     String full_name; // this must be null terminated because passed to curl as url or OS as a path
+};
+
+struct Website_Info
+{
     String short_name;
-    
-    // I don't really want this here
     i32 icon_index;   // -1 means not loaded
 };
 
@@ -165,36 +165,36 @@ struct Icon_Asset
     u32 texture_handle;
 };
 
+struct App_List
+{
+    // Need two sets of tables, two ids types etc because a website and app can have the same short_name and they are treated slightly differently
+    
+    // Contains local programs
+    std::unordered_map<String, App_Id> local_program_ids;
+    
+    // Contains domain names (e.g. developer.mozilla.org)
+    std::unordered_map<String, App_Id> website_ids;
+    
+    // Indexed by app id low 31-bits
+    std::vector<Local_Program_Info> local_programs;
+    std::vector<Website_Info> websites;
+    
+    App_Id next_program_id;      // starts at 0x00000001
+    App_Id next_website_id;      // starts at 0x80000000 top bit set
+    
+    Arena names_arena;
+};
 
 struct Database
 {
-    // TODO: make class that treats these three tables as one two way table
-    
-    // Contains local programs
-    std::unordered_map<String, App_Id> local_programs;
-    // Contains domain names (e.g. developer.mozilla.org)
-    std::unordered_map<String, App_Id> domain_names;
-    
-    // Contains websites and local programs
-    // We use full_name as a path to load icons from executables
-    // full_name for websites isn't used
-    std::unordered_map<App_Id, App_Info> app_names;
-    
-    Arena names_arena;
-    
-    App_Id next_program_id;      // starts at 0x00000000 1
-    App_Id next_website_id;      // starts at 0x80000000 top bit set
+    App_List apps;
     
     // Just allocate 100 days + days we already have to stop repeated allocs and potential failure
     // Also say we can have max of 1000 daily records or so, so we can just alloc a 1000 record chunk from arena per day to easily ensure it will be contiguous.
     Day_List day_list;
     
-    // Also make a malloc failure routine that writes to savefile and maybe exits gracefully
-    // except imgui and SDL wont use it i suppose
+    // Also make a malloc failure routine that maybe writes to savefile, and frees stuff and maybe exits gracefully
     
-    
-    // TODO: Maybe don't want this stuff in database. It is needed when other database stuff is needed (by UI) but it doesn't have the same lifetime, nor the same relation as others
-    // loaded at startup
     i32 default_icon_index;
     u32 icon_count;
     Icon_Asset icons[200]; // 200 icons isn't really that much, should make like 1000
@@ -280,6 +280,9 @@ Monitor_State
     
     // microsecs
     time_type accumulated_time;
+    time_type microseconds_until_next_day;
+    
+    date::sys_days current_date;
     
     // debug temporary
     time_type total_runtime;
