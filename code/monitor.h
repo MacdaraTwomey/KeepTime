@@ -25,7 +25,7 @@ typedef u32 App_Id;
 
 bool is_local_program(App_Id id)
 {
-    return !(id & (1 << 31));
+    return !(id & (1 << 31)) && id != 0;
 }
 
 bool is_website(App_Id id)
@@ -195,7 +195,8 @@ struct Database
     
     // Also make a malloc failure routine that maybe writes to savefile, and frees stuff and maybe exits gracefully
     
-    i32 default_icon_index;
+    u32 default_website_icon_index;
+    u32 default_local_program_icon_index;
     u32 icon_count;
     Icon_Asset icons[200]; // 200 icons isn't really that much, should make like 1000
 };

@@ -37,6 +37,14 @@
 #include "tracy.hpp"
 #include "../tracy/TracyClient.cpp"
 
+static float ico_u0;
+static float ico_u1;
+static float ico_v0;
+static float ico_v1;
+static float ico_w;
+static float ico_h;
+static u64 ico_tex;
+
 #include "utilities.cpp" // xalloc, string copy, concat string, make filepath, get_filename_from_path
 #include "bitmap.cpp"
 #include "win32_monitor.cpp" // needs bitmap functions
@@ -48,6 +56,110 @@ static bool global_running = true;
 
 #define WINDOW_WIDTH 1240
 #define WINDOW_HEIGHT 720
+
+
+
+void
+init_imgui(SDL_Window *window, SDL_GLContext gl_context)
+{
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    
+    // Setup Platform/Renderer bindings
+    ImGui_ImplSDL2_InitForOpenGL(window, gl_context); // just sets keymap, gets cursors and sets backend flags
+    ImGui_ImplOpenGL3_Init("#version 130"); // just sets what version of opengl, and backend flags for imgui
+    
+    ImGuiIO& io = ImGui::GetIO(); 
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+    io.IniFilename = NULL; // Disable imgui.ini filecreation
+    
+    
+    //ImGui::StyleColorsDark();
+    //ImGui::StyleColorsClassic();
+    //ImGui::StyleColorsLight();
+    
+    //io.Fonts->AddFontFromFileTTF("c:\\dev\\projects\\monitor\\fonts\\DroidSans.ttf", 16.0f);
+    //io.Fonts->AddFontFromFileTTF("c:\\dev\\projects\\monitor\\fonts\\Karla-Regular.ttf", 16.0f);
+    //io.Fonts->AddFontFromFileTTF("c:\\dev\\projects\\monitor\\fonts\\Roboto-Medium.ttf", 16.0f);
+    //io.Fonts->AddFontFromFileTTF("c:\\dev\\projects\\monitor\\fonts\\Cousine-Regular.ttf", 16.0f);
+    //io.Fonts->AddFontFromFileTTF("c:\\windows\\fonts\\times.ttf", 16.0f);
+    //io.Fonts->AddFontDefault();
+    
+    //#include "compressed_fonts/roboto_font_file.cpp"
+    //ImFont* font = 
+    //io.Fonts->AddFontFromMemoryCompressedTTF(roboto_font_file_compressed_data, roboto_font_file_compressed_size, 22.0f);
+    
+    // make just add ascii characters?
+    //io.Fonts->AddFontFromFileTTF("c:\\windows\\fonts\\seguisym.ttf", 22.0f);
+    
+    // SourceSansProRegular_compressed_data is in helper.h
+    io.Fonts->AddFontFromMemoryCompressedTTF(SourceSansProRegular_compressed_data, SourceSansProRegular_compressed_size, 22.0f);
+    
+    // NOTE: glyph ranges must exist at least until atlas is built
+    
+    //static const ImWchar icon_range[] = { ICON_MIN_MD, ICON_MAX_MD, 0 };
+    //builder.AddRanges(icon_range); // calls add char looping over 2byte chars in range
+    
+    ImFontConfig icons_config; 
+    icons_config.MergeMode = true; 
+    icons_config.PixelSnapH = true;
+    
+    ImVector<ImWchar> range_32;
+    ImFontGlyphRangesBuilder builder_32;
+    builder_32.AddText(ICON_MD_PUBLIC);
+    builder_32.BuildRanges(&range_32);                          
+    
+    ImVector<ImWchar> range_22;
+    ImFontGlyphRangesBuilder builder_22;
+    builder_22.AddText(ICON_MD_DATE_RANGE);
+    builder_22.AddText(ICON_MD_ARROW_FORWARD);
+    builder_22.AddText(ICON_MD_ARROW_BACK);
+    builder_22.AddText(ICON_MD_SETTINGS);
+    builder_22.BuildRanges(&range_22);                          
+    
+    icons_config.GlyphOffset = ImVec2(0, 13); // move glyphs down or else they render too high
+    io.Fonts->AddFontFromFileTTF("c:\\dev\\projects\\monitor\\build\\fonts\\MaterialIcons-Regular.ttf", 36.0f, &icons_config, range_32.Data);
+    
+    icons_config.GlyphOffset = ImVec2(0, 4); // move glyphs down or else they render too high
+    io.Fonts->AddFontFromFileTTF("c:\\dev\\projects\\monitor\\build\\fonts\\MaterialIcons-Regular.ttf", 22.0f, &icons_config, range_22.Data);
+    
+    
+    unsigned int flags = ImGuiFreeType::NoHinting;
+    ImGuiFreeType::BuildFontAtlas(io.Fonts, flags);
+    io.Fonts->Build();
+    
+    
+    ImFontAtlas *atlas = io.Fonts;
+    ImFont *font = atlas->Fonts[0];
+    
+    ico_tex = 1;//(u64)atlas->TexID; // should be 1?
+    
+    
+    const ImFontGlyph *g = font->FindGlyph(0xe80b);
+    ico_u0 = g->U0;
+    ico_u1 = g->U1;
+    ico_v0 = g->V0;
+    ico_v1 = g->V1;
+    ico_w  = g->X1 - g->X0;
+    ico_h  = g->Y1 - g->Y0;
+    
+    
+#if 0    
+    // TODO: Compare freetype options, and stb_truetype
+    //FreeTypeTest freetype_test;
+    
+    ImGuiStyle& style = ImGui::GetStyle();
+    style.FrameRounding = 0.0f; // 0 to 12 ? 
+    style.WindowBorderSize = 1.0f; // or 1.0
+    style.GrabRounding = style.FrameRounding; // Make GrabRounding always the same value as FrameRounding
+    style.FrameBorderSize = 1.0f;
+    style.PopupBorderSize = 1.0f;
+    style.ChildBorderSize = 1.0f;
+    style.WindowRounding = 0.0f;
+#endif
+    
+    ImGui::Spectrum::StyleColorsSpectrum(); 
+}
 
 int main(int argc, char* argv[])
 {
@@ -84,69 +196,7 @@ int main(int argc, char* argv[])
         return 1;
     }
     
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO(); 
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-    io.IniFilename = NULL; // Disable imgui.ini filecreation
-    
-    //ImGui::StyleColorsDark();
-    //ImGui::StyleColorsClassic();
-    ImGui::StyleColorsLight();
-    
-    //io.Fonts->AddFontFromFileTTF("c:\\dev\\projects\\monitor\\fonts\\DroidSans.ttf", 16.0f);
-    //io.Fonts->AddFontFromFileTTF("c:\\dev\\projects\\monitor\\fonts\\Karla-Regular.ttf", 16.0f);
-    //io.Fonts->AddFontFromFileTTF("c:\\dev\\projects\\monitor\\fonts\\Roboto-Medium.ttf", 16.0f);
-    //io.Fonts->AddFontFromFileTTF("c:\\dev\\projects\\monitor\\fonts\\Cousine-Regular.ttf", 16.0f);
-    //io.Fonts->AddFontFromFileTTF("c:\\windows\\fonts\\times.ttf", 16.0f);
-    //io.Fonts->AddFontDefault();
-    
-    //#include "compressed_fonts/roboto_font_file.cpp"
-    //ImFont* font = 
-    //io.Fonts->AddFontFromMemoryCompressedTTF(roboto_font_file_compressed_data, roboto_font_file_compressed_size, 22.0f);
-    
-    // make just add ascii characters?
-    io.Fonts->AddFontFromFileTTF("c:\\windows\\fonts\\seguisym.ttf", 22.0f);
-    
-    // NOTE: glyph ranges must exist at least until atlas is built
-    
-    //static const ImWchar icon_range[] = { ICON_MIN_MD, ICON_MAX_MD, 0 };
-    //builder.AddRanges(icon_range); // calls add char looping over 2byte chars in range
-    
-    ImFontConfig icons_config; 
-    icons_config.MergeMode = true; 
-    icons_config.PixelSnapH = true;
-    
-    ImVector<ImWchar> range_32;
-    ImFontGlyphRangesBuilder builder_32;
-    builder_32.AddText(ICON_MD_PUBLIC);
-    builder_32.BuildRanges(&range_32);                          
-    
-    ImVector<ImWchar> range_22;
-    ImFontGlyphRangesBuilder builder_22;
-    builder_22.AddText(ICON_MD_DATE_RANGE);
-    builder_22.AddText(ICON_MD_ARROW_FORWARD);
-    builder_22.AddText(ICON_MD_ARROW_BACK);
-    builder_22.AddText(ICON_MD_SETTINGS);
-    builder_22.BuildRanges(&range_22);                          
-    
-    icons_config.GlyphOffset = ImVec2(0, 13); // move glyphs down or else they render too high
-    io.Fonts->AddFontFromFileTTF("c:\\dev\\projects\\monitor\\build\\fonts\\MaterialIcons-Regular.ttf", 32.0f, &icons_config, range_32.Data);
-    
-    icons_config.GlyphOffset = ImVec2(0, 4); // move glyphs down or else they render too high
-    io.Fonts->AddFontFromFileTTF("c:\\dev\\projects\\monitor\\build\\fonts\\MaterialIcons-Regular.ttf", 22.0f, &icons_config, range_22.Data);
-    
-    
-    unsigned int flags = ImGuiFreeType::NoHinting;
-    ImGuiFreeType::BuildFontAtlas(io.Fonts, flags);
-    io.Fonts->Build();
-    
-    // Setup Platform/Renderer bindings
-    ImGui_ImplSDL2_InitForOpenGL(window, gl_context);
-    ImGui_ImplOpenGL3_Init("#version 130");
-    
-    // TODO: Compare freetype options, and stb_truetype
-    //FreeTypeTest freetype_test;
+    init_imgui(window, gl_context);
     
 #if defined(_WIN32)
     SDL_EventState(SDL_SYSWMEVENT, SDL_ENABLE);

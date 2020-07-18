@@ -18,6 +18,8 @@
 #include "network.cpp"
 #include "ui.cpp"
 
+#include "world_icon.cpp"
+
 #define ICON_SIZE 32
 
 i32
@@ -39,19 +41,19 @@ load_icon_and_add_to_database(Database *database, Bitmap bitmap)
 Icon_Asset *
 get_icon_asset(Database *database, App_Id id)
 {
-    App_List *apps = &database->apps;
-    
     if (is_website(id))
     {
-        // We should use font id, when no website icon
         //get_favicon_from_website(url);
         
-        Assert(0); // no firefox icons for now
-        return nullptr;
+        Icon_Asset *default_icon = database->icons + database->default_website_icon_index;
+        Assert(default_icon->texture_handle != 0);
+        return default_icon;
     }
     
     if (is_local_program(id))
     {
+        App_List *apps = &database->apps;
+        
         u32 name_index = index_from_id(id);
         
         Assert(name_index < apps->local_programs.size());
@@ -60,6 +62,7 @@ get_icon_asset(Database *database, App_Id id)
         Local_Program_Info &info = apps->local_programs[name_index];
         if (info.icon_index == -1)
         {
+            // We haven't loaded the icon yet, so get executable icon from os and load texture to GPU
             Assert(info.full_name.length > 0);
             Bitmap bitmap;
             bool success = platform_get_icon_from_executable(info.full_name.str, ICON_SIZE, 
@@ -80,7 +83,7 @@ get_icon_asset(Database *database, App_Id id)
     }
     
     // Use default OS icon for application
-    Icon_Asset *default_icon = database->icons + database->default_icon_index;
+    Icon_Asset *default_icon = database->icons + database->default_local_program_icon_index;
     Assert(default_icon->texture_handle != 0);
     return default_icon;
 }
@@ -440,7 +443,20 @@ void init_database(Database *database, date::sys_days current_date)
         }
     }
     
-    database->default_icon_index = load_icon_and_add_to_database(database, bitmap);
+    database->default_local_program_icon_index = load_icon_and_add_to_database(database, bitmap);
+    
+    
+    Assert(world_icon_size == ICON_SIZE*ICON_SIZE*4);
+    Assert(world_icon_width == ICON_SIZE);
+    Assert(world_icon_height == ICON_SIZE);
+    
+    Bitmap website_bitmap;
+    website_bitmap.pixels = (u32 *)world_icon_data;
+    website_bitmap.width = ICON_SIZE;
+    website_bitmap.height = ICON_SIZE;
+    website_bitmap.pitch = ICON_SIZE*4;
+    
+    database->default_website_icon_index = load_icon_and_add_to_database(database, website_bitmap);
 }
 
 
@@ -557,7 +573,23 @@ extract_domain_name(String url)
         if (host_end - host_start >= 1)
         {
             // Characters of host not checked (doesn't matter because if doesn't match keyword it won't be recorded anyway)
-            return substr_range(authority, host_start, host_end);
+            
+            // Check against valid characters so if user was just typing in garbage into URL bar, then clicked away, we won't think its a domain.
+            
+            String domain = substr_range(authority, host_start, host_end);
+            
+            bool good_domain = true;
+            for (u32 i = 0; i < domain.length; ++i)
+            {
+                char c = domain[i];
+                if (!(isalnum(c) || c == '-' || c == '.'))
+                {
+                    good_domain = false;
+                    break;
+                }
+            }
+            
+            if (good_domain) return domain;
         }
     }
     
@@ -673,33 +705,6 @@ update(Monitor_State *state, SDL_Window *window, time_type dt_microseconds, u32 
         add_keyword(&state->keyword_arena, state->settings.keywords, "google");
         add_keyword(&state->keyword_arena, state->settings.keywords, "github");
         
-        
-        // UI initialisation
-        
-        // This will set once per program execution
-        Date_Picker &picker = state->date_picker;
-        
-#if 0
-        picker.range_type = Range_Type_Daily;
-        picker.start = current_date;
-        picker.end = current_date;
-#else
-        // DEBUG: Default to monthly
-        auto ymd = date::year_month_day{state->current_date};
-        picker.range_type = Range_Type_Monthly;
-        picker.start = date::sys_days{ymd.year()/ymd.month()/1};
-        picker.end   = date::sys_days{ymd.year()/ymd.month()/date::last};
-#endif
-        
-        date::sys_days oldest_date = state->database.day_list.days.front().date;
-        date::sys_days newest_date = state->database.day_list.days.back().date;
-        
-        // sets label and if buttons are disabled 
-        date_picker_clip_and_update(&picker, oldest_date, newest_date);
-        
-        init_calendar(&picker.first_calendar, state->current_date, oldest_date, newest_date);
-        init_calendar(&picker.second_calendar, state->current_date, oldest_date, newest_date);
-        
         state->is_initialised = true;
     }
     
@@ -707,6 +712,9 @@ update(Monitor_State *state, SDL_Window *window, time_type dt_microseconds, u32 
     
     Database *database = &state->database;
     App_List *apps = &database->apps;
+    
+    
+    //create_world_icon_source_file("c:\\dev\\projects\\monitor\\build\\world.png",  "c:\\dev\\projects\\monitor\\code\\world_icon.cpp", ICON_SIZE);
     
     // TODO: Just use google or duckduckgo service for now (look up how duckduckgo browser does it, ever since they switched from using their service...)
     
@@ -744,6 +752,11 @@ update(Monitor_State *state, SDL_Window *window, time_type dt_microseconds, u32 
     
     if (window_status & Window_Just_Visible)
     {
+        
+        date::sys_days oldest_date = state->database.day_list.days.front().date;
+        date::sys_days newest_date = state->database.day_list.days.back().date;
+        
+        init_date_picker(&state->date_picker, current_date, oldest_date, newest_date);
     }
     
     Day_View day_view = get_day_view(&database->day_list);

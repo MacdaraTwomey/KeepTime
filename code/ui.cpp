@@ -1,5 +1,9 @@
 
 #include "monitor.h"
+#include "spectrum.h"
+#include "spectrum.cpp"
+
+#include <ctype.h> // is_alnum
 
 // from monitor.cpp
 Icon_Asset * get_icon_asset(Database *database, App_Id id);
@@ -249,9 +253,7 @@ do_settings_popup(Edit_Settings *edit_settings)
                 
                 auto filter = [](ImGuiTextEditCallbackData* data) -> int {
                     ImWchar c = data->EventChar;
-                    if ((c >= 'a' && c <= 'z') || 
-                        (c >= 'A' && c <= 'Z') || 
-                        (c >= '0' && c <= '9') ||
+                    if (isalnum(c) ||
                         c == '-' || 
                         c == '.')
                     {
@@ -801,28 +803,39 @@ do_debug_window_button(Database *database, Day_View *day_view)
         ImGui::SetNextWindowSize(ImVec2(850, 690), true);
         ImGui::Begin("Debug Window", &debug_menu_open, flags);
         
+        char buf[2000];
+        auto copy_and_add_null = [](char *buf, String s) {
+            memcpy(buf, s.str, s.length);
+            buf[s.length] = 0;
+        };
+        
         {
+            
             ImGui::Text("short_name : ids in local_program_ids and website_ids");
-            ImGui::BeginChildFrame(26, ImVec2(200, 600));
+            ImGui::BeginChildFrame(26, ImVec2(ImGui::GetWindowWidth() * 0.4, 600));
             for (auto &pair : apps->local_program_ids)
             {
                 // not sure if definately null terminated
-                ImGui::BulletText("%s: %u", pair.first.str, pair.second);
+                copy_and_add_null(buf, pair.first);
+                ImGui::BulletText("%s: %u", buf, pair.second);
             }
             for (auto &pair : apps->website_ids)
             {
                 // not sure if definately null terminated
-                ImGui::BulletText("%s: %u", pair.first.str, pair.second);
+                copy_and_add_null(buf, pair.first);
+                ImGui::BulletText("%s: %u", buf, pair.second);
             }
             ImGui::EndChildFrame();
         }
+        ImGui::SameLine();
         {
             ImGui::Text("full names in local_programs");
-            ImGui::BeginChildFrame(27, ImVec2(200, 600));
+            ImGui::BeginChildFrame(27, ImVec2(ImGui::GetWindowWidth() * 0.6, 600));
             for (auto &info : apps->local_programs)
             {
                 // not sure if definately null terminated
-                ImGui::BulletText("%s", info.full_name);
+                copy_and_add_null(buf, info.full_name);
+                ImGui::BulletText("%s", buf);
             }
             ImGui::EndChildFrame();
         }
@@ -1000,6 +1013,31 @@ get_records_in_date_range(Day_View *day_view, u32 *record_count, date::sys_days 
     return result;
 }
 
+
+
+void
+init_date_picker(Date_Picker *picker, date::sys_days current_date, 
+                 date::sys_days oldest_date, date::sys_days newest_date)
+{
+#if 0
+    picker->range_type = Range_Type_Daily;
+    picker->start = current_date;
+    picker->end = current_date;
+#else
+    // DEBUG: Default to monthly
+    auto ymd = date::year_month_day{current_date};
+    picker->range_type = Range_Type_Monthly;
+    picker->start = date::sys_days{ymd.year()/ymd.month()/1};
+    picker->end   = date::sys_days{ymd.year()/ymd.month()/date::last};
+#endif
+    
+    // sets label and if buttons are disabled 
+    date_picker_clip_and_update(picker, oldest_date, newest_date);
+    
+    init_calendar(&picker->first_calendar, current_date, oldest_date, newest_date);
+    init_calendar(&picker->second_calendar, current_date, oldest_date, newest_date);
+}
+
 // Database only needed for app_names, icons, and debug menu
 // State needed for datepicker and settings
 void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *database, Day_View *day_view)
@@ -1015,15 +1053,6 @@ void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *data
     bool show_demo_window = true;
     if (show_demo_window)
         ImGui::ShowDemoWindow(&show_demo_window);
-    
-    ImGuiStyle& style = ImGui::GetStyle();
-    style.FrameRounding = 0.0f; // 0 to 12 ? 
-    style.WindowBorderSize = 1.0f; // or 1.0
-    style.GrabRounding = style.FrameRounding; // Make GrabRounding always the same value as FrameRounding
-    style.FrameBorderSize = 1.0f;
-    style.PopupBorderSize = 1.0f;
-    style.ChildBorderSize = 1.0f;
-    style.WindowRounding = 0.0f;
     
     ImGuiWindowFlags flags =
         ImGuiWindowFlags_NoTitleBar
@@ -1192,42 +1221,43 @@ void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *data
                 // try with and without id == 0 record
                 sum_duration += record.duration; // DEBUG
                 
-                Bitmap *bmp = nullptr;
-                if (is_local_program(record.id))
+                // TODO: Check if pos of bar or image will be clipped entirely, and maybe skip rest of loop
+                
+                // if id is 0 gets default app icon, so should always succeed
+                Icon_Asset *icon = get_icon_asset(database, record.id);
+                if (icon)
                 {
-                    // DEBUG:
-                    Icon_Asset *icon = 0;
-                    if (record.id == 0)
-                    {
-                        icon = database->icons + database->default_icon_index;
-                    }
-                    else
-                    {
-                        // TODO: Check if pos of bar or image will be clipped entirely, and maybe skip rest of loop
-                        icon = get_icon_asset(database, record.id);
-                    }
+                    auto border = ImVec4(0,0,0,255);
+                    ImGui::Image((ImTextureID)(intptr_t)icon->texture_handle, ImVec2((float)icon->bitmap.width, (float)icon->bitmap.height),{0,0},{1,1},{1,1,1,1}, border);
                     
-                    bmp = &icon->bitmap;
-                    
-                    // Don't need to bind texture before this because imgui binds it before draw call
-                    ImGui::Image((ImTextureID)(intptr_t)icon->texture_handle, ImVec2((float)icon->bitmap.width, (float)icon->bitmap.height));
-                }
-                else if (is_website(record.id))
-                {
-                    ImGui::Text(ICON_MD_PUBLIC);
+                    // TODO: Website icons next to each other ruin spacing, also start too far back by a few pixels
+                    //ImGui::Text(ICON_MD_PUBLIC);
                 }
                 
                 ImGui::SameLine();
                 ImVec2 p0 = ImGui::GetCursorScreenPos();
+                
+                ImU32 colours[] = {
+                    IM_COL32(255, 154, 162, 255),
+                    IM_COL32(255, 183, 178, 255),
+                    IM_COL32(255, 218, 193, 255),
+                    IM_COL32(226, 240, 203, 255),
+                    IM_COL32(181, 234, 215, 255),
+                    IM_COL32(199, 206, 234, 255),
+                };
                 
                 // TODO: Save records or sizes between frames
                 float bar_width = max_width * ((float)record.duration / (float)max_duration);
                 if (bar_width > 0)
                 {
                     ImVec2 p1 = ImVec2(p0.x + bar_width, p0.y + bar_height);
-                    ImU32 col_a = ImGui::GetColorU32(ImVec4(0.0f, 1.0f, 0.0f, 1.0f));
-                    ImU32 col_b = ImGui::GetColorU32(ImVec4(0.2f, 0.4f, 0.0f, 1.0f));
-                    draw_list->AddRectFilledMultiColor(p0, p1, col_a, col_b, col_b, col_a);
+                    draw_list->AddRectFilled(p0, p1, 
+                                             //IM_COL32(255, 154, 162, 255),
+                                             colours[i % array_count(colours)], 
+                                             1, ImDrawCornerFlags_All);                    
+                    //ImU32 col_a = ImGui::GetColorU32(ImVec4(0.0f, 1.0f, 0.0f, 1.0f));
+                    //ImU32 col_b = ImGui::GetColorU32(ImVec4(0.2f, 0.4f, 0.0f, 1.0f));
+                    //draw_list->AddRectFilledMultiColor(p0, p1, col_a, col_b, col_b, col_a);
                 }
                 
                 // This is a hash table search
@@ -1243,15 +1273,16 @@ void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *data
                     name = get_name_from_id(apps, record.id);
                 }
                 
-                u32 seconds = record.duration / MICROSECS_PER_SEC;
-                
                 
                 //if (i < 5) 
                 ImGui::AlignTextToFramePadding();  // TODO: text needs to be slightly further down
                 
+                
                 ImVec2 pos = ImGui::GetCursorScreenPos();
+                //draw_list->AddLine(pos, ImVec2(pos.x + 1000, pos.y), IM_COL32(0,0,0,255), 1.0f);
+                
                 pos.x += 5;
-                // pos.y += 3; // this seems to make lots of space between text lines and can't be undone by subtracting the pixels after the text is written
+                //pos.y += 5; // this seems to make lots of space between text lines and can't be undone by subtracting the pixels after the text is written
                 ImGui::SetCursorScreenPos(pos);
                 
                 // TODO: Limit name length
@@ -1259,13 +1290,18 @@ void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *data
                 ImGui::TextUnformatted(name.str, name.str + name.length);
                 
                 
-                ImGui::SameLine();
-                ImGui::SetCursorPosX(ImGui::GetWindowSize().x * 0.90);
+                //pos = ImGui::GetCursorScreenPos();
+                //draw_list->AddLine(pos, ImVec2(pos.x + 1000, pos.y), IM_COL32(255,0,0,255), 1.0f);
+                
+                ImGui::SameLine(ImGui::GetWindowSize().x * 0.90);
+                //ImGui::SetCursorPosX();
+                
                 
 #if MONITOR_DEBUG
                 float real_seconds = (float)record.duration / MICROSECS_PER_SEC;
                 ImGui::Text("%.2fs", real_seconds); 
 #else
+                u32 seconds = record.duration / MICROSECS_PER_SEC;
                 if (seconds < 60)
                 {
                     ImGui::Text("%us", seconds); 
@@ -1281,9 +1317,10 @@ void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *data
                     ImGui::Text("%uh %um", hours, minutes_remainder); 
                 }
                 
+                
 #endif
-                ImGui::SameLine();
-                ImGui::InvisibleButton("##gradient1", ImVec2(bar_width + 10, bar_height));
+                //ImGui::SameLine();
+                //ImGui::InvisibleButton("##gradient1", ImVec2(bar_width + 10, bar_height));
             }
             
             free(records);
@@ -1308,6 +1345,8 @@ void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *data
         ImGui::Text("Total runtime:        %.5fs", total_runtime_seconds);
         ImGui::Text("Sum duration:        %.5fs", sum_duration_seconds);
         
+        
+        ImGuiStyle& style = ImGui::GetStyle();
         
         ImGui::SameLine();
         memcpy((void *)style.Colors, red, 3 * sizeof(float));
@@ -1335,5 +1374,50 @@ void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *data
         glClear(GL_COLOR_BUFFER_BIT);
         
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData()); 
+    }
+}
+
+void
+create_world_icon_source_file(char *png_file, char *cpp_file, int dimension)
+{
+    static bool done = false;
+    if (!done)
+    {
+        int x = 0;
+        int y = 0;
+        int channels = 0;
+        
+        u32 *pixels = (u32 *)stbi_load(png_file, &x, &y, 0, 4);
+        Assert(pixels);
+        
+        Assert(x == dimension);
+        Assert(y == dimension);
+        //Assert(channels == 4);
+        
+        int size = x*y*4;
+        
+        FILE *out = fopen(cpp_file, "w");
+        Assert(out);
+        
+        fprintf(out, "static const unsigned int world_icon_size = %d;\n", size);
+        fprintf(out, "static const unsigned int world_icon_width = %d;\n", x);
+        fprintf(out, "static const unsigned int world_icon_height = %d;\n", y);
+        fprintf(out, "static const unsigned int world_icon_data[%d/4] =\n{", size);
+        
+        int column = 0;
+        for (int i = 0; i < x*y; ++i)
+        {
+            unsigned d = pixels[i];
+            if ((column++ % 8) == 0)
+                fprintf(out, "\n    0x%08x, ", d);
+            else
+                fprintf(out, "0x%08x, ", d);
+        }
+        fprintf(out, "\n};\n\n");
+        
+        fclose(out);
+        
+        free(pixels);
+        done = true;
     }
 }

@@ -1,10 +1,5 @@
 #pragma once
 
-// NOTE: Most of this inspired/created by Allen Webster in the 4coder_string.h string library.
-// https://4coder.handmade.network/
-
-// TODO: Pre/post condition tests for all calls in this library
-
 
 #include <string.h> // just for strlen, could just implement
 
@@ -15,6 +10,12 @@ struct String
     char *str;
     i32 length;
     i32 capacity;
+    
+    char &operator[](size_t index)
+    {
+        Assert(index >= 0 && index < length);
+        return str[index];
+    }
 };
 
 typedef String CString;
