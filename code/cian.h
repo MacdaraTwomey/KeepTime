@@ -24,8 +24,8 @@ typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
 
-typedef int32_t  bool32;
-typedef int16_t  bool16;
+typedef int32_t  b32;
+typedef int16_t  b16;
 
 typedef float  r32;
 typedef double r64;
@@ -55,40 +55,47 @@ static_assert(sizeof(u64) == 8, "");
 #error ravel.h only supports Windows and Linux
 #endif
 
+#include <assert.h>
+
+#ifndef CIAN_DEBUG_TRAP
 #if defined(_MSC_VER)
 #include <intrin.h>
-#define CIAN_DEBUG_TRAP() __debugbreak()
+#include <crtdbg.h>
+// debugbreak and Assert is not triggered when stepping through code in debugger only, while running (or pressing continue in debugger)
+#define CIAN_DEBUG_TRAP() __debugbreak() 
 #elif defined(__GNUC__)
 #define CIAN_DEBUG_TRAP() __builtin_trap()
 #else
 #define CIAN_DEBUG_TRAP() (*(int *)0 = 0;)
 #endif
+#endif
 
 void
-cian_print_assert_msg(const char *assertion, const char *file, const char *func, int line)
+cian_print_assert_msg_and_panic(const char *assertion, const char *file, const char *func, int line)
 {
-    auto strip_path = [](const char *filepath) -> const char *
+    const char *char_after_last_slash = file;
+    for (const char *c = file; c[0]; ++c)
     {
-        const char *char_after_last_slash = filepath;
-        for (const char *c = filepath; c[0]; ++c)
+        if ((*c == '\\' || *c == '/') && c[1])
         {
-            if ((*c == '\\' || *c == '/') && c[1])
-            {
-                char_after_last_slash = c + 1;
-            }
+            char_after_last_slash = c + 1;
         }
-        
-        return char_after_last_slash;
-    };
+    }
     
-    fprintf(stdout, "Assertion: (%s), %s, %s():line %i\n", assertion, strip_path(file), func, line);
-    fflush(stdout);
+    fprintf(stderr, "Assertion: (%s), %s, %s():line %i\n", assertion, char_after_last_slash, func, line);
+    fflush(stderr);
 }
 
 #define CIAN_STRINGIFY1(expr) #expr
 #define CIAN_STRINGIFY(expr) CIAN_STRINGIFY1(expr)
 
-#define CIAN_ASSERT1(cond, file, func, line) do { if(!(cond)) { cian_print_assert_msg(CIAN_STRINGIFY(cond), file, func, line); CIAN_DEBUG_TRAP(); } } while(0)
+#define CIAN_ASSERT1(cond, file, func, line)  do { \
+if (!(cond)) { \
+cian_print_assert_msg_and_panic(CIAN_STRINGIFY((cond)), (file), (func), (line)); \
+CIAN_DEBUG_TRAP(); \
+} \
+} while(0) 
+
 #define Assert(cond) CIAN_ASSERT1(cond, __FILE__, __func__, __LINE__)
 
 #define Kilobytes(Value) ((Value) * 1024LL)

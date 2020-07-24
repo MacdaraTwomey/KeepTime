@@ -85,6 +85,7 @@ write_memory_to_file(void *memory, size_t size, FILE *file)
     }
 }
 
+
 bool
 write_to_MBF(Monitor_State *state, FILE *file)
 {
@@ -207,7 +208,6 @@ write_to_MBF(Monitor_State *state, FILE *file)
     header.next_website_id = apps->next_website_id;
     header.misc_options = settings->misc_options;      
     
-    // Doesnt work coz header 0 inited
     u32 id_offset = write_memory_to_file(ids, id_count * sizeof(App_Id), file);
     u32 day_offset = write_memory_to_file(days, day_count * sizeof(MBF_Day), file);     
     u32 string_lengths_offset = write_memory_to_file(string_lengths, string_count * sizeof(u32), file); 

@@ -56,7 +56,7 @@ push_size(Arena *arena, size_t size)
         block->buffer = buffer;
         block->size = real_size;
         block->used = 0;
-        block->prev = arena->block;
+        block->prev = arena->block; // null if this is the first block
         
         arena->block = block;
     }
@@ -104,12 +104,32 @@ push_string(Arena *arena, char *string)
 }
 
 void
-arena_reset(Arena *arena)
+reset_arena(Arena *arena)
 {
     // frees all blocks but the first and sets used to 0
     
-    // Use this for freeing last days records after we get a new day
+    // Use this for freeing last days records after we get a new day, and also reset keyword arena on keyword update
     
+    Block *current_block = arena->block;
+    while (current_block)
+    {
+        Block *prev = current_block->prev;
+        if (prev)
+        {
+            free(current_block); // frees whole block of allocated memory, including buffer
+            current_block = prev;
+        }
+        else
+        {
+            break;
+        }
+    }
+    
+    // size stays the same
+    current_block->used = 0;
+    current_block->prev = nullptr;
+    
+    arena->block = current_block;
 }
 
 // for record allocator each day do a big alloc and say thats the max number of records for that day

@@ -20,8 +20,6 @@
 
 #include "world_icon.cpp"
 
-#define ICON_SIZE 32
-
 i32
 load_icon_and_add_to_database(Database *database, Bitmap bitmap)
 {
@@ -39,7 +37,7 @@ load_icon_and_add_to_database(Database *database, Bitmap bitmap)
 }
 
 Icon_Asset *
-get_icon_asset(Database *database, App_Id id)
+get_app_icon_asset(Database *database, App_Id id)
 {
     if (is_website(id))
     {
@@ -231,89 +229,88 @@ free_day_view(Day_View *day_view)
 }
 
 App_Id 
-make_id(App_List *apps, Id_Type type)
+make_local_program_id(App_List *apps)
 {
-    Assert(type != Id_Invalid);
-    App_Id id = 0;
-    
-    if (type == Id_LocalProgram)
-    {
-        // No high bit set
-        id = apps->next_program_id;
-        apps->next_program_id += 1;
-    }
-    else if (type == Id_Website)
-    {
-        id = apps->next_website_id;
-        apps->next_website_id += 1;
-    }
-    
-    Assert(is_local_program(id) || is_website(id));
-    
+    App_Id id = apps->next_program_id;
+    apps->next_program_id += 1;
+    Assert(is_local_program(id));
     return id;
 }
 
-void
-add_new_local_program(App_List *apps, String short_name, String full_name)
+App_Id 
+make_website_id(App_List *apps)
 {
-    Local_Program_Info info;
-    info.full_name = push_string(&apps->names_arena, full_name); 
-    info.short_name = push_string(&apps->names_arena, short_name); // string intern this from fullname
-    info.icon_index = -1;
-    
-    apps->local_programs.push_back(info);
-}
-
-void
-add_new_website(App_List *apps, String short_name)
-{
-    Website_Info info;
-    info.short_name = push_string(&apps->names_arena, short_name); 
-    info.icon_index = -1;
-    
-    apps->websites.push_back(info);
+    App_Id id = apps->next_website_id;
+    apps->next_website_id += 1;
+    Assert(is_website(id));
+    return id;
 }
 
 App_Id
-get_id_and_add_if_new(App_List *apps, String short_name, String full_name, Id_Type id_type)
+get_local_program_app_id(App_List *apps, String short_name, String full_name)
 {
     // TODO: String of shortname can point into string of full_name for paths
     // imgui can use non null terminated strings so interning a string is fine
     
     // if using custom hash table impl can use open addressing, and since nothing is ever deleted don't need a occupancy flag or whatever can just use id == 0 or string == null to denote empty.
     
-    Assert(id_type == Id_LocalProgram || id_type == Id_Website);
-    
-    auto &ids = (id_type == Id_LocalProgram) ? apps->local_program_ids : apps->website_ids;
-    
     App_Id result = Id_Invalid;
     
-    if (ids.count(short_name) == 0)
+    if (apps->local_program_ids.count(short_name) == 0)
     {
-        App_Id new_id = make_id(apps, id_type);
+        App_Id new_id = make_local_program_id(apps);
         
-        if (id_type == Id_LocalProgram) 
-            add_new_local_program(apps, short_name, full_name);
-        else 
-            add_new_website(apps, short_name);
+        Local_Program_Info info;
+        info.full_name = push_string(&apps->names_arena, full_name); 
+        info.short_name = push_string(&apps->names_arena, short_name); // string intern this from fullname
+        info.icon_index = -1;
+        
+        apps->local_programs.push_back(info);
         
         // TODO: Make this share short_name given to above functions
         String key_copy = push_string(&apps->names_arena, short_name);
-        ids.insert({key_copy, new_id});
+        apps->local_program_ids.insert({key_copy, new_id});
         
         result = new_id;
     }
     else
     {
-        // if for some reason this is not here this should return 
-        result = ids[short_name];
+        // if for some reason this is not here this should return 0 (default for an integer)
+        result = apps->local_program_ids[short_name];
+    }
+    
+    return result;
+}
+App_Id
+get_website_app_id(App_List *apps, String short_name)
+{
+    App_Id result = Id_Invalid;
+    
+    if (apps->website_ids.count(short_name) == 0)
+    {
+        App_Id new_id = make_website_id(apps);
+        
+        Website_Info info;
+        info.short_name = push_string(&apps->names_arena, short_name); 
+        info.icon_index = -1;
+        
+        apps->websites.push_back(info);
+        
+        String key_copy = push_string(&apps->names_arena, short_name);
+        apps->website_ids.insert({key_copy, new_id});
+        
+        result = new_id;
+    }
+    else
+    {
+        result = apps->website_ids[short_name];
     }
     
     return result;
 }
 
 String 
-get_name_from_id(App_List *apps, App_Id id)
+get_app_name(App_List *apps, App_Id id)
 {
     String result;
     
@@ -365,6 +362,20 @@ debug_add_records(App_List *apps, Day_List *day_list, date::sys_days cur_date)
         "C:\\Program Files (x86)\\MSI Afterburner\\MSIAfterburner.exe"
     };
     
+    static char *website_names[] = {
+        "teachyourselfcs.com",
+        "trello.com",
+        "github.com",
+        "ukulelehunt.com",
+        "forum.ukuleleunderground.com",
+        "soundcloud.com",
+        "www.a1k0n.net",
+        "ocw.mit.edu",
+        "artsandculture.google.com",
+        "abcdefghijklmnopqrstuvwxyz1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ!@#$%^&*[]-+_=();',./",
+        "QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQA",
+    };
+    
     // Should be no days in day list
     Assert(day_list->days.size() == 0);
     
@@ -387,13 +398,26 @@ debug_add_records(App_List *apps, Day_List *day_list, date::sys_days cur_date)
             remove_extension(&program_name);
             Assert(program_name.length != 0);
             
-            App_Id record_id = get_id_and_add_if_new(apps, program_name, full_path, Id_LocalProgram);
+            App_Id record_id = get_local_program_app_id(apps, program_name, full_path);
+            add_or_update_record(day_list, record_id, dt_microsecs);
+        }
+        
+        n = rand_between(1, 2);
+        for (int j = 0; j < n; ++j)
+        {
+            int name_idx = rand_between(0, array_count(website_names) - 1);
+            int dt_microsecs = rand_between(0, MICROSECS_PER_SEC * 2);
+            
+            String domain_name = make_string_size_cap(website_names[name_idx], strlen(website_names[name_idx]), strlen(website_names[name_idx]));
+            
+            App_Id record_id = get_website_app_id(apps, domain_name);
             add_or_update_record(day_list, record_id, dt_microsecs);
         }
     }
 }
 
-void init_database(Database *database, date::sys_days current_date)
+void 
+init_database(Database *database, date::sys_days current_date)
 {
     *database = {};
     
@@ -410,7 +434,6 @@ void init_database(Database *database, date::sys_days current_date)
     size_t size = Kilobytes(30);
     init_arena(&apps->names_arena, size);
     
-    
     Day_List *day_list = &database->day_list;
     
     // not needed just does the allocation here rather than during firsts push_size
@@ -421,51 +444,39 @@ void init_database(Database *database, date::sys_days current_date)
     
     start_new_day(day_list, current_date);
     
-#if 0
-    for (int i = 0; i < array_count(state->database.ms_icons); ++i)
-    {
-        HICON ico = LoadIconA(NULL, MAKEINTRESOURCE(32513 + i));
-        Bitmap *bitmap = &state->database.ms_icons[i];
-        win32_get_bitmap_data_from_HICON(ico, &bitmap->width, &bitmap->height, &bitmap->pitch, &bitmap->pixels);
-    }
-#endif
     
-    // Load default icon, to use if we can't get an apps program
     Bitmap bitmap;
-    // Dont need to DestroyIcon this
-    HICON hicon = LoadIconA(NULL, IDI_ERROR); // TODO: Replace with IDI_APPLICATION
-    if (hicon)
+    // Can't actually choose size
+    if (!platform_get_default_icon(ICON_SIZE, &bitmap.width, &bitmap.height, &bitmap.pitch, &bitmap.pixels))
     {
-        if (!win32_get_bitmap_data_from_HICON(hicon, &bitmap.width, &bitmap.height, &bitmap.pitch, &bitmap.pixels))
-        {
-            // If can't load OS icon make an background coloured icon to use as default
-            init_bitmap(&bitmap, ICON_SIZE, ICON_SIZE);
-        }
+        bitmap = make_bitmap(ICON_SIZE, ICON_SIZE, 0x000000); // transparent icon
     }
     
     database->default_local_program_icon_index = load_icon_and_add_to_database(database, bitmap);
     
-    
+#if 0
     Assert(world_icon_size == ICON_SIZE*ICON_SIZE*4);
     Assert(world_icon_width == ICON_SIZE);
     Assert(world_icon_height == ICON_SIZE);
+#endif
     
     Bitmap website_bitmap;
     website_bitmap.pixels = (u32 *)world_icon_data;
-    website_bitmap.width = ICON_SIZE;
-    website_bitmap.height = ICON_SIZE;
-    website_bitmap.pitch = ICON_SIZE*4;
+    website_bitmap.width = world_icon_width;
+    website_bitmap.height = world_icon_height;
+    website_bitmap.pitch = world_icon_width*4;
     
     database->default_website_icon_index = load_icon_and_add_to_database(database, website_bitmap);
 }
 
 
 void 
-add_keyword(Arena *arena, Array<String, MAX_KEYWORD_COUNT> &keywords, char *str)
+add_keyword(Settings *settings, char *str)
 {
     Assert(strlen(str) < MAX_KEYWORD_SIZE);
-    String k = push_string(arena, str);
-    keywords.add_item(k);
+    
+    String keyword = push_string(&settings->keyword_arena, str);
+    settings->keywords.add_item(keyword);
 }
 
 bool
@@ -572,10 +583,7 @@ extract_domain_name(String url)
         
         if (host_end - host_start >= 1)
         {
-            // Characters of host not checked (doesn't matter because if doesn't match keyword it won't be recorded anyway)
-            
             // Check against valid characters so if user was just typing in garbage into URL bar, then clicked away, we won't think its a domain.
-            
             String domain = substr_range(authority, host_start, host_end);
             
             bool good_domain = true;
@@ -634,8 +642,7 @@ poll_windows(App_List *apps, Settings *settings)
     bool program_is_firefox = string_equals(program_name, "firefox");
     if (program_is_firefox)
     {
-        // TODO: Maybe cache last url to quickly get record without comparing with keywords, retrieving record etc
-        // We wan't to detect, incomplete urls and people just typing garbage into url bar, but
+        // TODO: Maybe cache last url to quickly get record without comparing with keywords
         char url_buf[PLATFORM_MAX_URL_LEN];
         size_t url_len = 0;
         
@@ -649,11 +656,11 @@ poll_windows(App_List *apps, Settings *settings)
                 {
 #if MONITOR_DEBUG
                     // match will all urls we can get a domain from
-                    return get_id_and_add_if_new(apps, domain_name, url, Id_Website);
+                    return get_website_app_id(apps, domain_name);
 #else
                     if (string_matches_keyword(domain_name, settings->keywords))
                     {
-                        return get_id_and_add_if_new(apps, domain_name, url, Id_Website);
+                        return get_website_app_id(apps, domain_name);
                     }
 #endif
                 }
@@ -662,7 +669,7 @@ poll_windows(App_List *apps, Settings *settings)
     }
     
     // If program wasn't a browser, or it was a browser but the url didn't match any keywords, get browser's program id
-    return get_id_and_add_if_new(apps, program_name, full_path, Id_LocalProgram);
+    return get_local_program_app_id(apps, program_name, full_path);
 }
 
 void
@@ -695,31 +702,38 @@ update(Monitor_State *state, SDL_Window *window, time_type dt_microseconds, u32 
         
         state->settings.misc_options = options;
         
-        init_arena(&state->keyword_arena, MAX_KEYWORD_COUNT * MAX_KEYWORD_SIZE);
+        // minimum block size of this should be MAX_KEYWORD_COUNT * MAX_KEYWORD_SIZE, then should only need 1 block
+        init_arena(&state->settings.keyword_arena, MAX_KEYWORD_COUNT * MAX_KEYWORD_SIZE);
         
         // Keywords must be null terminated when given to platform gui
         state->settings.keywords;
-        add_keyword(&state->keyword_arena, state->settings.keywords, "CITS3003");
-        add_keyword(&state->keyword_arena, state->settings.keywords, "youtube");
-        add_keyword(&state->keyword_arena, state->settings.keywords, "docs.microsoft");
-        add_keyword(&state->keyword_arena, state->settings.keywords, "google");
-        add_keyword(&state->keyword_arena, state->settings.keywords, "github");
+        add_keyword(&state->settings, "CITS3003");
+        add_keyword(&state->settings, "youtube");
+        add_keyword(&state->settings, "docs.microsoft");
+        add_keyword(&state->settings, "google");
+        add_keyword(&state->settings, "github");
+        
+        
+        // TODO: Just use google or duckduckgo service for now (look up how duckduckgo browser does it, ever since they switched from using their service...)
+        
+        //create_world_icon_source_file("c:\\dev\\projects\\monitor\\build\\world.png",  "c:\\dev\\projects\\monitor\\code\\world_icon.cpp", ICON_SIZE);
         
         state->is_initialised = true;
     }
     
+    // TODO: This hit assertion on 12:00am (so doesn't work)
+    // Assertion: (state->current_date != result), monitor.cpp, get_current_date():line 145
     date::sys_days current_date = get_current_date(state, dt_microseconds);
     
     Database *database = &state->database;
     App_List *apps = &database->apps;
     
-    
-    //create_world_icon_source_file("c:\\dev\\projects\\monitor\\build\\world.png",  "c:\\dev\\projects\\monitor\\code\\world_icon.cpp", ICON_SIZE);
-    
-    // TODO: Just use google or duckduckgo service for now (look up how duckduckgo browser does it, ever since they switched from using their service...)
-    
     if (window_status & Window_Just_Hidden)
     {
+        // Make sure that nothing bad happens if this is received more than once
+        // which may happed on resizing 
+        
+        
         // delete day view (if exists)
     }
     
@@ -752,6 +766,7 @@ update(Monitor_State *state, SDL_Window *window, time_type dt_microseconds, u32 
     
     if (window_status & Window_Just_Visible)
     {
+        // Make sure that nothing bad happens if this is received more than once
         
         date::sys_days oldest_date = state->database.day_list.days.front().date;
         date::sys_days newest_date = state->database.day_list.days.back().date;
@@ -768,5 +783,9 @@ update(Monitor_State *state, SDL_Window *window, time_type dt_microseconds, u32 
     
     free_day_view(&day_view);
     
+    if (window_status & Window_Closed)
+    {
+        
+    }
 }
 

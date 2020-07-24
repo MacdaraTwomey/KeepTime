@@ -8,9 +8,15 @@
 #include <unordered_map>
 #include <chrono>
 
-static constexpr s32 MAX_KEYWORD_COUNT = 100;
-static constexpr s32 MAX_KEYWORD_SIZE = 101;
-static constexpr s32 MICROSECS_PER_SEC = 1000000;
+// Doing non PoT texture sizes seems to have artifacts and may even cause crash for some reason
+// must be 32 to match default windows icon size from LoadIcon too
+// NOTE: Problem was probably a non-4 byte pitch when submitting texture to GPU (https://www.khronos.org/opengl/wiki/Common_Mistakes#Texture_upload_and_pixel_reads)
+constexpr u32 ICON_SIZE = 32;
+
+constexpr s32 MAX_KEYWORD_COUNT = 6;
+//constexpr s32 MAX_KEYWORD_COUNT = 100;
+constexpr s32 MAX_KEYWORD_SIZE = 101;
+constexpr s32 MICROSECS_PER_SEC = 1000000;
 
 static_assert(sizeof(date::sys_days) == sizeof(u32), "");
 static_assert(sizeof(date::year_month_day) == sizeof(u32), "");
@@ -211,7 +217,7 @@ struct Misc_Options
     u32 poll_start_time; // Default 0 (12:00AM) (if start == end, always poll)
     u32 poll_end_time;   // Default 0 (12:00AM)
     
-    bool32 run_at_system_startup;   
+    b32 run_at_system_startup;   
     u32 poll_frequency_microseconds;   
 };
 
@@ -223,7 +229,8 @@ struct Edit_Settings
     int day_start_time_item;
     int poll_start_time_item;
     int poll_end_time_item;
-    bool update_settings;
+    bool keyword_limit_error;
+    bool keyword_disabled_character_error;
 };
 
 struct Settings
@@ -234,6 +241,7 @@ struct Settings
     // each of length MAX_KEYWORD_SIZE
     Array<String, MAX_KEYWORD_COUNT> keywords; // null terminated strings
     Misc_Options misc_options;
+    Arena keyword_arena;
 };
 
 struct Calendar
@@ -271,7 +279,6 @@ Monitor_State
     
     // Persists on disk
     Database database; // mostly
-    Arena keyword_arena;
     Settings settings;
     
     // persists ui open/closes

@@ -10,6 +10,8 @@
 #include <shlobj_core.h> // SHDefExtractIconA
 
 #define ID_TRAY_APP_ICON 1001
+#define ID_TRAY_APP_MENU_OPEN 2000
+#define ID_TRAY_APP_MENU_EXIT 2001
 #define CUSTOM_WM_TRAY_ICON (WM_USER + 1)
 
 // Visual studio can generate manifest file
@@ -19,11 +21,13 @@ struct Win32_Context
 {
     NOTIFYICONDATA nid;
     LARGE_INTEGER performance_frequency;
-    HWND hwnd;
+    HWND window;
     // HINSTANCE instance = info.info.win.hinstance;
     
     HWND desktop_window;
     HWND shell_window;
+    
+    HMENU tray_menu;
     
 #if 0
     HWINEVENTHOOK window_changed_hook;
@@ -64,63 +68,11 @@ win32_get_wall_time_microseconds()
     return (s64)now.QuadPart;
 }
 
-
-#if 0
-// While a hook function processes an event, additional events may be triggered, which may cause the hook function to reenter before the processing for the original event is finished. The problem with reentrancy in hook functions is that events are completed out of sequence unless the hook function handles this situation.
-// The only solution is for client developers to add code in the hook function that detects reentrancy and take appropriate action if the hook function is reentered.
-void CALLBACK window_changed_proc(HWINEVENTHOOK hWinEventHook,
-                                  DWORD event,
-                                  HWND hwnd,
-                                  LONG idObject,
-                                  LONG idChild,
-                                  DWORD dwEventThread,
-                                  DWORD dwmsEventTime)
-{
-    // Can be sent even if foregound window changes to another window in the same thread
-    if (event == EVENT_SYSTEM_FOREGROUND &&
-        idObject == OBJID_WINDOW &&
-        idChild == CHILDID_SELF)
-    {
-        // Since the notification is asynchronous, the foreground window may have been destroyed by the time the notification is received, so we have to be prepared for that case.
-        
-        win32_context.window_changed = true;
-        win32_context.browser_title_changed = false; // not sure if should do this or not
-        
-        // send message
-    }
-    else
-    {
-        Assert(0);
-    }
-}
-
-void CALLBACK browser_title_changed_proc(HWINEVENTHOOK hWinEventHook,
-                                         DWORD event,
-                                         HWND hwnd,
-                                         LONG idObject,
-                                         LONG idChild,
-                                         DWORD dwEventThread,
-                                         DWORD dwmsEventTime)
-{
-    if (event == EVENT_OBJECT_NAMECHANGE) 
-        //idObject == OBJID_WINDOW &&
-        //idChild == CHILDID_SELF)
-    {
-        // Doesn't matter if multiple tabs or windows are changed in a small space of time, we would have missed this anyway with > 1 second polling, so just know about last change
-        win32_context.browser_title_changed = true;
-        win32_context.window_changed = true;
-    }
-    else
-    {
-        Assert(0);
-    }
-}
-#endif
-
 void
 init_win32_context(HWND hwnd)
 {
     win32_context = {};
+    win32_context.window = hwnd;
     
     // TODO: Why don't we need to link ole32.lib?
     // Call this because we use CoCreateInstance in UIAutomation
@@ -152,7 +104,7 @@ init_win32_context(HWND hwnd)
                                    (void **)(&win32_context.uia));
     if (err != S_OK || win32_context.uia == nullptr)
     {
-        // Don't use UIA?
+        // Don't get urls?
         Assert(0);
     }
     
@@ -189,9 +141,6 @@ init_win32_context(HWND hwnd)
     }
     
     
-    
-    
-    
     // TODO: Does SDL automatically set icon to icon inside executable, or is that windows,
     // Should we set icon manually?
 #if 0
@@ -207,7 +156,8 @@ init_win32_context(HWND hwnd)
     // current header files may need to check which version of shell32.dll is installed so the
     // cbSize of NOTIFYICONDATA can be initialised correctly.
     // https://docs.microsoft.com/en-us/windows/win32/api/shellapi/ns-shellapi-notifyicondataa
-    win32_context.nid = {};
+    win32_context.nid;
+    ZeroMemory(&win32_context.nid, sizeof(win32_context.nid));
     win32_context.nid.cbSize = sizeof(NOTIFYICONDATA);
     win32_context.nid.hWnd = hwnd;
     win32_context.nid.uID = ID_TRAY_APP_ICON; // // Not sure why we need this
@@ -253,6 +203,126 @@ win32_free_context()
     CoUninitialize();
 }
 
+void
+print_flags(SDL_Window *window)
+{
+    Uint32 f = SDL_GetWindowFlags(window);
+    OutputDebugString("{\n");
+    if (f & SDL_WINDOW_SHOWN)
+    {
+        OutputDebugString("\twindow is visible\n");
+    }
+    if (f & SDL_WINDOW_HIDDEN)
+    {
+        OutputDebugString("\twindow is not visible\n");
+    }
+    if (f & SDL_WINDOW_MINIMIZED)
+    {
+        OutputDebugString("\twindow is minimized\n");
+    }
+    if (f & SDL_WINDOW_MAXIMIZED)
+    {
+        OutputDebugString("\twindow is maximized\n");
+    }
+    if (f & SDL_WINDOW_INPUT_GRABBED)
+    {
+        OutputDebugString("\twindow has grabbed input focus\n");
+    }
+    if (f & SDL_WINDOW_INPUT_FOCUS)
+    {
+        OutputDebugString("\twindow has input focus\n");
+    }
+    if (f & SDL_WINDOW_MOUSE_FOCUS)
+    {
+        OutputDebugString("\twindow has mouse focus\n");
+    }
+    OutputDebugString("}\n");
+}
+
+void
+win32_hide_win()
+{
+    ShowWindow(win32_context.window, SW_HIDE);
+}
+
+void
+win32_tray_icon_clicked(SDL_Event event)
+{
+    HWND window = win32_context.window;
+    
+    SDL_SysWMmsg *sys_msg = event.syswm.msg;
+    UINT msg = sys_msg->msg.win.msg;
+    //HWND hwnd = sys_msg->msg.win.hwnd;
+    WPARAM wParam = sys_msg->msg.win.wParam;
+    if (msg == WM_COMMAND)
+    {
+        int id = LOWORD(wParam);
+        if (id == 0)
+        {
+            return;
+        }
+        else if (id == ID_TRAY_APP_MENU_OPEN)
+        {
+            //Uint32 f = SDL_GetWindowFlags(sdl_win);
+            //if (f & SDL_WINDOW_SHOWN)
+            //SDL_ShowWindow(sdl_win);
+            //SDL_RaiseWindow(sdl_win);
+            //SDL_SetWindowInputFocus(sdl_win);
+            
+            ShowWindow(window, SW_SHOW);
+            //ShowWindow(window, SW_RESTORE); 
+            //SetForegroundWindow(window);
+            //BringWindowToTop(window);
+            //SetFocus(window);
+            //EnableWindow(window, true);
+            //SetFocus(window);
+            //SetActiveWindow(window);
+            //SetCapture(window);
+        }
+        else if (id == ID_TRAY_APP_MENU_EXIT)
+        {
+            SendMessage(window, WM_CLOSE, 0, 0);
+        }
+    }
+    else if (msg == CUSTOM_WM_TRAY_ICON) 
+    {
+        LPARAM lParam = sys_msg->msg.win.lParam;
+        switch (LOWORD(lParam))
+        {
+            case WM_RBUTTONUP:
+            {
+                HMENU menu = CreatePopupMenu();
+                AppendMenu(menu, MF_STRING, ID_TRAY_APP_MENU_OPEN, TEXT("Open Barplot Window"));
+                AppendMenu(menu, MF_STRING, ID_TRAY_APP_MENU_EXIT, TEXT("Exit"));
+                
+                POINT mouse;
+                GetCursorPos(&mouse);
+                SetForegroundWindow(window); 
+                
+                BOOL button = TrackPopupMenu(menu,
+                                             0, //TPM_RETURNCMD,
+                                             mouse.x,
+                                             mouse.y,
+                                             0,
+                                             window,
+                                             NULL);
+                PostMessage(window, WM_NULL, 0, 0);
+                DestroyMenu(menu);
+            } break;
+            
+            case WM_LBUTTONDBLCLK:
+            {
+                if (!IsWindowVisible(window))
+                {
+                    ShowWindow(window, SW_SHOW);
+                    //ShowWindow(window, SW_RESTORE);
+                    //SetForegroundWindow(window);
+                }
+            } break;
+        }
+    }
+}
+
 
 struct Process_Ids
 {
@@ -277,55 +347,6 @@ win32_get_microseconds_elapsed(LARGE_INTEGER start, LARGE_INTEGER end)
     microseconds.QuadPart *= 1000000; // microseconds per second
     microseconds.QuadPart /= win32_context.performance_frequency.QuadPart; // ticks per second
     return microseconds.QuadPart;
-}
-
-
-// TODO: NOt sure where to put this
-u32
-opengl_create_texture(Database *database, Bitmap bitmap)
-{
-    // Returns index of icon asset in asset array
-    
-    GLuint image_texture;
-    glGenTextures(1, &image_texture); // I think this can fail if out of texture mem
-    
-    // Binds the texture name (uint) to the target (GL_TEXTURE_2D), breaking the previous binding, the
-    // texture assumes its target (becomes a GL_TEXTURE_2D).
-    // While a texture is bound, GL operations on the target to which it is bound affect the bound texture.
-    // Once created, a named texture may be re-bound to its same original target as often as needed. It is usually much faster to use glBindTexture to bind an existing named texture to one of the texture targets than it is to reload the texture image using glTexImage2D,
-    
-    // Not sure if needed
-    //glActiveTexture(GL_TEXTURE0);
-    
-    glBindTexture(GL_TEXTURE_2D, image_texture);
-    
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    
-    // Not sure if needed (probably not)
-    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-    
-    // TODO: Maybe change from GL_BGRA (only the default on windows for icons probably)
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, bitmap.width, bitmap.height, 0, GL_BGRA, GL_UNSIGNED_BYTE, bitmap.pixels);
-    
-    return image_texture;
-}
-
-HANDLE
-win32_create_console()
-{
-    AllocConsole();
-    
-    FILE* fp;
-    freopen_s(&fp, "CONOUT$", "w", stdout);
-    freopen_s(&fp, "CONIN", "r", stdin);
-    
-    HANDLE con_out = GetStdHandle(STD_OUTPUT_HANDLE);
-    DWORD out_mode;
-    GetConsoleMode(con_out, &out_mode);
-    SetConsoleMode(con_out, out_mode|ENABLE_VIRTUAL_TERMINAL_PROCESSING);
-    
-    return GetStdHandle(STD_INPUT_HANDLE);
 }
 
 Platform_Window
@@ -762,15 +783,11 @@ win32_get_bitmap_data_from_HICON(HICON icon, i32 *width, i32 *height, i32 *pitch
     HBITMAP and_mask_handle = 0;
     HBITMAP colours_handle = 0;
     
-    if (GetIconInfo(icon, &ii))
+    if (icon && GetIconInfo(icon, &ii))
     {
         // It is necessary to call DestroyObject for icons and cursors created with CopyImage
         colours_handle = (HBITMAP)CopyImage(ii.hbmColor, IMAGE_BITMAP, 0, 0, LR_CREATEDIBSECTION);
         and_mask_handle = (HBITMAP)CopyImage(ii.hbmMask, IMAGE_BITMAP, 0, 0, LR_CREATEDIBSECTION);
-        
-        // When this is done without CopyImage the bitmaps don't have any .bits memory allocated
-        //int result_1 = GetObject(ii.hbmColor, sizeof(BITMAP), &bitmap);
-        //int result_2 = GetObject(ii.hbmMask, sizeof(BITMAP), &mask);
         if (colours_handle && and_mask_handle)
         {
             int result_1 = GetObject(colours_handle, sizeof(BITMAP), &colour_mask) == sizeof(BITMAP);
@@ -785,7 +802,7 @@ win32_get_bitmap_data_from_HICON(HICON icon, i32 *width, i32 *height, i32 *pitch
                 {
                     memset(*pixels, 0, *pitch * *height);
                     
-                    bool32 had_alpha = false;
+                    b32 had_alpha = false;
                     u32 *dest = *pixels;
                     u8 *src_row = (u8 *)colour_mask.bmBits + (colour_mask.bmWidthBytes * (colour_mask.bmHeight-1));
                     for (int y = 0; y < colour_mask.bmHeight; ++y)
@@ -838,6 +855,49 @@ win32_get_bitmap_data_from_HICON(HICON icon, i32 *width, i32 *height, i32 *pitch
     return success;
 }
 
+
+#define STB_IMAGE_RESIZE_IMPLEMENTATION
+#include "stb_image_resize.h"
+bool
+platform_get_default_icon(u32 desired_size, i32 *width, i32 *height, i32 *pitch, u32 **pixels)
+{
+    bool success = false;
+    HICON hico = (HICON)LoadIcon(NULL, IDI_APPLICATION);
+    if (hico)
+    {
+#if 0
+        s32 big_w = 0;
+        s32 big_h = 0;
+        s32 big_pitch = 0;
+        u32 *big_pixels = 0;
+        if (win32_get_bitmap_data_from_HICON(hico, &big_w, &big_h, &big_pitch, &big_pixels))
+        {
+            u32 *out_pixels = (u32 *)malloc(desired_size * desired_size * 4);
+            if (out_pixels)
+            {
+                if (stbir_resize_uint8((u8 *)big_pixels, big_w , big_h, 0, // packed in memory
+                                       (u8 *)out_pixels, desired_size, desired_size, 0, // packed in memory
+                                       4))
+                {
+                    *width = desired_size;
+                    *height = desired_size;
+                    *pitch = desired_size*4;
+                    *pixels = out_pixels;
+                    success = true;
+                }
+            }
+        }
+#endif
+        
+        if (win32_get_bitmap_data_from_HICON(hico, width, height, pitch, pixels))
+        { 
+            success = true;
+        }
+    }
+    
+    return success;
+}
+
 bool
 platform_get_icon_from_executable(char *path, u32 desired_size, 
                                   i32 *width, i32 *height, i32 *pitch, u32 **pixels)
@@ -850,16 +910,7 @@ platform_get_icon_from_executable(char *path, u32 desired_size,
     // TODO: maybe just use extract icon, or manually extract to avoid shellapi.h maybe shell32.dll
     if(SHDefExtractIconA(path, 0, 0, &icon_handle, &small_icon_handle, desired_size) != S_OK)
     {
-        // NOTE: In finished version we will want to have loaded OS application icon once and made it a texture once, for possibly multiple programs to use.
-#if MONITOR_DEBUG
-        // NOTE: Show me that path was actually wrong and it wasn't just failed icon extraction.
-        // If we can load the executable, it means we probably should be able to get the icon
-        //Assert(!LoadLibraryA(path)); // TODO: Enable this when we support UWP icons
-        icon_handle = LoadIconA(NULL, IDI_APPLICATION);
-        if (!icon_handle) return false;
-#else
         return false;
-#endif
     }
     
     bool success = false;
@@ -877,7 +928,6 @@ platform_get_icon_from_executable(char *path, u32 desired_size,
     if (small_icon_handle) DestroyIcon(small_icon_handle);
     return success;
 }
-
 
 #if 0
 void
@@ -969,6 +1019,59 @@ platform_get_changed_window()
 
 
 #if 0
+// While a hook function processes an event, additional events may be triggered, which may cause the hook function to reenter before the processing for the original event is finished. The problem with reentrancy in hook functions is that events are completed out of sequence unless the hook function handles this situation.
+// The only solution is for client developers to add code in the hook function that detects reentrancy and take appropriate action if the hook function is reentered.
+void CALLBACK window_changed_proc(HWINEVENTHOOK hWinEventHook,
+                                  DWORD event,
+                                  HWND hwnd,
+                                  LONG idObject,
+                                  LONG idChild,
+                                  DWORD dwEventThread,
+                                  DWORD dwmsEventTime)
+{
+    // Can be sent even if foregound window changes to another window in the same thread
+    if (event == EVENT_SYSTEM_FOREGROUND &&
+        idObject == OBJID_WINDOW &&
+        idChild == CHILDID_SELF)
+    {
+        // Since the notification is asynchronous, the foreground window may have been destroyed by the time the notification is received, so we have to be prepared for that case.
+        
+        win32_context.window_changed = true;
+        win32_context.browser_title_changed = false; // not sure if should do this or not
+        
+        // send message
+    }
+    else
+    {
+        Assert(0);
+    }
+}
+
+void CALLBACK browser_title_changed_proc(HWINEVENTHOOK hWinEventHook,
+                                         DWORD event,
+                                         HWND hwnd,
+                                         LONG idObject,
+                                         LONG idChild,
+                                         DWORD dwEventThread,
+                                         DWORD dwmsEventTime)
+{
+    if (event == EVENT_OBJECT_NAMECHANGE) 
+        //idObject == OBJID_WINDOW &&
+        //idChild == CHILDID_SELF)
+    {
+        // Doesn't matter if multiple tabs or windows are changed in a small space of time, we would have missed this anyway with > 1 second polling, so just know about last change
+        win32_context.browser_title_changed = true;
+        win32_context.window_changed = true;
+    }
+    else
+    {
+        Assert(0);
+    }
+}
+#endif
+
+
+#if 0
 // TRUE means thread owns the mutex, must have name to be visible to other processes
 // CreateMutex opens mutex if it exists, and creates it if it doesn't
 // ReleaseMutex gives up ownership ERROR_ALREADY_EXISTS and returns handle but not ownership
@@ -1000,72 +1103,19 @@ if (already_running)
 CloseHandle(mutex);
 #endif
 
-#if 0
-char *names[] = {
-    "C:\\Program Files\\Krita (x64)\\bin\\krita.exe",
-    "C:\\Program Files\\Mozilla Firefox\\firefox.exe",
-    "C:\\dev\\projects\\monitor\\build\\monitor.exe",
-    "C:\\Program Files\\7-Zip\\7zFM.exe",  // normal 7z.exe had no icon
-    "C:\\Qt\\5.12.2\\msvc2017_64\\bin\\designer.exe",
-    "C:\\Qt\\5.12.2\\msvc2017_64\\bin\\assistant.exe",
-    "C:\\Program Files (x86)\\Dropbox\\Client\\Dropbox.exe",
-    "C:\\Program Files (x86)\\Vim\\vim80\\gvim.exe",
-    "C:\\Windows\\notepad.exe",
-    "C:\\Program Files\\CMake\\bin\\cmake-gui.exe",
-    "C:\\Program Files\\Git\\git-bash.exe",
-    "C:\\Program Files\\Malwarebytes\\Anti-Malware\\mbam.exe",
-    "C:\\Program Files\\Sublime Text 3\\sublime_text.exe",
-    "C:\\Program Files\\Typora\\bin\\typora.exe",
-    "C:\\files\\applications\\cmder\\cmder.exe",
-    "C:\\files\\applications\\4coder\\4ed.exe",
-    "C:\\files\\applications\\Aseprite\\aseprite.exe",
-    "C:\\dev\\projects\\shell\\shell.exe",  // No icon in executable just default windows icon showed in explorer, so can't load anything
-};
-
-UINT size = 64;
-int n = size * 1.2f;
-int row = 0;
-int col = 0;
-for (int i = 0; i < array_count(names); ++i, ++col)
+HANDLE
+win32_create_console()
 {
-    if (col == 3) {
-        ++row;
-        col = 0;
-    }
+    AllocConsole();
     
-    Bitmap icon_bitmap = get_icon_from_executable(names[i], size);
+    FILE* fp;
+    freopen_s(&fp, "CONOUT$", "w", stdout);
+    freopen_s(&fp, "CONIN", "r", stdin);
     
+    HANDLE con_out = GetStdHandle(STD_OUTPUT_HANDLE);
+    DWORD out_mode;
+    GetConsoleMode(con_out, &out_mode);
+    SetConsoleMode(con_out, out_mode|ENABLE_VIRTUAL_TERMINAL_PROCESSING);
     
-    
-    bool
-        esc_key_pressed(HANDLE con_in)
-    {
-        DWORD events_count;
-        GetNumberOfConsoleInputEvents(con_in, &events_count);
-        
-        if (events_count > 0)
-        {
-            INPUT_RECORD input;
-            for (int i = 0; i < events_count; ++i)
-            {
-                DWORD read_event_count;
-                ReadConsoleInput(con_in, &input, 1, &read_event_count);
-                if (input.EventType == KEY_EVENT)
-                {
-                    if (input.Event.KeyEvent.bKeyDown &&
-                        input.Event.KeyEvent.wVirtualKeyCode == VK_ESCAPE)
-                    {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
-    }
-#endif
-    
-    
-#if CONSOLE_ON
-    HANDLE con_in = win32_create_console();
-#endif
-    
+    return GetStdHandle(STD_INPUT_HANDLE);
+}

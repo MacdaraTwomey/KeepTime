@@ -5,10 +5,12 @@
 
 #include <ctype.h> // is_alnum
 
+
+
 // from monitor.cpp
-Icon_Asset * get_icon_asset(Database *database, App_Id id);
-void add_keyword(Arena *arena, Array<String, MAX_KEYWORD_COUNT> &keywords, char *str);
-String get_name_from_id(App_List *apps, App_Id id);
+Icon_Asset * get_app_icon_asset(Database *database, App_Id id);
+void add_keyword(Settings *settings, char *str);
+String get_app_name(App_List *apps, App_Id id);
 
 
 const char *
@@ -84,10 +86,12 @@ month_string(int month)
 s32
 remove_duplicate_and_empty_keyword_strings(char(*keywords)[MAX_KEYWORD_SIZE])
 {
+    // TODO: I don't love this probably better to just copy to a new array
+    
 	// NOTE: This assumes that keywords that are 'empty' should have no garbage data (dear imgu needs to set
 	// empty array slots to '\0';
 	s32 total_count = 0;
-	for (s32 l = 0, r = MAX_KEYWORD_COUNT - 1; l < r;)
+	for (s32 l = 0, r = MAX_KEYWORD_COUNT; l < r;)
 	{
 		if (keywords[l][0] == '\0') // is empty string
 		{
@@ -152,220 +156,251 @@ HelpMarker(const char* desc)
     }
 }
 
-bool
-do_settings_popup(Edit_Settings *edit_settings)
+void
+do_misc_settings(Edit_Settings *edit_settings)
 {
-    bool finished = false;
+    ImGui::PushItemWidth(ImGui::GetWindowWidth() * 0.30f);
+    // TODO: Do i need to use bool16 for this (this is workaround)
+    bool selected = edit_settings->misc_options.run_at_system_startup;
+    ImGui::Checkbox("Run at startup", &selected);
+    edit_settings->misc_options.run_at_system_startup = selected;
     
-    float keywords_child_height = ImGui::GetWindowHeight() * 0.6f;
-    float keywords_child_width = ImGui::GetWindowWidth() * 0.5f;
+    // ImGuiInputTextFlags_CharsDecimal ?
+    int freq = (int)(edit_settings->misc_options.poll_frequency_microseconds / MICROSECS_PER_SEC);
+    ImGui::InputInt("Update frequency (s)", &freq); // maybe a slider is better
     
-    // TODO: Make variables for settings window and child windows width height, 
-    // and maybe base off users monitor w/h
-    // TODO: 800 is probably too big for some screens (make this dynamic)
-    ImGui::SetNextWindowSize(ImVec2(850, 600));
-    if (ImGui::BeginPopupModal("Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize|ImGuiWindowFlags_NoMove))
+    // maybe put buttons on the slider too
+    ImGui::SliderInt("Update frequency (s)##2", &freq, 1, 1000, "%dms");
+    
+    // Only if valid number
+    if (freq < 1 && freq < 1000)
     {
-        // TODO: Remove or don't allow
-        // - all spaces strings
-        // - leading/trailing whitespace
-        // - spaces in words
-        // - unicode characters (just disallow pasting maybe)
-        // NOTE:
-        // - Put incorrect format text items in red, and have a red  '* error message...' next to "Keywords"
-        // TODO: Allow pasting but maybe normalise unicode to ascii, UTF8 is allowed in urls I think
-        
-        // Domain names are allowed normal alphabet and numbers and hyphen '-', and the period '.' separator
-        
-        // IF we get lots of kinds of settings (not ideal), can use tabs
-        
-        // When enter is pressed the item is not active the same frame
-        //bool active = ImGui::IsItemActive();
-        // TODO: Does SetKeyboardFocusHere() break if box is clipped?
-        //if (give_focus == i) ImGui::SetKeyboardFocusHere();
-        
-        // TODO: Copy windows (look at Everything.exe settings) ui style and white on grey colour scheme
-        
-        
-        ImGui::Text("Keyword list:");
-        
-        s32 give_focus = -1;
-        bool error_max_keywords_reached = false;
-        if (ImGui::Button("Add..."))
-        {
-            for (int i = 0; i < MAX_KEYWORD_COUNT; ++i)
-            {
-                if (edit_settings->pending[i][0] == '\0')
-                {
-                    give_focus = i;
-                    break;
-                }
-            }
-            
-            // TODO: How to make this persist for the right amount of time (what length is this? until they click?)
-            if (give_focus == -1)
-            {
-                // All boxes full
-                error_max_keywords_reached = true;
-            }
-            
-        }
-        
         ImGui::SameLine();
-        HelpMarker("As with every widgets in dear imgui, we never modify values unless there is a user interaction.\nYou can override the clamping limits by using CTRL+Click to input a value.");
-        
-        
-        error_max_keywords_reached = true;
-        if (error_max_keywords_reached) 
-        {
-            ImGui::SameLine();
-            ImGui::TextColored(ImVec4(200,0,0,255), "   *maximum number of keywords reached");
-        }
-        
-        s32 index_of_last_keyword = 0;
+        ImGui::Text("Frequency must be between 1000 and whatever");
+    }
+    
+    // TODO: Save setting, but dont change later maybe? Dont allow close settings?
+    edit_settings->misc_options.poll_frequency_microseconds = freq;
+    
+    char *times[] = {
+        "12:00 AM",
+        "12:15 AM",
+        "12:30 AM",
+        "etc..."
+    };
+    
+    // So late night usage still counts towards previous day
+    if (ImGui::Combo("New day start time", &edit_settings->day_start_time_item, times, array_count(times)))
+    {
+        edit_settings->misc_options.day_start_time = edit_settings->day_start_time_item * 15;
+    }
+    if (ImGui::Combo("Start tracking time", &edit_settings->poll_start_time_item, times, array_count(times)))
+    {
+        edit_settings->misc_options.poll_start_time = edit_settings->poll_start_time_item * 15;
+    }
+    if (ImGui::Combo("Finish tracking time", &edit_settings->poll_end_time_item, times, array_count(times)))
+    {
+        edit_settings->misc_options.poll_end_time = edit_settings->poll_end_time_item * 15;
+    }
+    
+    ImGui::PopItemWidth();
+}
+
+void
+do_keyword_input_list(Edit_Settings *edit_settings)
+{
+    s32 give_focus = -1;
+    if (ImGui::Button("Add..."))
+    {
+        // Give focus to first free input box
         for (int i = 0; i < MAX_KEYWORD_COUNT; ++i)
         {
-            if (edit_settings->pending[i][0] != '\0')
+            if (edit_settings->pending[i][0] == '\0')
             {
-                index_of_last_keyword = i;
+                give_focus = i;
+                break;
             }
         }
         
-        s32 number_of_boxes = std::min(index_of_last_keyword + 8, MAX_KEYWORD_COUNT);
-        
+        if (give_focus == -1)
         {
-            ImGui::BeginChild(222, ImVec2(keywords_child_width, keywords_child_height), true);
-            
-            // If I use WindowDrawList must subtract padding or else lines are obscured by below text input box
-            // can use ForegroundDrawList but this is not clipped to keyword child window
-            ImDrawList* draw_list = ImGui::GetWindowDrawList();
-            //ImDrawList* draw_list = ImGui::GetForeGroundDrawList();
-            
-            ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0);
-            ImGui::PushItemWidth(ImGui::GetWindowWidth() * .9f);
-            for (s32 i = 0; i < number_of_boxes; ++i)
+            // All boxes full
+            edit_settings->keyword_limit_error = true;
+            edit_settings->keyword_disabled_character_error = false;
+        }
+    }
+    
+    // Need to do this before potentially setting error, to avoid immediately clearing error, when the mouse click to add button is pressed, TODO: Is this true?
+    if (edit_settings->keyword_limit_error || edit_settings->keyword_disabled_character_error) 
+    {
+        ImGui::SameLine();
+        ImGui::TextColored(ImVec4(200,0,0,255), edit_settings->keyword_limit_error ? 
+                           "   * Maximum number of keywords reached (100)" : 
+                           "   * Valid characters are A-Z a-z 0-9 . -");
+        
+        // clear error message on click 
+        if (ImGui::IsAnyMouseDown())
+        {
+            edit_settings->keyword_limit_error = false;
+            edit_settings->keyword_disabled_character_error = false;
+        }
+    }
+    
+    //ImGui::SameLine();
+#if 0
+    //HelpMarker("As with every widgets in dear imgui, we never modify values unless there is a user interaction.\nYou can override the clamping limits by using CTRL+Click to input a value.");
+    ImGui::TextDisabled("(?)");
+    if (ImGui::IsItemHovered())
+    {
+        ImGui::BeginTooltip();
+        ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.0f);
+        ImGui::TextUnformatted(desc);
+        ImGui::PopTextWrapPos();
+        ImGui::EndTooltip();
+    }
+#endif
+    
+    s32 index_of_last_keyword = 0;
+    for (int i = 0; i < MAX_KEYWORD_COUNT; ++i)
+    {
+        if (edit_settings->pending[i][0] != '\0')
+        {
+            index_of_last_keyword = i;
+        }
+    }
+    
+    s32 number_of_boxes = std::min(index_of_last_keyword + 8, MAX_KEYWORD_COUNT);
+    
+    {
+        float list_width = ImGui::GetWindowWidth();
+        ImGui::BeginChild(222, ImVec2(list_width, 0), true);
+        
+        // If I use WindowDrawList must subtract padding or else lines are obscured by below text input box
+        // can use ForegroundDrawList but this is not clipped to keyword child window
+        ImDrawList* draw_list = ImGui::GetWindowDrawList();
+        //ImDrawList* draw_list = ImGui::GetForeGroundDrawList();
+        
+        b32 entered_disabled_character = false;
+        
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0); // remove input box frame
+        ImGui::PushItemWidth(list_width*0.95);
+        for (s32 i = 0; i < number_of_boxes; ++i)
+        {
+            if (i == give_focus)
             {
-                if (i == give_focus)
+                ImGui::SetKeyboardFocusHere();
+                give_focus = -1;
+            }
+            
+            auto filter = [](ImGuiTextEditCallbackData* data) -> int {
+                // Domain names only allow alphanumeric and hyphen, and dots to separate subdomains
+                // No UTF-8 allowed to be pasted either
+                ImWchar c = data->EventChar;
+                if ((c >= 'a' && c <= 'z') ||
+                    (c >= 'A' && c <= 'Z') ||
+                    (c >= 0 && c <= 9) ||
+                    c == '-' || c == '.')
                 {
-                    ImGui::SetKeyboardFocusHere();
-                    give_focus = -1;
+                    return 0; // allow
                 }
-                
-                auto filter = [](ImGuiTextEditCallbackData* data) -> int {
-                    ImWchar c = data->EventChar;
-                    if (isalnum(c) ||
-                        c == '-' || 
-                        c == '.')
-                    {
-                        return 0;
-                    }
-                    else
-                    {
-                        return 1;
-                    }
-                };
-                
-                ImGui::PushID(i);
-                bool enter_pressed = ImGui::InputText("", edit_settings->pending[i], array_count(edit_settings->pending[i]), ImGuiInputTextFlags_CallbackCharFilter, filter);
-                ImGui::PopID();
-                
-                float padding = 3;
-                u32 grey = 150;
-                ImVec2 pos = ImGui::GetCursorScreenPos();
-                pos.y -= padding;
-                draw_list->AddLine(pos, ImVec2(pos.x + keywords_child_width, pos.y), IM_COL32(grey,grey,grey,255), 1.0f);
-            }
-            ImGui::PopItemWidth();
-            ImGui::PopStyleVar();
-            
-            ImGui::EndChildFrame();
-        }
-        
-        
-        //PushStyleColor();
-        //PopStyleColor();
-        
-        {
-            ImGui::SameLine();
-            //ImGui::BeginChild("Misc Options", ImVec2(keywords_child_width, keywords_child_height));
-            
-            ImGuiWindowFlags child_flags = 0;
-            ImGui::BeginChildFrame(111, ImVec2(keywords_child_width, keywords_child_height), child_flags);
-            
-            ImGui::PushItemWidth(ImGui::GetWindowWidth() * 0.30f);
-            // TODO: Do i need to use bool16 for this (this is workaround)
-            bool selected = edit_settings->misc_options.run_at_system_startup;
-            ImGui::Checkbox("Run at startup", &selected);
-            edit_settings->misc_options.run_at_system_startup = selected;
-            
-            // ImGuiInputTextFlags_CharsDecimal ?
-            int freq = (int)(edit_settings->misc_options.poll_frequency_microseconds / MICROSECS_PER_SEC);
-            ImGui::InputInt("Update frequency (s)", &freq); // maybe a slider is better
-            
-            // maybe put buttons on the slider too
-            ImGui::SliderInt("Update frequency (s)##2", &freq, 1, 1000, "%dms");
-            
-            // Only if valid number
-            if (freq < 1 && freq < 1000)
-            {
-                ImGui::SameLine();
-                ImGui::Text("Frequency must be between 1000 and whatever");
-            }
-            
-            // TODO: Save setting, but dont change later maybe? Dont allow close settings?
-            edit_settings->misc_options.poll_frequency_microseconds = freq;
-            
-            char *times[] = {
-                "12:00 AM",
-                "12:15 AM",
-                "12:30 AM",
-                "etc..."
+                else
+                {
+                    b32 *ptr_to_entered_disabled_character = (b32 *)data->UserData;
+                    *ptr_to_entered_disabled_character = true;
+                    return 1;
+                }
             };
             
-            // So late night usage still counts towards previous day
-            if (ImGui::Combo("New day start time", &edit_settings->day_start_time_item, times, array_count(times)))
-            {
-                edit_settings->misc_options.day_start_time = edit_settings->day_start_time_item * 15;
-            }
-            if (ImGui::Combo("Start tracking time", &edit_settings->poll_start_time_item, times, array_count(times)))
-            {
-                edit_settings->misc_options.poll_start_time = edit_settings->poll_start_time_item * 15;
-            }
-            if (ImGui::Combo("Finish tracking time", &edit_settings->poll_end_time_item, times, array_count(times)))
-            {
-                edit_settings->misc_options.poll_end_time = edit_settings->poll_end_time_item * 15;
-            }
+            ImGui::PushID(i);
+            ImGui::InputText("", edit_settings->pending[i], array_count(edit_settings->pending[i]), ImGuiInputTextFlags_CallbackCharFilter, filter, &entered_disabled_character);
+            ImGui::PopID();
             
-            ImGui::PopItemWidth();
-            ImGui::EndChildFrame();
+            float padding = 3;
+            u32 grey = 150;
+            ImVec2 pos = ImGui::GetCursorScreenPos();
+            pos.y -= padding;
+            draw_list->AddLine(pos, ImVec2(pos.x + list_width, pos.y), IM_COL32(grey,grey,grey,255), 1.0f);
+        }
+        ImGui::PopItemWidth();
+        ImGui::PopStyleVar();
+        
+        if (entered_disabled_character)
+        {
+            edit_settings->keyword_disabled_character_error = true;
+            edit_settings->keyword_limit_error = false;
         }
         
+        ImGui::EndChildFrame();
+    }
+}
+
+bool
+do_settings_popup(Settings *settings, Edit_Settings *edit_settings)
+{
+    bool update_settings = false;
+    bool open = true;
+    
+    ImGui::SetNextWindowSize(ImVec2(ImGui::GetWindowWidth() * 0.6, ImGui::GetWindowHeight() * 0.8));
+    if (ImGui::BeginPopupModal("Settings", &open, ImGuiWindowFlags_AlwaysAutoResize|ImGuiWindowFlags_NoMove))
+    {
+        ImGui::BeginChild(222, ImVec2(0,ImGui::GetWindowHeight() * 0.85), false);
         {
-            if (ImGui::Button("Ok"))
+            ImGuiTabBarFlags tab_bar_flags = ImGuiTabBarFlags_None;
+            if (ImGui::BeginTabBar("MyTabBar", tab_bar_flags))
             {
-                edit_settings->update_settings = true;
-                ImGui::CloseCurrentPopup();
-                finished= true;
-                
-                // if (invalid settings) make many saying
-                // "invalid settings"
-                // [cancel][close settings without saving]
+                if (ImGui::BeginTabItem("UI"))
+                {
+                    do_misc_settings(edit_settings);
+                    ImGui::EndTabItem();
+                }
+                if (ImGui::BeginTabItem("Website keywords"))
+                {
+                    do_keyword_input_list(edit_settings);
+                    ImGui::EndTabItem();
+                }
+                ImGui::EndTabBar();
             }
-            ImGui::SameLine();
-            if (ImGui::Button("Cancel"))
-            {
-                // Don't update keywords
-                edit_settings->update_settings = false;
-                ImGui::CloseCurrentPopup();
-                finished= true;
-            }
+            
+            ImGui::EndChild();
+        }
+        
+        if (ImGui::Button("Ok"))
+        {
+            update_settings = true;
+            ImGui::CloseCurrentPopup();
+            open = false;
+            
+            // if (invalid settings) make many saying
+            // "invalid settings"
+            // [cancel][close settings without saving]
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel"))
+        {
+            // Don't update keywords
+            ImGui::CloseCurrentPopup();
+            open = false;
         }
         
         ImGui::EndPopup(); // only close if BeginPopupModal returns true
     }
     
-    // TODO: Revert button?
-    return finished;
+    if (update_settings)
+    {
+        // Empty input boxes are just zeroed arrays
+        i32 pending_count = remove_duplicate_and_empty_keyword_strings(edit_settings->pending);
+        
+        settings->keywords.clear();
+        reset_arena(&settings->keyword_arena);
+        for (int i = 0; i < pending_count; ++i)
+        {
+            add_keyword(settings, edit_settings->pending[i]);
+        }
+        
+        settings->misc_options = edit_settings->misc_options;
+    }
+    
+    return !open;
 }
 
 bool
@@ -711,50 +746,82 @@ do_date_select_popup(Date_Picker *date_picker, date::sys_days oldest_date, date:
     {
         // @WaitOnInput: this may change the date displayed on button
         
-        char *items[] = {"Daily", "Weekly", "Monthly", "Custom range"};
+        char *items[] = {"Day", "Week", "Month", "Custom"};
         
         int prev_range_type = date_picker->range_type;
+        
+        
+#if 0
+        ImVec2 button_size = ImVec2(63, ImGui::GetFrameHeight());
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(2.0f, 10.0f));
+        if (ImGui::Button(items[0], button_size))
+        {
+            date_picker->range_type = Range_Type_Daily;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button(items[1], button_size))
+        {
+            date_picker->range_type = Range_Type_Weekly;
+            
+        }
+        ImGui::SameLine();
+        if (ImGui::Button(items[2], button_size))
+        {
+            date_picker->range_type = Range_Type_Monthly;
+            
+        }
+        ImGui::SameLine();
+        if (ImGui::Button(items[3], button_size))
+        {
+            date_picker->range_type = Range_Type_Custom;
+        }
+        ImGui::PopStyleVar();
+#else
         if (ImGui::Combo("##picker", (int *)&date_picker->range_type, items, array_count(items)))
         {
-            // TODO: Collapse this to avoid rechecking range_type and coverting to ymd more than once (though this may need to happen if the day is clipped)
             
-            // TODO: May want to use end_date as basis of range instead of start_date because we tend to care more about more recent dates, so when switching from month to daily it goes to last day of month, etc.
-            if (date_picker->range_type != prev_range_type)
+        }
+#endif
+        
+        // TODO: Collapse this to avoid rechecking range_type and coverting to ymd more than once (though this may need to happen if the day is clipped)
+        
+        // TODO: May want to use end_date as basis of range instead of start_date because we tend to care more about more recent dates, so when switching from month to daily it goes to last day of month, etc.
+        if (date_picker->range_type != prev_range_type)
+        {
+            if (date_picker->range_type == Range_Type_Daily)
             {
-                if (date_picker->range_type == Range_Type_Daily)
-                {
-                    // start_date stays the same
-                    date_picker->end = date_picker->start;
-                }
-                else if  (date_picker->range_type == Range_Type_Weekly)
-                {
-                    // Select the week that start_date was in
-                    date::days days_back_to_monday_of_week = date::weekday{date_picker->start} - date::Monday;
-                    
-                    date_picker->start = date_picker->start - days_back_to_monday_of_week;
-                    date_picker->end   = date_picker->start + date::days{6};
-                }
-                else if  (date_picker->range_type == Range_Type_Monthly)
-                {
-                    // Select the month that start_date was in
-                    auto ymd = date::year_month_day{date_picker->start};
-                    date_picker->start = date::sys_days{ymd.year()/ymd.month()/1};
-                    date_picker->end   = date::sys_days{ymd.year()/ymd.month()/date::last};
-                }
-                else if (date_picker->range_type == Range_Type_Custom)
-                {
-                    // Either calendar can be before other
-                    date_picker->start = std::min(date_picker->first_calendar.selected_date, date_picker->second_calendar.selected_date);
-                    date_picker->end = std::max(date_picker->first_calendar.selected_date, date_picker->second_calendar.selected_date);
-                }
-                else
-                {
-                    Assert(0);
-                }
+                // start_date stays the same
+                date_picker->end = date_picker->start;
+            }
+            else if  (date_picker->range_type == Range_Type_Weekly)
+            {
+                // Select the week that start_date was in
+                date::days days_back_to_monday_of_week = date::weekday{date_picker->start} - date::Monday;
+                
+                date_picker->start = date_picker->start - days_back_to_monday_of_week;
+                date_picker->end   = date_picker->start + date::days{6};
+            }
+            else if  (date_picker->range_type == Range_Type_Monthly)
+            {
+                // Select the month that start_date was in
+                auto ymd = date::year_month_day{date_picker->start};
+                date_picker->start = date::sys_days{ymd.year()/ymd.month()/1};
+                date_picker->end   = date::sys_days{ymd.year()/ymd.month()/date::last};
+            }
+            else if (date_picker->range_type == Range_Type_Custom)
+            {
+                // Either calendar can be before other
+                date_picker->start = std::min(date_picker->first_calendar.selected_date, date_picker->second_calendar.selected_date);
+                date_picker->end = std::max(date_picker->first_calendar.selected_date, date_picker->second_calendar.selected_date);
+            }
+            else
+            {
+                Assert(0);
             }
             
             date_picker_clip_and_update(date_picker, oldest_date, newest_date);
         }
+        
         
         // @WaitForInput
         if (do_calendar_button(&date_picker->first_calendar, oldest_date, newest_date))
@@ -779,6 +846,541 @@ do_date_select_popup(Date_Picker *date_picker, date::sys_days oldest_date, date:
         }
         
         ImGui::EndPopup();
+    }
+}
+
+Record *
+get_records_in_date_range(Day_View *day_view, u32 *record_count, date::sys_days start_range, date::sys_days end_range)
+{
+    Record *result = nullptr;
+    
+    // Dates should be in our days range
+    int start_idx = -1;
+    int end_idx = -1;
+    for (int i = 0; i < day_view->days.size(); ++i)
+    {
+        if (start_range == day_view->days[i].date)
+        {
+            start_idx = i;
+        }
+        if (end_range == day_view->days[i].date)
+        {
+            end_idx = i;
+            Assert(start_idx != -1);
+            break;
+        }
+    }
+    
+    Assert(start_idx != -1 && end_idx != -1);
+    
+    s32 total_record_count = 0;
+    for (int i = start_idx; i <= end_idx; ++i)
+    {
+        total_record_count += day_view->days[i].record_count;
+    }
+    
+    if (total_record_count > 0)
+    {
+        Record *range_records = (Record *)xalloc(total_record_count * sizeof(Record));
+        Record *deduplicated_records = (Record *)xalloc(total_record_count * sizeof(Record));
+        
+        Record *at = range_records;
+        for (int i = start_idx; i <= end_idx; ++i)
+        {
+            memcpy(at, day_view->days[i].records, day_view->days[i].record_count * sizeof(Record));
+            at += day_view->days[i].record_count;
+        }
+        
+        // Sort by id
+        std::sort(range_records, range_records + total_record_count, 
+                  [](Record &a, Record &b) { return a.id < b.id; });
+        
+        // Merge same id records 
+        deduplicated_records[0] = range_records[0];
+        int unique_id_count = 1; 
+        
+        for (int i = 1; i < total_record_count; ++i)
+        {
+            if (range_records[i].id == deduplicated_records[unique_id_count-1].id)
+            {
+                deduplicated_records[unique_id_count-1].duration += range_records[i].duration;
+            }
+            else
+            {
+                deduplicated_records[unique_id_count] = range_records[i];
+                unique_id_count += 1;
+            }
+        }
+        
+        // Sort by duration
+        std::sort(deduplicated_records, deduplicated_records + unique_id_count, 
+                  [](Record &a, Record &b) { return a.duration > b.duration; });
+        
+        free(range_records);
+        
+        *record_count = unique_id_count;
+        return deduplicated_records;
+    }
+    
+    return result;
+}
+
+
+
+void
+init_date_picker(Date_Picker *picker, date::sys_days current_date, 
+                 date::sys_days oldest_date, date::sys_days newest_date)
+{
+#if 0
+    picker->range_type = Range_Type_Daily;
+    picker->start = current_date;
+    picker->end = current_date;
+#else
+    // DEBUG: Default to monthly
+    auto ymd = date::year_month_day{current_date};
+    picker->range_type = Range_Type_Monthly;
+    picker->start = date::sys_days{ymd.year()/ymd.month()/1};
+    picker->end   = date::sys_days{ymd.year()/ymd.month()/date::last};
+#endif
+    
+    // sets label and if buttons are disabled 
+    date_picker_clip_and_update(picker, oldest_date, newest_date);
+    
+    init_calendar(&picker->first_calendar, current_date, oldest_date, newest_date);
+    init_calendar(&picker->second_calendar, current_date, oldest_date, newest_date);
+}
+
+// Database only needed for app_list, icons array, and debug menu
+// State needed for datepicker and settings
+void 
+draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *database, Day_View *day_view)
+{
+    ZoneScoped;
+    
+    App_List *apps = &database->apps;
+    
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplSDL2_NewFrame(window);
+    ImGui::NewFrame();
+    
+    ImGuiIO& io = ImGui::GetIO();
+    
+    bool show_demo_window = true;
+    if (show_demo_window)
+        ImGui::ShowDemoWindow(&show_demo_window);
+    
+    ImGuiWindowFlags flags =
+        ImGuiWindowFlags_NoTitleBar
+        | ImGuiWindowFlags_NoMove
+        | ImGuiWindowFlags_NoScrollbar
+        | ImGuiWindowFlags_NoCollapse
+        | ImGuiWindowFlags_NoSavedSettings
+        //| ImGuiWindowFlags_MenuBar
+        | ImGuiWindowFlags_NoResize;
+    
+    static bool fullscreen = false;
+    
+    ImGui::SetNextWindowPos(ImVec2(0, 0), true);
+    
+    if (fullscreen)
+        ImGui::SetNextWindowSize(io.DisplaySize); 
+    else
+        ImGui::SetNextWindowSize(ImVec2(850, 690), true);
+    
+    ImGui::Begin("Main window", nullptr, flags);
+    
+    ImGui::Checkbox("Fullscreen", &fullscreen);
+    ImGui::SameLine();
+    if (ImGui::Button("Hide"))
+    {
+        // debug: simulate effect of pressing x button
+        win32_hide_win();
+    }
+    
+    // TODO: Make in exact middle
+    ImGui::SameLine(ImGui::GetWindowWidth() * 0.35f);
+    
+    {
+        // Date Picker
+        
+        Date_Picker *date_picker = &state->date_picker;
+        
+        date::sys_days oldest_date = day_view->days.front().date;
+        date::sys_days newest_date = day_view->days.back().date;
+        
+        // @WaitForInput
+        if (ButtonSpecial(ICON_MD_ARROW_BACK, date_picker->is_backwards_disabled))
+        {
+            date_picker_backwards(date_picker, oldest_date, newest_date);
+        }
+        
+        ImGui::SameLine();
+        if (ImGui::Button(date_picker->date_label, ImVec2(200, 0))) // passing zero uses default I guess
+        {
+            ImGui::OpenPopup("Date Select");
+        }
+        ImGui::SameLine();
+        
+        if (ButtonSpecial(ICON_MD_ARROW_FORWARD, date_picker->is_forwards_disabled))
+        {
+            date_picker_forwards(date_picker, oldest_date, newest_date);
+        }
+        
+        do_date_select_popup(date_picker, oldest_date, newest_date);
+    }
+    
+    ImGui::SameLine(ImGui::GetWindowWidth() * .85f);
+    
+    {
+        // Settings
+        
+        if (ImGui::Button(ICON_MD_SETTINGS))
+        {
+            // init edit_settings
+            state->edit_settings = (Edit_Settings *)calloc(1, sizeof(Edit_Settings));
+            
+            // Not sure if should try to leave only one extra or all possible input boxes
+            state->edit_settings->misc_options = state->settings.misc_options;
+            
+            // TODO: Should be a better way than this
+            state->edit_settings->poll_start_time_item = state->settings.misc_options.poll_start_time / 15;
+            state->edit_settings->poll_end_time_item = state->settings.misc_options.poll_end_time / 15;
+            
+            Assert(state->settings.keywords.count <= MAX_KEYWORD_COUNT);
+            for (s32 i = 0; i < state->settings.keywords.count; ++i)
+            {
+                Assert(state->settings.keywords[i].length + 1 <= MAX_KEYWORD_SIZE);
+                strcpy(state->edit_settings->pending[i], state->settings.keywords[i].str);
+            }
+            
+            ImGui::OpenPopup("Settings");
+        }
+        
+        bool closed = do_settings_popup(&state->settings, state->edit_settings);
+        if (closed)
+        {
+            free(state->edit_settings);
+            state->edit_settings = nullptr;
+        }
+    }
+    
+    ImGui::SameLine();
+    
+    // forward declare
+    void do_debug_window_button(Database *database, Day_View *day_view);
+    
+    do_debug_window_button(database, day_view);
+    
+#if 0
+    {
+        // Debug date stuff
+        
+        Date_Picker *date_picker = &state->date_picker;
+        
+        date::sys_days oldest_date = day_view->days.front().date;
+        date::sys_days newest_date = day_view->days.back().date;
+        
+        auto ymd = date::year_month_day{date_picker->start};
+        auto ymw = date::year_month_weekday{date_picker->start};
+        std::ostringstream buf;
+        
+        buf << "start_date: " << ymd << ", " <<  ymw;
+        ImGui::Text(buf.str().c_str());
+        
+        ImGui::SameLine();
+        ymd = date::year_month_day{oldest_date};
+        ymw = date::year_month_weekday{oldest_date};
+        std::ostringstream buf2;
+        
+        buf2 << "     oldest_date; " << ymd << ", " <<  ymw;
+        ImGui::Text(buf2.str().c_str());
+        
+        ymd = date::year_month_day{date_picker->end};
+        ymw = date::year_month_weekday{date_picker->end};
+        std::ostringstream buf1;
+        
+        buf1 << "end_date: " << ymd << ", " <<  ymw;
+        ImGui::Text(buf1.str().c_str());
+        
+        ImGui::SameLine();
+        
+        ymd = date::year_month_day{newest_date};
+        ymw = date::year_month_weekday{newest_date};
+        std::ostringstream buf3;
+        
+        buf3 << "      newest_date: " << ymd << ", " <<  ymw;
+        ImGui::Text(buf3.str().c_str());
+    }
+#endif
+    {
+        // Barplot
+        u32 one = 1;
+        static u32 text_down = 5;
+        ImGui::InputScalar("text down", ImGuiDataType_U32, &text_down, &one);
+        
+        static u32 text_right = 7;
+        ImGui::InputScalar("text right", ImGuiDataType_U32, &text_right, &one);
+        
+        static float bar_height = 32;
+        ImGui::InputFloat("bar_height", &bar_height, 1.0f,0.0f,"%.3f");
+        
+        static float bar_down = 1;
+        ImGui::InputFloat("bar_down", &bar_down, 1.0f,0.0f,"%.3f");
+        
+        // To allow frame border (can just use beginchild instead)
+        ImGuiWindowFlags child_flags = 0;
+        ImGui::BeginChildFrame(55, ImVec2(ImGui::GetWindowSize().x * 0.9, ImGui::GetWindowSize().y * 0.7), child_flags);
+        
+        ImDrawList* draw_list = ImGui::GetWindowDrawList();
+        
+        // TODO: Save records or sizes between frames
+        u32 record_count = 0;
+        Record *records = get_records_in_date_range(day_view, &record_count, state->date_picker.start, state->date_picker.end);
+        if (records)
+        {
+            // TODO: Text position seems to depend on more than this, when window is resized
+            time_type max_duration = records[0].duration;
+            float max_bar_width = ImGui::GetWindowWidth() * 0.6f;
+            float max_text_width = ImGui::GetWindowWidth() - 75.0f;
+            float time_text_start = max_text_width + 5.0f;
+            
+            for (i32 i = 0; i < record_count; ++i)
+            {
+                Record &record = records[i];
+                
+                // if (record.id == 0) continue;
+                
+                if (i != 0)
+                {
+                    // After moving app name text down for in the above line we need to now move this whole line up to compensate for the added space (for every line but the first).
+                    ImVec2 pos = ImGui::GetCursorScreenPos();
+                    pos.y -= text_down; 
+                    ImGui::SetCursorScreenPos(pos);
+                }
+                
+                // TODO: Check if pos of bar or image will be clipped entirely, and maybe skip rest of loop
+                
+                Icon_Asset *icon = get_app_icon_asset(database, record.id);
+                if (icon)
+                {
+                    auto border = ImVec4(0,0,0,255);
+                    ImGui::Image((ImTextureID)(intptr_t)icon->texture_handle, ImVec2((float)icon->bitmap.width, (float)icon->bitmap.height),{0,0},{1,1},{1,1,1,1}, border);
+                }
+                
+                // To start rect where text start
+                ImGui::SameLine();
+                
+                // TODO: make sure colours stay with their record, in order of records.
+                // ... But we probably won't have a live display, so colour change probably not be noticed between
+                // separete openings of the ui, when the ordering of records can change.
+                // The only thing is seeing the same app in different weeks/days etc with a different colour, which probably does mean each app needs a assigned colour per ui run. Can maybe put this in Icon_Asset and call it UI_Asset
+                ImU32 colours[] = {
+#if 1
+                    // pastel
+                    IM_COL32(255, 154, 162, 255),
+                    IM_COL32(255, 183, 178, 255),
+                    IM_COL32(255, 218, 193, 255),
+                    IM_COL32(226, 240, 203, 255),
+                    IM_COL32(181, 234, 215, 255),
+                    IM_COL32(199, 206, 234, 255),
+                    
+                    //
+                    //IM_COL32(247, 217, 196, 255),
+                    IM_COL32(250, 237, 203, 255),
+                    IM_COL32(201, 228, 222, 255),
+                    IM_COL32(198, 222, 241, 255),
+                    IM_COL32(219, 205, 240, 255),
+                    IM_COL32(242, 198, 222, 255),
+                    //IM_COL32(249, 198, 201, 255),
+#endif
+                    
+#if 0                    
+                    // Divergent
+                    IM_COL32(84, 71, 140, 255),
+                    IM_COL32(44, 105, 154, 255),
+                    IM_COL32(4, 139, 168, 255),
+                    IM_COL32(13, 179, 158, 255),
+                    IM_COL32(22, 219, 147, 255),
+                    IM_COL32(131, 227, 119, 255),
+                    IM_COL32(185, 231, 105, 255),
+                    IM_COL32(239, 234, 90, 255),
+                    IM_COL32(241, 196, 83, 255),
+                    IM_COL32(242, 158, 76, 255),
+#endif
+                    
+                    
+                };
+                
+                ImVec2 plot_pos = ImGui::GetWindowPos();
+                draw_list->PushClipRect(plot_pos,
+                                        ImVec2(plot_pos.x + max_text_width, plot_pos.y + ImGui::GetWindowHeight()), true);
+                float bar_width = floorf(max_bar_width * ((float)record.duration / (float)max_duration));
+                if (bar_width > 5)
+                {
+                    ImVec2 bar0 = ImGui::GetCursorScreenPos();
+                    bar0.x += 1;
+                    bar0.y += bar_down; // prabably wants to be 1
+                    ImVec2 bar1 = ImVec2(bar0.x + bar_width - 1, bar0.y + bar_height - 1);
+                    ImVec2 outline0 = ImVec2(bar0.x-1, bar0.y-1);
+                    ImVec2 outline1 = ImVec2(bar1.x+1, bar1.y+1);
+                    
+                    draw_list->AddRect(outline0, outline1, IM_COL32(0, 0, 0, 255));
+                    draw_list->AddRectFilled(bar0, bar1, colours[i % array_count(colours)]);                    
+                }
+                
+                String name = {};
+                if (record.id == 0)
+                {
+                    // DEBUG
+                    name = make_string_from_literal("Not polled time");
+                }
+                else
+                {
+                    // NOTE: We will just skipp apps with id 0 instead
+                    // returns string with just a space " " if for some reason there is no app with that id (or id == 0)
+                    name = get_app_name(apps, record.id);
+                }
+                
+                ImVec2 pos = ImGui::GetCursorScreenPos();
+                pos.x += text_right;
+                pos.y += text_down;
+                ImGui::SetCursorScreenPos(pos);
+                
+                ImGui::TextUnformatted(name.str, name.str + name.length);
+                
+                draw_list->PopClipRect();
+                // Text underline
+                //ImVec2 max_r = ImGui::GetItemRectMax();
+                //ImVec2 min_r = ImGui::GetItemRectMin();
+                //draw_list->AddLine(ImVec2(min_r.x, max_r.y), ImVec2(min_r.x + 1000, max_r.y), IM_COL32(255,0,0,255), 1.0f);
+                
+                
+                
+                
+#if MONITOR_DEBUG
+                float real_seconds = (float)record.duration / MICROSECS_PER_SEC;
+                char time_text[32];
+                snprintf(time_text, array_count(time_text), "%.2fs", real_seconds);
+                ImVec2 text_size = ImGui::CalcTextSize(time_text);
+                ImGui::SameLine(ImGui::GetWindowWidth() - (text_size.x + 30));
+                ImGui::Text(time_text); 
+#else
+                u32 seconds = record.duration / MICROSECS_PER_SEC;
+                if (seconds < 60)
+                {
+                    ImGui::Text("%us", seconds); 
+                }
+                else if (seconds < 3600)
+                {
+                    ImGui::Text("%um", seconds / 60); 
+                }
+                else 
+                {
+                    u32 hours = seconds / 3600;
+                    u32 minutes_remainder = (seconds % 3600) / 60;
+                    ImGui::Text("%uh %um", hours, minutes_remainder); 
+                }
+#endif
+                //ImGui::SameLine();
+                //ImGui::InvisibleButton("##gradient1", ImVec2(bar_width + 10, bar_height));
+            }
+            
+            free(records);
+        } // if (records)
+        
+        ImGui::EndChild();
+        
+        float red[] = {255.0f, 0, 0};
+        float black[] = {0, 0, 0};
+        
+        double total_runtime_seconds = (double)state->total_runtime / 1000000;
+        //double sum_duration_seconds = (double)sum_duration / 1000000;
+        
+        auto now = win32_get_time();
+        auto start_time = win32_get_microseconds_elapsed(state->startup_time, now);
+        
+        double time_since_startup_seconds = (double)start_time / 1000000;
+        
+        //double diff_seconds2 = (double)(start_time - sum_duration) / 1000000;
+        
+        
+        ImGui::Text("Total runtime:        %.5fs", total_runtime_seconds);
+        //ImGui::Text("Sum duration:        %.5fs", sum_duration_seconds);
+        
+        
+        ImGuiStyle& style = ImGui::GetStyle();
+        
+        ImGui::SameLine();
+        memcpy((void *)style.Colors, red, 3 * sizeof(float));
+        //ImGui::Text("diff: %llu", state->total_runtime - sum_duration);
+        memcpy((void *)style.Colors, black, 3 * sizeof(float));
+        
+        
+        ImGui::Text("time since startup: %.5fs", time_since_startup_seconds);
+        
+        ImGui::SameLine();
+        memcpy((void *)style.Colors, red, 3 * sizeof(float));
+        //ImGui::Text("diff between time since startup and sum duration: %.5fs", diff_seconds2);
+        memcpy((void *)style.Colors, black, 3 * sizeof(float));
+        
+        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+        ImGui::End();
+        
+        
+        ImGui::Render(); 
+        
+        ImGuiIO& io = ImGui::GetIO();
+        glViewport(0, 0, (int)io.DisplaySize.x, (int)io.DisplaySize.y);
+        ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+        glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
+        glClear(GL_COLOR_BUFFER_BIT);
+        
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData()); 
+    }
+}
+
+void
+create_world_icon_source_file(char *png_file, char *cpp_file, int dimension)
+{
+    static bool done = false;
+    if (!done)
+    {
+        int x = 0;
+        int y = 0;
+        int channels = 0;
+        
+        u32 *pixels = (u32 *)stbi_load(png_file, &x, &y, 0, 4);
+        Assert(pixels);
+        
+        Assert(x == dimension);
+        Assert(y == dimension);
+        //Assert(channels == 4);
+        
+        int size = x*y*4;
+        
+        FILE *out = fopen(cpp_file, "w");
+        Assert(out);
+        
+        fprintf(out, "static const unsigned int world_icon_size = %d;\n", size);
+        fprintf(out, "static const unsigned int world_icon_width = %d;\n", x);
+        fprintf(out, "static const unsigned int world_icon_height = %d;\n", y);
+        fprintf(out, "static const unsigned int world_icon_data[%d/4] =\n{", size);
+        
+        int column = 0;
+        for (int i = 0; i < x*y; ++i)
+        {
+            unsigned d = pixels[i];
+            if ((column++ % 8) == 0)
+                fprintf(out, "\n    0x%08x, ", d);
+            else
+                fprintf(out, "0x%08x, ", d);
+        }
+        fprintf(out, "\n};\n\n");
+        
+        fclose(out);
+        
+        free(pixels);
+        done = true;
     }
 }
 
@@ -935,489 +1537,4 @@ do_debug_window_button(Database *database, Day_View *day_view)
         
         ImGui::End();
     } // if debug_menu_open
-}
-
-Record *
-get_records_in_date_range(Day_View *day_view, u32 *record_count, date::sys_days start_range, date::sys_days end_range)
-{
-    Record *result = nullptr;
-    
-    // Dates should be in our days range
-    int start_idx = -1;
-    int end_idx = -1;
-    for (int i = 0; i < day_view->days.size(); ++i)
-    {
-        if (start_range == day_view->days[i].date)
-        {
-            start_idx = i;
-        }
-        if (end_range == day_view->days[i].date)
-        {
-            end_idx = i;
-            Assert(start_idx != -1);
-            break;
-        }
-    }
-    
-    Assert(start_idx != -1 && end_idx != -1);
-    
-    s32 total_record_count = 0;
-    for (int i = start_idx; i <= end_idx; ++i)
-    {
-        total_record_count += day_view->days[i].record_count;
-    }
-    
-    if (total_record_count > 0)
-    {
-        Record *range_records = (Record *)xalloc(total_record_count * sizeof(Record));
-        Record *deduplicated_records = (Record *)xalloc(total_record_count * sizeof(Record));
-        
-        Record *at = range_records;
-        for (int i = start_idx; i <= end_idx; ++i)
-        {
-            memcpy(at, day_view->days[i].records, day_view->days[i].record_count * sizeof(Record));
-            at += day_view->days[i].record_count;
-        }
-        
-        // Sort by id
-        std::sort(range_records, range_records + total_record_count, 
-                  [](Record &a, Record &b) { return a.id < b.id; });
-        
-        // Merge same id records 
-        deduplicated_records[0] = range_records[0];
-        int unique_id_count = 1; 
-        
-        for (int i = 1; i < total_record_count; ++i)
-        {
-            if (range_records[i].id == deduplicated_records[unique_id_count-1].id)
-            {
-                deduplicated_records[unique_id_count-1].duration += range_records[i].duration;
-            }
-            else
-            {
-                deduplicated_records[unique_id_count] = range_records[i];
-                unique_id_count += 1;
-            }
-        }
-        
-        // Sort by duration
-        std::sort(deduplicated_records, deduplicated_records + unique_id_count, 
-                  [](Record &a, Record &b) { return a.duration > b.duration; });
-        
-        free(range_records);
-        
-        *record_count = unique_id_count;
-        return deduplicated_records;
-    }
-    
-    return result;
-}
-
-
-
-void
-init_date_picker(Date_Picker *picker, date::sys_days current_date, 
-                 date::sys_days oldest_date, date::sys_days newest_date)
-{
-#if 0
-    picker->range_type = Range_Type_Daily;
-    picker->start = current_date;
-    picker->end = current_date;
-#else
-    // DEBUG: Default to monthly
-    auto ymd = date::year_month_day{current_date};
-    picker->range_type = Range_Type_Monthly;
-    picker->start = date::sys_days{ymd.year()/ymd.month()/1};
-    picker->end   = date::sys_days{ymd.year()/ymd.month()/date::last};
-#endif
-    
-    // sets label and if buttons are disabled 
-    date_picker_clip_and_update(picker, oldest_date, newest_date);
-    
-    init_calendar(&picker->first_calendar, current_date, oldest_date, newest_date);
-    init_calendar(&picker->second_calendar, current_date, oldest_date, newest_date);
-}
-
-// Database only needed for app_names, icons, and debug menu
-// State needed for datepicker and settings
-void draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *database, Day_View *day_view)
-{
-    ZoneScoped;
-    
-    App_List *apps = &database->apps;
-    
-    ImGui_ImplOpenGL3_NewFrame();
-    ImGui_ImplSDL2_NewFrame(window);
-    ImGui::NewFrame();
-    
-    bool show_demo_window = true;
-    if (show_demo_window)
-        ImGui::ShowDemoWindow(&show_demo_window);
-    
-    ImGuiWindowFlags flags =
-        ImGuiWindowFlags_NoTitleBar
-        | ImGuiWindowFlags_NoMove
-        | ImGuiWindowFlags_NoScrollbar
-        | ImGuiWindowFlags_NoCollapse
-        | ImGuiWindowFlags_NoSavedSettings
-        //| ImGuiWindowFlags_MenuBar
-        | ImGuiWindowFlags_NoResize;
-    
-    ImGui::SetNextWindowPos(ImVec2(0, 0), true);
-    ImGui::SetNextWindowSize(ImVec2(850, 690), true);
-    ImGui::Begin("Main window", nullptr, flags);
-    
-    // TODO: Make in exact middle
-    ImGui::SameLine(ImGui::GetWindowWidth() * .35f);
-    {
-        // Date Picker
-        
-        Date_Picker *date_picker = &state->date_picker;
-        
-        date::sys_days oldest_date = day_view->days.front().date;
-        date::sys_days newest_date = day_view->days.back().date;
-        
-        // @WaitForInput
-        if (ButtonSpecial(ICON_MD_ARROW_BACK, date_picker->is_backwards_disabled))
-        {
-            date_picker_backwards(date_picker, oldest_date, newest_date);
-        }
-        
-        ImGui::SameLine();
-        if (ImGui::Button(date_picker->date_label, ImVec2(200, 0))) // passing zero uses default I guess
-        {
-            ImGui::OpenPopup("Date Select");
-        }
-        ImGui::SameLine();
-        
-        if (ButtonSpecial(ICON_MD_ARROW_FORWARD, date_picker->is_forwards_disabled))
-        {
-            date_picker_forwards(date_picker, oldest_date, newest_date);
-        }
-        
-        do_date_select_popup(date_picker, oldest_date, newest_date);
-    }
-    
-    ImGui::SameLine(ImGui::GetWindowWidth() * .85f);
-    
-    {
-        // Settings
-        
-        // @WaitForInput
-        if (ImGui::Button(ICON_MD_SETTINGS))
-        {
-            // init edit_settings
-            state->edit_settings = (Edit_Settings *)calloc(1, sizeof(Edit_Settings));
-            
-            // Not sure if should try to leave only one extra or all possible input boxes
-            state->edit_settings->misc_options = state->settings.misc_options;
-            
-            // TODO: Should be a better way than this
-            state->edit_settings->poll_start_time_item = state->settings.misc_options.poll_start_time / 15;
-            state->edit_settings->poll_end_time_item = state->settings.misc_options.poll_end_time / 15;
-            
-            Assert(state->settings.keywords.count <= MAX_KEYWORD_COUNT);
-            for (s32 i = 0; i < state->settings.keywords.count; ++i)
-            {
-                Assert(state->settings.keywords[i].length + 1 <= MAX_KEYWORD_SIZE);
-                strcpy(state->edit_settings->pending[i], state->settings.keywords[i].str);
-            }
-            
-            ImGui::OpenPopup("Settings");
-        }
-        
-        bool finished = do_settings_popup(state->edit_settings);
-        
-        if (finished)
-        {
-            if (state->edit_settings->update_settings)
-            {
-                // Empty input boxes are just zeroed array
-                i32 pending_count = remove_duplicate_and_empty_keyword_strings(state->edit_settings->pending);
-                
-                Settings *settings = &state->settings;
-                settings->keywords.clear();
-                for (int i = 0; i < pending_count; ++i)
-                {
-                    add_keyword(&state->keyword_arena, settings->keywords, state->edit_settings->pending[i]);
-                }
-                
-                settings->misc_options = state->edit_settings->misc_options;
-            }
-            
-            free(state->edit_settings);
-        }
-    }
-    
-    ImGui::SameLine();
-    do_debug_window_button(database, day_view);
-    
-#if 0
-    {
-        // Debug date stuff
-        
-        Date_Picker *date_picker = &state->date_picker;
-        
-        date::sys_days oldest_date = day_view->days.front().date;
-        date::sys_days newest_date = day_view->days.back().date;
-        
-        auto ymd = date::year_month_day{date_picker->start};
-        auto ymw = date::year_month_weekday{date_picker->start};
-        std::ostringstream buf;
-        
-        buf << "start_date: " << ymd << ", " <<  ymw;
-        ImGui::Text(buf.str().c_str());
-        
-        ImGui::SameLine();
-        ymd = date::year_month_day{oldest_date};
-        ymw = date::year_month_weekday{oldest_date};
-        std::ostringstream buf2;
-        
-        buf2 << "     oldest_date; " << ymd << ", " <<  ymw;
-        ImGui::Text(buf2.str().c_str());
-        
-        ymd = date::year_month_day{date_picker->end};
-        ymw = date::year_month_weekday{date_picker->end};
-        std::ostringstream buf1;
-        
-        buf1 << "end_date: " << ymd << ", " <<  ymw;
-        ImGui::Text(buf1.str().c_str());
-        
-        ImGui::SameLine();
-        
-        ymd = date::year_month_day{newest_date};
-        ymw = date::year_month_weekday{newest_date};
-        std::ostringstream buf3;
-        
-        buf3 << "      newest_date: " << ymd << ", " <<  ymw;
-        ImGui::Text(buf3.str().c_str());
-    }
-#endif
-    {
-        // Barplot
-        
-        // To allow frame border (can just use beginchild instead)
-        ImGuiWindowFlags child_flags = 0;
-        ImGui::BeginChildFrame(55, ImVec2(ImGui::GetWindowSize().x * 0.9, ImGui::GetWindowSize().y * 0.7), child_flags);
-        
-        ImDrawList* draw_list = ImGui::GetWindowDrawList();
-        
-        time_type sum_duration = 0; // for debug
-        
-        u32 record_count = 0;
-        Record *records = get_records_in_date_range(day_view, &record_count, state->date_picker.start, state->date_picker.end);
-        if (records)
-        {
-            time_type max_duration = records[0].duration;
-            
-            float max_width = ImGui::GetWindowWidth() * 0.6f;
-            float bar_height = 32;//ImGui::GetFrameHeight();
-            //ImVec2 max_size = ImVec2(ImGui::CalcItemWidth() * rand_between(0.7f, 0.9f), ImGui::GetFrameHeight());
-            
-            for (i32 i = 0; i < record_count; ++i)
-            {
-                Record &record = records[i];
-                
-                // try with and without id == 0 record
-                sum_duration += record.duration; // DEBUG
-                
-                // TODO: Check if pos of bar or image will be clipped entirely, and maybe skip rest of loop
-                
-                // if id is 0 gets default app icon, so should always succeed
-                Icon_Asset *icon = get_icon_asset(database, record.id);
-                if (icon)
-                {
-                    auto border = ImVec4(0,0,0,255);
-                    ImGui::Image((ImTextureID)(intptr_t)icon->texture_handle, ImVec2((float)icon->bitmap.width, (float)icon->bitmap.height),{0,0},{1,1},{1,1,1,1}, border);
-                    
-                    // TODO: Website icons next to each other ruin spacing, also start too far back by a few pixels
-                    //ImGui::Text(ICON_MD_PUBLIC);
-                }
-                
-                ImGui::SameLine();
-                ImVec2 p0 = ImGui::GetCursorScreenPos();
-                
-                ImU32 colours[] = {
-                    IM_COL32(255, 154, 162, 255),
-                    IM_COL32(255, 183, 178, 255),
-                    IM_COL32(255, 218, 193, 255),
-                    IM_COL32(226, 240, 203, 255),
-                    IM_COL32(181, 234, 215, 255),
-                    IM_COL32(199, 206, 234, 255),
-                };
-                
-                // TODO: Save records or sizes between frames
-                float bar_width = max_width * ((float)record.duration / (float)max_duration);
-                if (bar_width > 0)
-                {
-                    ImVec2 p1 = ImVec2(p0.x + bar_width, p0.y + bar_height);
-                    draw_list->AddRectFilled(p0, p1, 
-                                             //IM_COL32(255, 154, 162, 255),
-                                             colours[i % array_count(colours)], 
-                                             1, ImDrawCornerFlags_All);                    
-                    //ImU32 col_a = ImGui::GetColorU32(ImVec4(0.0f, 1.0f, 0.0f, 1.0f));
-                    //ImU32 col_b = ImGui::GetColorU32(ImVec4(0.2f, 0.4f, 0.0f, 1.0f));
-                    //draw_list->AddRectFilledMultiColor(p0, p1, col_a, col_b, col_b, col_a);
-                }
-                
-                // This is a hash table search
-                // DEBUG
-                String name = {};
-                if (record.id == 0)
-                {
-                    name = make_string_from_literal("Not polled time");
-                }
-                else
-                {
-                    // returns string with just a space " " if for some reason there is no app with that id
-                    name = get_name_from_id(apps, record.id);
-                }
-                
-                
-                //if (i < 5) 
-                ImGui::AlignTextToFramePadding();  // TODO: text needs to be slightly further down
-                
-                
-                ImVec2 pos = ImGui::GetCursorScreenPos();
-                //draw_list->AddLine(pos, ImVec2(pos.x + 1000, pos.y), IM_COL32(0,0,0,255), 1.0f);
-                
-                pos.x += 5;
-                //pos.y += 5; // this seems to make lots of space between text lines and can't be undone by subtracting the pixels after the text is written
-                ImGui::SetCursorScreenPos(pos);
-                
-                // TODO: Limit name length
-                //     TextUnformatted doesn't require null terminator, and avoids memory copy also
-                ImGui::TextUnformatted(name.str, name.str + name.length);
-                
-                
-                //pos = ImGui::GetCursorScreenPos();
-                //draw_list->AddLine(pos, ImVec2(pos.x + 1000, pos.y), IM_COL32(255,0,0,255), 1.0f);
-                
-                ImGui::SameLine(ImGui::GetWindowSize().x * 0.90);
-                //ImGui::SetCursorPosX();
-                
-                
-#if MONITOR_DEBUG
-                float real_seconds = (float)record.duration / MICROSECS_PER_SEC;
-                ImGui::Text("%.2fs", real_seconds); 
-#else
-                u32 seconds = record.duration / MICROSECS_PER_SEC;
-                if (seconds < 60)
-                {
-                    ImGui::Text("%us", seconds); 
-                }
-                else if (seconds < 3600)
-                {
-                    ImGui::Text("%um", seconds / 60); 
-                }
-                else 
-                {
-                    u32 hours = seconds / 3600;
-                    u32 minutes_remainder = (seconds % 3600) / 60;
-                    ImGui::Text("%uh %um", hours, minutes_remainder); 
-                }
-                
-                
-#endif
-                //ImGui::SameLine();
-                //ImGui::InvisibleButton("##gradient1", ImVec2(bar_width + 10, bar_height));
-            }
-            
-            free(records);
-        } // if (records)
-        
-        ImGui::EndChild();
-        
-        float red[] = {255.0f, 0, 0};
-        float black[] = {0, 0, 0};
-        
-        double total_runtime_seconds = (double)state->total_runtime / 1000000;
-        double sum_duration_seconds = (double)sum_duration / 1000000;
-        
-        auto now = win32_get_time();
-        auto start_time = win32_get_microseconds_elapsed(state->startup_time, now);
-        
-        double time_since_startup_seconds = (double)start_time / 1000000;
-        
-        double diff_seconds2 = (double)(start_time - sum_duration) / 1000000;
-        
-        
-        ImGui::Text("Total runtime:        %.5fs", total_runtime_seconds);
-        ImGui::Text("Sum duration:        %.5fs", sum_duration_seconds);
-        
-        
-        ImGuiStyle& style = ImGui::GetStyle();
-        
-        ImGui::SameLine();
-        memcpy((void *)style.Colors, red, 3 * sizeof(float));
-        ImGui::Text("diff: %llu", state->total_runtime - sum_duration);
-        memcpy((void *)style.Colors, black, 3 * sizeof(float));
-        
-        
-        ImGui::Text("time since startup: %.5fs", time_since_startup_seconds);
-        
-        ImGui::SameLine();
-        memcpy((void *)style.Colors, red, 3 * sizeof(float));
-        ImGui::Text("diff between time since startup and sum duration: %.5fs", diff_seconds2);
-        memcpy((void *)style.Colors, black, 3 * sizeof(float));
-        
-        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-        ImGui::End();
-        
-        
-        ImGui::Render(); 
-        
-        ImGuiIO& io = ImGui::GetIO();
-        glViewport(0, 0, (int)io.DisplaySize.x, (int)io.DisplaySize.y);
-        ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
-        glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
-        glClear(GL_COLOR_BUFFER_BIT);
-        
-        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData()); 
-    }
-}
-
-void
-create_world_icon_source_file(char *png_file, char *cpp_file, int dimension)
-{
-    static bool done = false;
-    if (!done)
-    {
-        int x = 0;
-        int y = 0;
-        int channels = 0;
-        
-        u32 *pixels = (u32 *)stbi_load(png_file, &x, &y, 0, 4);
-        Assert(pixels);
-        
-        Assert(x == dimension);
-        Assert(y == dimension);
-        //Assert(channels == 4);
-        
-        int size = x*y*4;
-        
-        FILE *out = fopen(cpp_file, "w");
-        Assert(out);
-        
-        fprintf(out, "static const unsigned int world_icon_size = %d;\n", size);
-        fprintf(out, "static const unsigned int world_icon_width = %d;\n", x);
-        fprintf(out, "static const unsigned int world_icon_height = %d;\n", y);
-        fprintf(out, "static const unsigned int world_icon_data[%d/4] =\n{", size);
-        
-        int column = 0;
-        for (int i = 0; i < x*y; ++i)
-        {
-            unsigned d = pixels[i];
-            if ((column++ % 8) == 0)
-                fprintf(out, "\n    0x%08x, ", d);
-            else
-                fprintf(out, "0x%08x, ", d);
-        }
-        fprintf(out, "\n};\n\n");
-        
-        fclose(out);
-        
-        free(pixels);
-        done = true;
-    }
 }

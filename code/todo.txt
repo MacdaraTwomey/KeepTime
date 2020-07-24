@@ -1,4 +1,31 @@
 
+* * * * * Things that need doing * * * * * 
+
+
+  -- Minimum viable product --
+* Detect  sleep and shutdown, then save to file.
+* Read/write from savefile
+* polling rate while in non-ui mode, allowing switch to 60fps (	or whatever vsync rate is) for ui
+* Choose ui colours style
+* Check if using freetype, and if hinting looks better
+* Larger icon limit, or could grow limit indefinitely, or dynamically free old icons (maybe need to glDeleteTexture also)
+* Detection of multiple instances of app
+* Safer writing to database file, (maybe copy and delete old file)
+* Add own licence and licences of used open source code (and maybe fonts)
+* Popup on unrecoverable errors
+
+  -- Finished product --
+* Low framerate UI (not that needed, and adds lots of complexity)
+* Event driven (not polling) for window switches and tab switch
+* Website icons (maybe using duckduck go or google service)
+* Better keyword support, allowing different records for subdomains and different paths in a domain
+* Idle detection
+* Day start/end time for allowed recording
+* Autostart at system startup
+* Make imgui_impl files better, remove unneeded stuff
+
+
+
 
 
 // -----------------------------------------------------------------
@@ -15,9 +42,3 @@
 // TODO: Don't hardcode sizes, make it a multiple of font size maybe
 // can use array textures maybe, GL_TEXTURE_2D_ARRAY texture target. Textures must be same size
 
-
-
-### Wait for input
-// TODO: ImGui might need to render 3 frames after input (from github imgui), making wait on input more difficult
-
-// Cost of rendering imgui is generally lower than the cost of building the ui elements - "Omar"

@@ -3,6 +3,44 @@
 #include "stb_image.h"
 #include "icon.h"
 
+// TODO: NOt sure where to put this
+u32
+opengl_create_texture(Database *database, Bitmap bitmap)
+{
+    // Returns index of icon asset in asset array
+    
+    GLuint image_texture;
+    glGenTextures(1, &image_texture); // I think this can fail if out of texture mem
+    
+    // Binds the texture name (uint) to the target (GL_TEXTURE_2D), breaking the previous binding, the
+    // texture assumes its target (becomes a GL_TEXTURE_2D).
+    // While a texture is bound, GL operations on the target to which it is bound affect the bound texture.
+    // Once created, a named texture may be re-bound to its same original target as often as needed. It is usually much faster to use glBindTexture to bind an existing named texture to one of the texture targets than it is to reload the texture image using glTexImage2D,
+    
+    // Not sure if needed
+    //glActiveTexture(GL_TEXTURE0);
+    
+    glBindTexture(GL_TEXTURE_2D, image_texture);
+    
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    
+    // Not sure if needed (probably not)
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+    
+    // TODO: Maybe change from GL_BGRA (only the default on windows for icons probably)
+    // TODO: I think that the bitmap pixel lines must be multiple of 4 bytes, texture doesn't necessrily need to be PoT but have to submit bitmap with rows padded to 4 bytes.
+    
+    // can maybe use this to choose alignment, though I couldn't induce a bug before using it, so maybe it wasn't related to alignment.
+    //glPixelStorei(GL_PACK_ALIGNMENT, 1);
+    
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, bitmap.width, bitmap.height, 0, GL_BGRA, GL_UNSIGNED_BYTE, bitmap.pixels);
+    
+    return image_texture;
+}
+
+
+
 // Some icons glitch out on some sizes, maybe getting the icon sizes up/down for icons without that specific size. // But maybe good ones like firefox are built in with lots of sizes.
 // NOTE: Can test this by looking at the colour of monitor.exe icon
 

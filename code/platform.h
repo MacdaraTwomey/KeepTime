@@ -12,6 +12,7 @@ enum Window_Status
     Window_Just_Hidden = 2,
     Window_Visible = 4,
     Window_Hidden = 8,
+    Window_Closed = 16,
 };
 
 struct Platform_Window
@@ -35,11 +36,10 @@ bool platform_get_program_from_window(Platform_Window window, char *buf, size_t 
 
 bool platform_get_firefox_url(Platform_Window window, char *buf, size_t *length);
 
+bool platform_get_default_icon(u32 desired_size, i32 *width, i32 *height, i32 *pitch, u32 **pixels);
+
 bool platform_get_icon_from_executable(char *path, u32 desired_size, 
                                        i32 *width, i32 *height, i32 *pitch, u32 **pixels, 
                                        bool load_default_on_failure);
-
-// Temporary: only here so app can load ms icons
-bool win32_get_bitmap_data_from_HICON(HICON icon, i32 *width, i32 *height, i32 *pitch, u32 **pixels);
 
 #endif //PLATFORM_H
