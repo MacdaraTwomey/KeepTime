@@ -1,5 +1,5 @@
 
-#include "imgui.h"
+#include "imgui.h" // include before other imgui
 #include "imgui_impl_sdl.h"
 #include "imgui_impl_opengl3.h"
 #include "imgui_freetype.h"
@@ -87,7 +87,7 @@ init_imgui(SDL_Window *window, SDL_GLContext gl_context)
     
     
     
-    
+    // TODO: could remove glyphs to reduce size with online tool
     // SourceSansProRegular_compressed_data is in helper.h
     io.Fonts->AddFontFromMemoryCompressedTTF(SourceSansProRegular_compressed_data, SourceSansProRegular_compressed_size, 22.0f);
     ImFontConfig icons_config; 
@@ -95,13 +95,6 @@ init_imgui(SDL_Window *window, SDL_GLContext gl_context)
     icons_config.PixelSnapH = true;
     
     // NOTE: glyph ranges must exist at least until atlas is built
-#if 0
-    ImVector<ImWchar> range_32;
-    ImFontGlyphRangesBuilder builder_32;
-    builder_32.AddText(ICON_MD_PUBLIC);
-    builder_32.BuildRanges(&range_32);                          
-#endif
-    
     ImVector<ImWchar> range_22;
     ImFontGlyphRangesBuilder builder_22;
     builder_22.AddText(ICON_MD_DATE_RANGE);
@@ -110,23 +103,26 @@ init_imgui(SDL_Window *window, SDL_GLContext gl_context)
     builder_22.AddText(ICON_MD_SETTINGS);
     builder_22.BuildRanges(&range_22);                          
     
-#if 0
-    icons_config.GlyphOffset = ImVec2(0, 13); // move glyphs down or else they render too high
-    io.Fonts->AddFontFromFileTTF("c:\\dev\\projects\\monitor\\build\\fonts\\MaterialIcons-Regular.ttf", 36.0f, &icons_config, range_32.Data);
-#endif
-    
+    // TODO: could remove glyphs to reduce size with online tool
     icons_config.GlyphOffset = ImVec2(0, 4); // move glyphs down or else they render too high
     io.Fonts->AddFontFromFileTTF("c:\\dev\\projects\\monitor\\build\\fonts\\MaterialIcons-Regular.ttf", 22.0f, &icons_config, range_22.Data);
     
-    unsigned int flags = ImGuiFreeType::NoHinting;
-    ImGuiFreeType::BuildFontAtlas(io.Fonts, flags);
-    io.Fonts->Build();
-    
-    ImFontAtlas *atlas = io.Fonts;
-    ImFont *font = atlas->Fonts[0];
-    
-    // TODO: Compare freetype options, and stb_truetype
-    //FreeTypeTest freetype_test;
+    // NOTE: FreeType assumes blending in linear space rather than gamma space. See FreeType note for FT_Render_Glyph. For correct results you need to be using sRGB and convert to linear space in the pixel shader output. The default Dear ImGui styles will be impacted by this change (alpha values will need tweaking).
+    // NOTE: Freetype is an additional dependency/dll ...
+#if 1
+    // for freetype: call before Build or GetTexDataAsRGBA32 
+    unsigned font_flags = ImGuiFreeType::LightHinting;
+    for (int n = 0; n < io.Fonts->ConfigData.Size; n++)
+    {
+        ImFontConfig* font_config = (ImFontConfig*)&io.Fonts->ConfigData[n];
+        font_config->RasterizerMultiply = 1.0f;
+        font_config->RasterizerFlags = font_flags;
+    }
+    ImGuiFreeType::BuildFontAtlas(io.Fonts, font_flags);
+#else
+    // for stb:
+    //io.Fonts->Build();
+#endif
     
     ImGuiStyle& style = ImGui::GetStyle();
     style.FrameRounding = 0.0f; // 0 to 12 ? 
@@ -136,12 +132,51 @@ init_imgui(SDL_Window *window, SDL_GLContext gl_context)
     style.PopupBorderSize = 1.0f;
     style.ChildBorderSize = 1.0f;
     style.WindowRounding = 0.0f;
-    
 }
+
+u32
+platform_SDL_get_monitor_refresh_rate_milliseconds()
+{
+    // or if 0 is not correct, could pass in sdl_window and get index with SDL_GetWindowDisplayIndex
+    SDL_DisplayMode display_mode;
+    int result = SDL_GetCurrentDisplayMode(0, &display_mode);
+    if (result == 0)
+    {
+        return 16; // 60fps default
+    }
+    else
+    {
+        return display_mode.refresh_rate;
+    }
+}
+
+Uint32 
+timer_callback(Uint32 interval, void *param)
+{
+    SDL_Event event;
+    SDL_UserEvent userevent;
+    
+    userevent.type = SDL_USEREVENT;
+    userevent.code = 0;
+    userevent.data1 = NULL;
+    userevent.data2 = NULL;
+    
+    event.type = SDL_USEREVENT;
+    event.user = userevent;
+    
+    SDL_PushEvent(&event);
+    return(interval);
+}
+
 
 int main(int argc, char* argv[])
 {
     ZoneScoped;
+    
+    if (platform_show_other_instance_if_already_running())
+    {
+        return 0;
+    }
     
     if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_TIMER|SDL_INIT_EVENTS) != 0)
     {
@@ -158,25 +193,32 @@ int main(int argc, char* argv[])
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
     
-    SDL_Window* window = SDL_CreateWindow("Monitor",
+    // TODO: Make it clear that the popup gui is just a 'view' of the 'real' running app, so closing just the window and keeping the app running is clearer.
+    SDL_Window* window = SDL_CreateWindow(PROGRAM_NAME,
                                           SDL_WINDOWPOS_UNDEFINED,
                                           SDL_WINDOWPOS_UNDEFINED,
                                           WINDOW_WIDTH, WINDOW_HEIGHT,
                                           SDL_WINDOW_OPENGL|SDL_WINDOW_RESIZABLE|SDL_WINDOW_ALLOW_HIGHDPI);
     
+    // Window should start hidden in release
+    //SDL_HideWindow(window);
+    //SDL_SetThreadPriority(SDL_THREAD_PRIORITY_LOW); // maybe
+    
+    
     SDL_GLContext gl_context = SDL_GL_CreateContext(window);
     SDL_GL_MakeCurrent(window, gl_context);
+    
+    // NOTE: VSync is not on every computer so need to manage own framerate for the UI in addition to the normal polling rate we also manage.
+    // Also VSync rate varies 60 fps, 30 fps
     SDL_GL_SetSwapInterval(1); // enable VSync
     
     if (glewInit() != GLEW_OK)
     {
-        printf("glewInit failed\n");
         return 1;
     }
     
     init_imgui(window, gl_context);
     
-#if defined(_WIN32)
     SDL_EventState(SDL_SYSWMEVENT, SDL_ENABLE);
     
     SDL_SysWMinfo info;
@@ -187,8 +229,8 @@ int main(int argc, char* argv[])
     else
     {
         Assert(0);
+        return 1;
     }
-#endif // if _WIN32
     
     {
         char *exe_dir_path = SDL_GetBasePath();
@@ -196,59 +238,42 @@ int main(int argc, char* argv[])
         if (!global_savefile_path) return 1;
         global_debug_savefile_path = make_filepath_with_dir(exe_dir_path, "debug_savefile.txt");
         if (!global_debug_savefile_path) return 1;
-        
         SDL_free(exe_dir_path);
     }
-    
-    // test is gui window already open, maybe use FindWindowA(), or use mutex
-    
-#if 0    
-    int SDL_ShowSimpleMessageBox(Uint32      flags,
-                                 const char* title,
-                                 const char* message,
-                                 SDL_Window* window)
-#endif
     
     // This may just be temporary.
     Monitor_State monitor_state = {};
     
-    Uint32 sdl_flags = SDL_GetWindowFlags(window);
-    u32 window_status = 0;
-    if (sdl_flags & SDL_WINDOW_SHOWN) window_status |= Window_Visible|Window_Just_Visible;
-    else if (sdl_flags & SDL_WINDOW_HIDDEN) window_status |= Window_Hidden|Window_Just_Hidden;
+    float fps = 60;
+    float seconds_per_frame = 1/fps;
+    u32 target_frame_time = (s64)floor(seconds_per_frame * 1000.0f); // in ms
+    SDL_TimerID timer_id = SDL_AddTimer(target_frame_time, timer_callback, nullptr);
     
     auto old_time = win32_get_time();
     
     bool running = true;
     while (running)
     {
-        // Poll and handle events (inputs, window resize, etc.)
-        // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
-        // - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application.
-        // - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main application.
-        // Generally you may always pass all inputs to dear imgui, and hide them from your application based on those two flags.
-        
         ZoneScopedN("Frame");
         
-        // clear just visible, just hidden flags, and closed flags
-        window_status = window_status & (Window_Visible | Window_Hidden);
+        //auto frame_start_time = win32_get_time();
         
-        bool visible_set = window_status & Window_Visible;
-        bool hidden_set = window_status & Window_Hidden;
-        Assert(visible_set != hidden_set); 
+        // Initial state of window is set by events after window is opened 
+        Window_Event window_event = Window_No_Change;
         
         SDL_Event event;
-        while (SDL_PollEvent(&event))
+        int got_event = SDL_WaitEvent(&event);
+        do
         {
-            // Only processes mouse and keyboard events.
-            // ImGui_ImplSDL2_NewFrame gets window size
+            if (!got_event) break;
+            
             ImGui_ImplSDL2_ProcessEvent(&event);
             if (event.type == SDL_QUIT)
             {
-                window_status = Window_Just_Hidden|Window_Hidden|Window_Closed;
+                window_event = Window_Closed;
                 running = false;
             }
-            else if (event.type == SDL_MOUSEBUTTONDOWN)
+            else if (event.type == SDL_USEREVENT)
             {
                 int x = 3;
             }
@@ -257,49 +282,53 @@ int main(int argc, char* argv[])
                 switch (event.window.event) {
                     case SDL_WINDOWEVENT_SHOWN:
                     {
-                        window_status = Window_Just_Visible|Window_Visible;
+                        // SDL_SetThreadPriority
+                        window_event = Window_Shown;
                     } break;
                     case SDL_WINDOWEVENT_HIDDEN:
                     {
-                        window_status = Window_Just_Hidden|Window_Hidden;
+                        // SDL_SetThreadPriority
+                        window_event = Window_Hidden;
                     } break;
                     case SDL_WINDOWEVENT_CLOSE:
                     {
-                        // TODO: All flags or just window_closed?
-                        // TODO: Might want this to not quit the program but just hide window
-                        
-                        // TODO: only set some flags if not already closed etc
-                        // TODO: dont set just hidden if already hidden, (e.g. if we were hidden then tray icon sent wm_close)
-                        
-                        window_status = Window_Just_Hidden|Window_Hidden|Window_Closed;
+                        window_event = Window_Hidden;
+                        //window_event = Window_Closed;
                         running = false;
                     } break;
-                    
                     // Don't really care about rendering during resizing
                 }
             }
             else if (event.type == SDL_KEYDOWN && event.key.keysym.scancode == SDL_SCANCODE_ESCAPE) 
             {
+                window_event = Window_Closed;
                 running = false;
             }
-            else if (event.type == SDL_SYSWMEVENT) // Win32 messages unhandled by SDL
+            else if (event.type == SDL_SYSWMEVENT) 
             {
-                win32_tray_icon_clicked(event);
+                SDL_SysWMmsg *sys_msg = event.syswm.msg;
+                win32_handle_message(sys_msg->msg.win.msg, sys_msg->msg.win.lParam, sys_msg->msg.win.wParam);
             }
         }
+        while (SDL_PollEvent(&event)); // if more events keep getting them
         
-        
-#if defined(_WIN32)
-        if (window_status & Window_Closed) Shell_NotifyIconA(NIM_DELETE, &win32_context.nid);
-#endif
         
         auto new_time = win32_get_time();
         s64 dt_microseconds = win32_get_microseconds_elapsed(old_time, new_time);
         old_time = new_time;
         
-        // We might want to change time that we sleep, so may need platform_change_wakeup_frequency()
-        update(&monitor_state, window, dt_microseconds, window_status);
+        u32 desired_frame_time = update(&monitor_state, window, dt_microseconds, window_event);
+        if (desired_frame_time != target_frame_time)
+        {
+            target_frame_time = desired_frame_time;
+            
+            Assert(timer_id);
+            SDL_RemoveTimer(timer_id);
+            timer_id = SDL_AddTimer(target_frame_time, timer_callback, nullptr);
+        }
         
+        // NOTE: With the self regulated 60fps, cpu usage spikes to 25% for 30 secs then goes to 1% and stays there
+        // this may have been the case before i just didn't wait long enough for cpu usage to go down, but probably not because we were not sleeping, but just letting GPU sleep us.
         
         // Sleeping longer reduces the time spent waiting for vblank in a opengl driver context (making task manager report lower CPU usage)
         //Sleep(10);
@@ -345,7 +374,6 @@ int main(int argc, char* argv[])
         }
         
         // I think this or the impl_render_draw_data is waiting and windows is reporting it as cpu usage, even though it't not (other processes can still use cpu when driver stuff is waiting)
-        
     }
 #if defined(_WIN32)
     win32_free_context();
@@ -363,103 +391,35 @@ int main(int argc, char* argv[])
 }
 
 
-#if 0                
+#if 0        
+// SDL wait until event functions are just a loop that waits 1ms at a time peeping for events ...
+auto frame_end_time = win32_get_time();
+s64 frame_time_elapsed_microseconds = win32_get_microseconds_elapsed(frame_start_time, frame_end_time);
+s64 remaining = target_time_per_frame - frame_time_elapsed_microseconds;
+while (remaining > 0) 
 {
-    // This results in a SDL_WINDOWEVENT_HIDDEN/SHOWN, which is hopefully received in the same frame as the SDL_HideWindow is called (else we hide the window one frame early before it is known it is hidden
-    // TODO: Might need to set flags here, but this may be not ideal if then are then set again in the next frame when the event is received
+    SDL_PumpEvents();
+    SDL_Event e;
     
-    // NOTE: For now we just toggle with tray icon but, we will in future toggle with X button
-    u32 win_flags = SDL_GetWindowFlags(window);
-    if (win_flags & SDL_WINDOW_SHOWN)
-    {
-        SDL_HideWindow(window);
+    switch (SDL_PeepEvents(&e, 1, SDL_PEEKEVENT, SDL_FIRSTEVENT, SDL_LASTEVENT)) {
+        case -1: // failure
+        case 0: // no events
+        {
+            SDL_Delay(1); // millisecs
+            auto now = win32_get_time();
+            s64 time_elapsed = win32_get_microseconds_elapsed(frame_end_time, now);
+            remaining -= time_elapsed;
+        } break;
+        
+        default: // Has events
+        remaining = 0;
+        break;
     }
-    else
-    {
-        SDL_ShowWindow(window);
-        SDL_RaiseWindow(window);
-    }
+}
+//or
+auto frame_end_time = win32_get_time();
+s64 frame_time_elapsed_microseconds = win32_get_microseconds_elapsed(frame_start_time, frame_end_time);
+s64 remaining = target_time_per_frame - frame_time_elapsed_microseconds;
+SDL_Event e;
+SDL_WaitEventTimeout(&e, remaining / 1000);
 #endif
-    
-#if 0
-    // put this at/around wher ImGui::NewFrame() is
-    // Start the Dear ImGui frame
-    if (freetype_test.UpdateRebuild())
-    {
-        // REUPLOAD FONT TEXTURE TO GPU
-        ImGui_ImplOpenGL3_DestroyDeviceObjects();
-        ImGui_ImplOpenGL3_CreateDeviceObjects();
-    }
-    ImGui::NewFrame();
-    freetype_test.ShowFreetypeOptionsWindow();
-    
-    struct FreeTypeTest
-    {
-        enum FontBuildMode
-        {
-            FontBuildMode_FreeType,
-            FontBuildMode_Stb
-        };
-        
-        FontBuildMode BuildMode;
-        bool          WantRebuild;
-        float         FontsMultiply;
-        int           FontsPadding;
-        unsigned int  FontsFlags;
-        
-        FreeTypeTest()
-        {
-            BuildMode = FontBuildMode_FreeType;
-            WantRebuild = true;
-            FontsMultiply = 1.0f;
-            FontsPadding = 1;
-            FontsFlags = 0;
-        }
-        
-        // Call _BEFORE_ NewFrame()
-        bool UpdateRebuild()
-        {
-            if (!WantRebuild)
-                return false;
-            ImGuiIO& io = ImGui::GetIO();
-            io.Fonts->TexGlyphPadding = FontsPadding;
-            for (int n = 0; n < io.Fonts->ConfigData.Size; n++)
-            {
-                ImFontConfig* font_config = (ImFontConfig*)&io.Fonts->ConfigData[n];
-                font_config->RasterizerMultiply = FontsMultiply;
-                font_config->RasterizerFlags = (BuildMode == FontBuildMode_FreeType) ? FontsFlags : 0x00;
-            }
-            if (BuildMode == FontBuildMode_FreeType)
-                ImGuiFreeType::BuildFontAtlas(io.Fonts, FontsFlags);
-            else if (BuildMode == FontBuildMode_Stb)
-                io.Fonts->Build();
-            WantRebuild = false;
-            return true;
-        }
-        
-        // Call to draw interface
-        void ShowFreetypeOptionsWindow()
-        {
-            ImGui::Begin("FreeType Options");
-            ImGui::ShowFontSelector("Fonts");
-            WantRebuild |= ImGui::RadioButton("FreeType", (int*)&BuildMode, FontBuildMode_FreeType);
-            ImGui::SameLine();
-            WantRebuild |= ImGui::RadioButton("Stb (Default)", (int*)&BuildMode, FontBuildMode_Stb);
-            WantRebuild |= ImGui::DragFloat("Multiply", &FontsMultiply, 0.001f, 0.0f, 2.0f);
-            WantRebuild |= ImGui::DragInt("Padding", &FontsPadding, 0.1f, 0, 16);
-            if (BuildMode == FontBuildMode_FreeType)
-            {
-                WantRebuild |= ImGui::CheckboxFlags("NoHinting",     &FontsFlags, ImGuiFreeType::NoHinting);
-                WantRebuild |= ImGui::CheckboxFlags("NoAutoHint",    &FontsFlags, ImGuiFreeType::NoAutoHint);
-                WantRebuild |= ImGui::CheckboxFlags("ForceAutoHint", &FontsFlags, ImGuiFreeType::ForceAutoHint);
-                WantRebuild |= ImGui::CheckboxFlags("LightHinting",  &FontsFlags, ImGuiFreeType::LightHinting);
-                WantRebuild |= ImGui::CheckboxFlags("MonoHinting",   &FontsFlags, ImGuiFreeType::MonoHinting);
-                WantRebuild |= ImGui::CheckboxFlags("Bold",          &FontsFlags, ImGuiFreeType::Bold);
-                WantRebuild |= ImGui::CheckboxFlags("Oblique",       &FontsFlags, ImGuiFreeType::Oblique);
-                WantRebuild |= ImGui::CheckboxFlags("Monochrome",    &FontsFlags, ImGuiFreeType::Monochrome);
-            }
-            ImGui::End();
-        }
-    };
-#endif
-    

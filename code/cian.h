@@ -59,9 +59,10 @@ static_assert(sizeof(u64) == 8, "");
 
 #ifndef CIAN_DEBUG_TRAP
 #if defined(_MSC_VER)
-#include <intrin.h>
-#include <crtdbg.h>
 // debugbreak and Assert is not triggered when stepping through code in debugger only, while running (or pressing continue in debugger)
+
+// This is what SDL does instead of including intrin.h
+extern void __cdecl __debugbreak(void);
 #define CIAN_DEBUG_TRAP() __debugbreak() 
 #elif defined(__GNUC__)
 #define CIAN_DEBUG_TRAP() __builtin_trap()

@@ -7,12 +7,11 @@
 * Read/write from savefile
 * polling rate while in non-ui mode, allowing switch to 60fps (	or whatever vsync rate is) for ui
 * Choose ui colours style
-* Check if using freetype, and if hinting looks better
 * Larger icon limit, or could grow limit indefinitely, or dynamically free old icons (maybe need to glDeleteTexture also)
-* Detection of multiple instances of app
 * Safer writing to database file, (maybe copy and delete old file)
 * Add own licence and licences of used open source code (and maybe fonts)
 * Popup on unrecoverable errors
+* close if trya icon crashes, or we cant create one in the first place
 
   -- Finished product --
 * Low framerate UI (not that needed, and adds lots of complexity)

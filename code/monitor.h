@@ -13,10 +13,22 @@
 // NOTE: Problem was probably a non-4 byte pitch when submitting texture to GPU (https://www.khronos.org/opengl/wiki/Common_Mistakes#Texture_upload_and_pixel_reads)
 constexpr u32 ICON_SIZE = 32;
 
-constexpr s32 MAX_KEYWORD_COUNT = 6;
-//constexpr s32 MAX_KEYWORD_COUNT = 100;
+//constexpr s32 MAX_KEYWORD_COUNT = 6;
+constexpr s32 MAX_KEYWORD_COUNT = 100;
 constexpr s32 MAX_KEYWORD_SIZE = 101;
+
+constexpr s32 MICROSECS_PER_MILLISEC = 1000;
+constexpr s32 MILLISECS_PER_SEC = 1000;
 constexpr s32 MICROSECS_PER_SEC = 1000000;
+
+constexpr float POLL_FREQUENCY_MIN_SECONDS = 0.001f;  // debug
+//constexpr float POLL_FREQUENCY_MIN_SECONDS = 0.1f; 
+constexpr float POLL_FREQUENCY_MAX_SECONDS = 60.0f; 
+
+#define PROGRAM_NAME "MonitorXXXX"
+#define VERSION_STRING "0.0.0"
+#define NAME_STRING "Mac"
+#define LICENSE_STRING "TODO: Licence"
 
 static_assert(sizeof(date::sys_days) == sizeof(u32), "");
 static_assert(sizeof(date::year_month_day) == sizeof(u32), "");
@@ -94,31 +106,13 @@ enum Id_Type
 };
 struct Record
 {
-    // Id could be made 64 bit and record would be the same size
+    // Could add a 32-bit date in here without changing size in memory
     App_Id id;
     time_type duration; // microseconds
 };
-
 // might want to set with attention paid to arena size, and extra size that is added etc
-static constexpr u32 MAX_DAILY_RECORDS = 1000;
-static constexpr u32 DEFAULT_DAILY_RECORDS_ARENA_SIZE = MAX_DAILY_RECORDS * sizeof(Record);
-
-// Days (and records) are:
-//  - append only
-//  - only last day modified
-//  - saved to file
-//  - any day may be checked up on
-//  - contiguous set is iterated over
-//  - new set of days is merged in
-
-// Biggest difficulties may be:
-// - serialising, where each days pointer will have to be relatived to its corresponding
-//   block to create an overall record index (this is made easier by the fact that days are sequential)
-//      - Could maybe add blocks to the start of the list, so it goes from newest to oldest (and same for file)
-
-// NOTE: When deserialising may just want to put all records into one big block
-// and then just append normal sized blocks during runtime.
-// This probably means blocks must have a block_size field, because they can be variable size
+constexpr u32 MAX_DAILY_RECORDS = 1000;
+constexpr u32 DEFAULT_DAILY_RECORDS_ARENA_SIZE = MAX_DAILY_RECORDS * sizeof(Record); 
 
 struct Day
 {
@@ -218,7 +212,7 @@ struct Misc_Options
     u32 poll_end_time;   // Default 0 (12:00AM)
     
     b32 run_at_system_startup;   
-    u32 poll_frequency_microseconds;   
+    u32 poll_frequency_milliseconds;   
 };
 
 struct Edit_Settings
@@ -288,9 +282,12 @@ Monitor_State
     
     // microsecs
     time_type accumulated_time;
-    time_type microseconds_until_next_day;
+    //time_type microseconds_until_next_day;
+    //date::sys_days current_date;
     
-    date::sys_days current_date;
+    u32 monitor_refresh_rate; // in milliseconds
+    
+    bool ui_visible;
     
     // debug temporary
     time_type total_runtime;

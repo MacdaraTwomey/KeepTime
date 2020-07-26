@@ -20,8 +20,6 @@ init_arena(Arena *arena, size_t size)
     
     Assert(real_size > size);
     
-    Assert(arena->block == nullptr);
-    
     // TODO: Just abort if malloc fails, not to much we can do, and can restore from savefile
     Block *block = (Block *)calloc(1, real_size + sizeof(Block));
     Assert(block);
@@ -87,6 +85,7 @@ push_string(Arena *arena, String string)
     return s;
 }
 
+// We rely on returning null terminated string in settings keyword code
 String
 push_string(Arena *arena, char *string)
 {
@@ -130,6 +129,27 @@ reset_arena(Arena *arena)
     current_block->prev = nullptr;
     
     arena->block = current_block;
+}
+
+void
+free_arena(Arena *arena)
+{
+    Block *current_block = arena->block;
+    while (current_block)
+    {
+        Block *prev = current_block->prev;
+        free(current_block); // frees whole block of allocated memory, including buffer
+        if (prev)
+        {
+            current_block = prev;
+        }
+        else
+        {
+            break;
+        }
+    }
+    
+    arena->block = nullptr;
 }
 
 // for record allocator each day do a big alloc and say thats the max number of records for that day

@@ -6,13 +6,12 @@
 static constexpr i32 PLATFORM_MAX_PATH_LEN = 2000;
 static constexpr i32 PLATFORM_MAX_URL_LEN  = 2000;
 
-enum Window_Status
+enum Window_Event
 {
-    Window_Just_Visible = 1,
-    Window_Just_Hidden = 2,
-    Window_Visible = 4,
-    Window_Hidden = 8,
-    Window_Closed = 16,
+    Window_No_Change = 0,
+    Window_Shown = 1,
+    Window_Hidden = 2,
+    Window_Closed = 4,
 };
 
 struct Platform_Window
@@ -21,14 +20,7 @@ struct Platform_Window
     bool is_valid;
 };
 
-// TODO: Maybe platform should just get active window in the platform_get_program_from_window call
-//       and hold on to it for use in subsequent call to platform_get_firefox_url.
-
-// Ways to handle app getting the urls and path names it needs are:
-//   1. app calls platform_get_active_window() and get_names()
-//   2. app just calls get_names() but then platform has to do work of seeing if browser is part of the program path etc.
-//   3. Pass Poll_Window_Result with all necessary names/urls to app on avery update, only cantain valid names
-//      when timer has elapsed (similar to previous just app doesn't call just recieves when it needs it).
+u32 platform_SDL_get_monitor_refresh_rate_milliseconds();
 
 Platform_Window platform_get_active_window();
 

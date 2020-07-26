@@ -1,10 +1,9 @@
 
 #include "monitor.h"
-#include "spectrum.h"
-#include "spectrum.cpp"
+//#include "spectrum.h"
+//#include "spectrum.cpp"
 
-#include <ctype.h> // is_alnum
-
+constexpr float UI_DEFAULT_BUTTON_WIDTH = 100;
 
 
 // from monitor.cpp
@@ -88,6 +87,19 @@ remove_duplicate_and_empty_keyword_strings(char(*keywords)[MAX_KEYWORD_SIZE])
 {
     // TODO: I don't love this probably better to just copy to a new array
     
+    Arena scratch = {};
+    init_arena(&scratch, MAX_KEYWORD_COUNT * MAX_KEYWORD_SIZE);
+    Array<String, MAX_KEYWORD_COUNT> pending_keywords;
+    for (int i = 0; i < MAX_KEYWORD_COUNT; ++i)
+    {
+        if (keywords[i][0] != '\0') // not empty string
+        {
+            pending_keywords.add_item(push_string(&scratch, keywords[i]));
+        }
+    }
+    
+    
+#if 0    
 	// NOTE: This assumes that keywords that are 'empty' should have no garbage data (dear imgu needs to set
 	// empty array slots to '\0';
 	s32 total_count = 0;
@@ -113,31 +125,31 @@ remove_duplicate_and_empty_keyword_strings(char(*keywords)[MAX_KEYWORD_SIZE])
 			total_count += 1;
 		}
 	}
-    
-#if MONITOR_DEBUG
-	// TODO: THIS IS A TEST
-	for (s32 i = 0; i < total_count; ++i)
-	{
-		Assert(keywords[i][0] != '\0');
-	}
 #endif
     
-	// remove dups
-	for (s32 i = 0; i < total_count; ++i)
+	// Try to add words from pending keywords into keywords array (not adding duplicates)
+    memset(keywords, 0, MAX_KEYWORD_COUNT*MAX_KEYWORD_SIZE);
+    s32 total_count = 0;
+	for (s32 i = 0; i < pending_keywords.count; ++i)
 	{
+        bool no_matches_in_keywords = true;
 		for (s32 j = i + 1; j < total_count; ++j)
 		{
-			if (strcmp(keywords[i], keywords[j]) == 0)
+			if (string_equals(pending_keywords[i], keywords[j]))
 			{
-				strcpy(keywords[i], keywords[total_count - 1]);
-				total_count -= 1;
-                
-				// Re-search from same index (with new string)
-				i -= 1;
-				break;
+                no_matches_in_keywords = false;
+                break;
 			}
-		}
+        }
+        
+        if (no_matches_in_keywords)
+        {
+            strcpy(keywords[total_count], pending_keywords[i].str);
+            total_count += 1;
+        }
 	}
+    
+    free_arena(&scratch);
     
 	return total_count;
 }
@@ -159,28 +171,50 @@ HelpMarker(const char* desc)
 void
 do_misc_settings(Edit_Settings *edit_settings)
 {
-    ImGui::PushItemWidth(ImGui::GetWindowWidth() * 0.30f);
+    //ImGui::PushItemWidth(ImGui::GetWindowWidth() * 0.30f);
+    
+#if 0
     // TODO: Do i need to use bool16 for this (this is workaround)
     bool selected = edit_settings->misc_options.run_at_system_startup;
     ImGui::Checkbox("Run at startup", &selected);
     edit_settings->misc_options.run_at_system_startup = selected;
+#endif
     
-    // ImGuiInputTextFlags_CharsDecimal ?
-    int freq = (int)(edit_settings->misc_options.poll_frequency_microseconds / MICROSECS_PER_SEC);
-    ImGui::InputInt("Update frequency (s)", &freq); // maybe a slider is better
-    
-    // maybe put buttons on the slider too
-    ImGui::SliderInt("Update frequency (s)##2", &freq, 1, 1000, "%dms");
-    
-    // Only if valid number
-    if (freq < 1 && freq < 1000)
+    // TODO: DEBUG make the step much greater
+    float freq_secs = (float)edit_settings->misc_options.poll_frequency_milliseconds / MILLISECS_PER_SEC;
+    if (ImGui::InputFloat("Update frequency (s)", &freq_secs, 0.01f, 1.0f, 4))
     {
-        ImGui::SameLine();
-        ImGui::Text("Frequency must be between 1000 and whatever");
+        if (freq_secs < POLL_FREQUENCY_MIN_SECONDS) 
+            freq_secs = POLL_FREQUENCY_MIN_SECONDS;
+        else if (freq_secs > POLL_FREQUENCY_MAX_SECONDS) 
+            freq_secs = POLL_FREQUENCY_MAX_SECONDS;
+        else 
+            edit_settings->misc_options.poll_frequency_milliseconds = (u32)(freq_secs * MILLISECS_PER_SEC);
     }
     
-    // TODO: Save setting, but dont change later maybe? Dont allow close settings?
-    edit_settings->misc_options.poll_frequency_microseconds = freq;
+    //ImGui::PopItemWidth();
+    
+    if (ImGui::Button("About"))
+    {
+        ImGui::OpenPopup("About " PROGRAM_NAME);
+    }
+    
+    bool about_open = true;
+    ImGui::SetNextWindowSize(ImVec2(ImGui::GetWindowWidth() * 0.5, 0));
+    if (ImGui::BeginPopupModal("About " PROGRAM_NAME, &about_open, ImGuiWindowFlags_NoResize|ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        ImGui::Text(PROGRAM_NAME);
+        ImGui::Text("Version " VERSION_STRING);
+        ImGui::Text("Made by " NAME_STRING);
+        ImGui::Text("License " LICENSE_STRING);
+        
+        ImGui::NewLine();
+        if (ImGui::Button("OK", ImVec2(UI_DEFAULT_BUTTON_WIDTH, 0)))
+        {
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
     
     char *times[] = {
         "12:00 AM",
@@ -189,6 +223,7 @@ do_misc_settings(Edit_Settings *edit_settings)
         "etc..."
     };
     
+#if 0    
     // So late night usage still counts towards previous day
     if (ImGui::Combo("New day start time", &edit_settings->day_start_time_item, times, array_count(times)))
     {
@@ -202,13 +237,32 @@ do_misc_settings(Edit_Settings *edit_settings)
     {
         edit_settings->misc_options.poll_end_time = edit_settings->poll_end_time_item * 15;
     }
+#endif
     
-    ImGui::PopItemWidth();
 }
 
 void
 do_keyword_input_list(Edit_Settings *edit_settings)
 {
+    bool all = true;
+    bool custom = false;
+    bool none = false;
+    if (ImGui::RadioButton("All", all))
+    {
+        
+    }
+    ImGui::SameLine();
+    if (ImGui::RadioButton("Custom", custom))
+    {
+        
+    }
+    ImGui::SameLine();
+    if (ImGui::RadioButton("None", none))
+    {
+        
+    }
+    ImGui::SameLine(ImGui::GetWindowWidth() - 50);
+    
     s32 give_focus = -1;
     if (ImGui::Button("Add..."))
     {
@@ -340,6 +394,7 @@ do_settings_popup(Settings *settings, Edit_Settings *edit_settings)
     bool update_settings = false;
     bool open = true;
     
+    ImGui::SetNextWindowPos(ImVec2(ImGui::GetWindowWidth() / 2, ImGui::GetWindowHeight() / 2), ImGuiCond_Appearing, ImVec2(0.5, 0.5));
     ImGui::SetNextWindowSize(ImVec2(ImGui::GetWindowWidth() * 0.6, ImGui::GetWindowHeight() * 0.8));
     if (ImGui::BeginPopupModal("Settings", &open, ImGuiWindowFlags_AlwaysAutoResize|ImGuiWindowFlags_NoMove))
     {
@@ -364,7 +419,7 @@ do_settings_popup(Settings *settings, Edit_Settings *edit_settings)
             ImGui::EndChild();
         }
         
-        if (ImGui::Button("Ok"))
+        if (ImGui::Button("OK", ImVec2(UI_DEFAULT_BUTTON_WIDTH, 0)))
         {
             update_settings = true;
             ImGui::CloseCurrentPopup();
@@ -375,11 +430,16 @@ do_settings_popup(Settings *settings, Edit_Settings *edit_settings)
             // [cancel][close settings without saving]
         }
         ImGui::SameLine();
-        if (ImGui::Button("Cancel"))
+        if (ImGui::Button("Cancel", ImVec2(UI_DEFAULT_BUTTON_WIDTH, 0)))
         {
             // Don't update keywords
             ImGui::CloseCurrentPopup();
             open = false;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Apply", ImVec2(UI_DEFAULT_BUTTON_WIDTH, 0)))
+        {
+            update_settings = true;
         }
         
         ImGui::EndPopup(); // only close if BeginPopupModal returns true
@@ -952,6 +1012,9 @@ init_date_picker(Date_Picker *picker, date::sys_days current_date,
 
 // Database only needed for app_list, icons array, and debug menu
 // State needed for datepicker and settings
+
+FreeTypeTest freetype_test;
+
 void 
 draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *database, Day_View *day_view)
 {
@@ -962,6 +1025,19 @@ draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *database,
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplSDL2_NewFrame(window);
     ImGui::NewFrame();
+    
+#if 0    
+    // Light hinting with freetype looks better than stb font renderer (at least at size 22 pixels)
+    if (freetype_test.UpdateRebuild())
+    {
+        // REUPLOAD FONT TEXTURE TO GPU
+        ImGui_ImplOpenGL3_DestroyDeviceObjects();
+        ImGui_ImplOpenGL3_CreateDeviceObjects();
+    }
+    ImGui::NewFrame();
+    freetype_test.ShowFreetypeOptionsWindow();
+#endif
+    
     
     ImGuiIO& io = ImGui::GetIO();
     
@@ -975,7 +1051,6 @@ draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *database,
         | ImGuiWindowFlags_NoScrollbar
         | ImGuiWindowFlags_NoCollapse
         | ImGuiWindowFlags_NoSavedSettings
-        //| ImGuiWindowFlags_MenuBar
         | ImGuiWindowFlags_NoResize;
     
     static bool fullscreen = false;
@@ -1325,6 +1400,7 @@ draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *database,
         
         ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
         ImGui::End();
+        
         
         
         ImGui::Render(); 

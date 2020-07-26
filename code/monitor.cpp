@@ -103,6 +103,7 @@ get_local_time_day()
     // tm_isdst; Daylight Saving Time flag 
     /* is greater than zero if Daylight Saving Time is in effect, zero if Daylight Saving Time is not in effect, and less than zero if the information is not available. */
     
+    // Looks if TZ database
     info = localtime( &rawtime );
     auto now = date::sys_days{date::month{(unsigned)(info->tm_mon + 1)}/date::day{(unsigned)info->tm_mday}/date::year{info->tm_year + 1900}};
     
@@ -130,8 +131,9 @@ microseconds_until_tomorrow()
 }
 
 date::sys_days
-get_current_date(Monitor_State *state, time_type dt_microseconds)
+get_current_date()
 {
+#if 0
     date::sys_days result = state->current_date;
     
     state->microseconds_until_next_day -= dt_microseconds;
@@ -144,8 +146,9 @@ get_current_date(Monitor_State *state, time_type dt_microseconds)
         
         result = state->current_date;
     }
+#endif
     
-    return result;
+    return get_local_time_day();
 }
 
 void
@@ -672,10 +675,12 @@ poll_windows(App_List *apps, Settings *settings)
     return get_local_program_app_id(apps, program_name, full_path);
 }
 
-void
-update(Monitor_State *state, SDL_Window *window, time_type dt_microseconds, u32 window_status)
+u32
+update(Monitor_State *state, SDL_Window *window, time_type dt_microseconds, Window_Event window_event)
 {
     ZoneScoped;
+    
+    date::sys_days current_date = get_current_date();
     
     if (!state->is_initialised)
     {
@@ -686,19 +691,22 @@ update(Monitor_State *state, SDL_Window *window, time_type dt_microseconds, u32 
         
         state->accumulated_time = 0;
         state->total_runtime = 0;
-        state->startup_time = win32_get_time();
         
-        state->current_date = get_local_time_day();
-        state->microseconds_until_next_day = microseconds_until_tomorrow();
+        state->ui_visible = true;
+        Assert(window_event == Window_Shown);
+        // state->ui_visible = false; should be false in final version
+        // Assert(window_event == Window_Hidden);
         
-        init_database(&state->database, state->current_date);
+        state->monitor_refresh_rate = platform_SDL_get_monitor_refresh_rate_milliseconds();
+        
+        init_database(&state->database, current_date);
         
         Misc_Options options = {};
-        options.day_start_time = 0;
-        options.poll_start_time = 0;
-        options.poll_end_time = 0;
-        options.run_at_system_startup = true;
-        options.poll_frequency_microseconds = 10000;
+        //options.day_start_time = 0;
+        //options.poll_start_time = 0;
+        //options.poll_end_time = 0;
+        //options.run_at_system_startup = true;
+        options.poll_frequency_milliseconds = 16;  // or want 17?
         
         state->settings.misc_options = options;
         
@@ -721,15 +729,13 @@ update(Monitor_State *state, SDL_Window *window, time_type dt_microseconds, u32 
         state->is_initialised = true;
     }
     
-    // TODO: This hit assertion on 12:00am (so doesn't work)
-    // Assertion: (state->current_date != result), monitor.cpp, get_current_date():line 145
-    date::sys_days current_date = get_current_date(state, dt_microseconds);
-    
     Database *database = &state->database;
     App_List *apps = &database->apps;
     
-    if (window_status & Window_Just_Hidden)
+    
+    if (window_event == Window_Hidden)
     {
+        state->ui_visible = false;
         // Make sure that nothing bad happens if this is received more than once
         // which may happed on resizing 
         
@@ -745,9 +751,13 @@ update(Monitor_State *state, SDL_Window *window, time_type dt_microseconds, u32 
     // Also true if on a browser and the tab changed
     // platform_get_changed_window();
     
+    // TODO: Maybe just do a poll when ever this update function is called (except when the ui is open, then we limit the rate). 
+    // Else may have a degenerate case where the function is called slightly before when it should have and the accumulated time is slightly < then poll freq, then we have to wait another full poll freq to do one poll, essentailly halving the experienced poll frequency.
+    
     state->accumulated_time += dt_microseconds;
     state->total_runtime += dt_microseconds;
     time_type poll_window_freq = 100000;
+    //s64 poll_window_freq = state->settings.misc_options.poll_frequency_milliseconds * MICROSECS_PER_MILLISEC;
     if (state->accumulated_time >= poll_window_freq)
     {
         App_Id id = poll_windows(apps, &state->settings);
@@ -764,9 +774,10 @@ update(Monitor_State *state, SDL_Window *window, time_type dt_microseconds, u32 
         state->accumulated_time = 0;
     }
     
-    if (window_status & Window_Just_Visible)
+    if (window_event == Window_Shown)
     {
         // Make sure that nothing bad happens if this is received more than once
+        state->ui_visible = true;
         
         date::sys_days oldest_date = state->database.day_list.days.front().date;
         date::sys_days newest_date = state->database.day_list.days.back().date;
@@ -776,16 +787,19 @@ update(Monitor_State *state, SDL_Window *window, time_type dt_microseconds, u32 
     
     Day_View day_view = get_day_view(&database->day_list);
     
-    if (window_status & Window_Visible)
+    if (state->ui_visible)
     {
         draw_ui_and_update(window, state, database, &day_view);
     }
     
     free_day_view(&day_view);
     
-    if (window_status & Window_Closed)
+    if (window_event == Window_Closed)
     {
         
     }
+    
+    return (state->ui_visible) ? 
+        state->monitor_refresh_rate : state->settings.misc_options.poll_frequency_milliseconds;
 }
 

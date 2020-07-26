@@ -12,7 +12,8 @@
 #define ID_TRAY_APP_ICON 1001
 #define ID_TRAY_APP_MENU_OPEN 2000
 #define ID_TRAY_APP_MENU_EXIT 2001
-#define CUSTOM_WM_TRAY_ICON (WM_USER + 1)
+#define CUSTOM_WM_TRAY_ICON (WM_APP + 1)
+#define CUSTOM_WM_SHOW_WINDOW (WM_APP + 2)
 
 // Visual studio can generate manifest file
 //#pragma comment(linker, "\"/manifestdependency:type='Win32' name='Test.Research.SampleAssembly' version='6.0.0.0' processorArchitecture='X86' publicKeyToken='0000000000000000' language='*'\"")
@@ -28,6 +29,8 @@ struct Win32_Context
     HWND shell_window;
     
     HMENU tray_menu;
+    
+    UINT TASKBARCREATED; // custom message id recieved when taskbar restarts
     
 #if 0
     HWINEVENTHOOK window_changed_hook;
@@ -83,6 +86,10 @@ init_win32_context(HWND hwnd)
     // If these are null make sure platform_get_active_window doesn't compare a null window with these null windows
     win32_context.desktop_window = GetDesktopWindow();
     win32_context.shell_window = GetShellWindow();
+    
+    
+    // Register a message that is sent when the taskbar restarts
+    win32_context.TASKBARCREATED = RegisterWindowMessage(TEXT("TaskbarCreated"));
     
 #if 0    
     // Out of context hooks are asynchronous, but events are guaranteed to be in sequential order
@@ -167,10 +174,12 @@ init_win32_context(HWND hwnd)
     // Can use LoadIconMetric to specify correct one with correct settings is used
     win32_context.nid.hIcon = (HICON)LoadIcon(GetModuleHandle(NULL), MAKEINTRESOURCE(ID_MAIN_ICON));
     
-    // TODO: This should say "running"
+    // TODO: This tooltip with program name
     TCHAR tooltip[] = {"Tooltip dinosaur"}; // Must use max 64 chars
     strncpy(win32_context.nid.szTip, tooltip, sizeof(tooltip));
     
+    
+    // TODO: If this doesn't work it can be impossible to access program without manually task manager killing the process and re-running, same goes for all tray icon code
     Shell_NotifyIconA(NIM_ADD, &win32_context.nid);
 }
 
@@ -246,50 +255,62 @@ win32_hide_win()
 }
 
 void
-win32_tray_icon_clicked(SDL_Event event)
+win32_handle_message(UINT msg, LPARAM lParam, WPARAM wParam)
 {
     HWND window = win32_context.window;
-    
-    SDL_SysWMmsg *sys_msg = event.syswm.msg;
-    UINT msg = sys_msg->msg.win.msg;
-    //HWND hwnd = sys_msg->msg.win.hwnd;
-    WPARAM wParam = sys_msg->msg.win.wParam;
-    if (msg == WM_COMMAND)
+    switch (msg)
     {
-        int id = LOWORD(wParam);
-        if (id == 0)
+        case WM_CLOSE:
         {
-            return;
-        }
-        else if (id == ID_TRAY_APP_MENU_OPEN)
+            // this is deleted in free_context
+            // Shell_NotifyIconA(NIM_DELETE, &win32_context.nid); 
+        } break;
+        case WM_QUERYENDSESSION:
+        case WM_ENDSESSION:
         {
-            //Uint32 f = SDL_GetWindowFlags(sdl_win);
-            //if (f & SDL_WINDOW_SHOWN)
-            //SDL_ShowWindow(sdl_win);
-            //SDL_RaiseWindow(sdl_win);
-            //SDL_SetWindowInputFocus(sdl_win);
-            
+            // save to file
+            // return true; // but we can't return true
+        } break;
+        case CUSTOM_WM_SHOW_WINDOW:
+        {
+            // received when user tried to run another instance of the program
             ShowWindow(window, SW_SHOW);
-            //ShowWindow(window, SW_RESTORE); 
-            //SetForegroundWindow(window);
-            //BringWindowToTop(window);
-            //SetFocus(window);
-            //EnableWindow(window, true);
-            //SetFocus(window);
-            //SetActiveWindow(window);
-            //SetCapture(window);
-        }
-        else if (id == ID_TRAY_APP_MENU_EXIT)
+            ShowWindow(window, SW_RESTORE); // un-minimise
+            SetForegroundWindow(window);
+        } break;
+        case WM_COMMAND:
         {
-            SendMessage(window, WM_CLOSE, 0, 0);
+            int id = LOWORD(wParam);
+            if (id == 0)
+            {
+                return;
+            }
+            else if (id == ID_TRAY_APP_MENU_OPEN)
+            {
+                //Uint32 f = SDL_GetWindowFlags(sdl_win);
+                //if (f & SDL_WINDOW_SHOWN)
+                //SDL_ShowWindow(sdl_win);
+                //SDL_RaiseWindow(sdl_win);
+                //SDL_SetWindowInputFocus(sdl_win);
+                
+                ShowWindow(window, SW_SHOW);
+                //ShowWindow(window, SW_RESTORE); 
+                //SetForegroundWindow(window);
+                //BringWindowToTop(window);
+                //SetFocus(window);
+                //EnableWindow(window, true);
+                //SetFocus(window);
+                //SetActiveWindow(window);
+                //SetCapture(window);
+            }
+            else if (id == ID_TRAY_APP_MENU_EXIT)
+            {
+                SendMessage(window, WM_CLOSE, 0, 0);
+            }
         }
-    }
-    else if (msg == CUSTOM_WM_TRAY_ICON) 
-    {
-        LPARAM lParam = sys_msg->msg.win.lParam;
-        switch (LOWORD(lParam))
+        case CUSTOM_WM_TRAY_ICON:
         {
-            case WM_RBUTTONUP:
+            if (LOWORD(lParam) == WM_RBUTTONUP)
             {
                 HMENU menu = CreatePopupMenu();
                 AppendMenu(menu, MF_STRING, ID_TRAY_APP_MENU_OPEN, TEXT("Open Barplot Window"));
@@ -308,9 +329,8 @@ win32_tray_icon_clicked(SDL_Event event)
                                              NULL);
                 PostMessage(window, WM_NULL, 0, 0);
                 DestroyMenu(menu);
-            } break;
-            
-            case WM_LBUTTONDBLCLK:
+            }
+            else if (LOWORD(lParam) == WM_LBUTTONDBLCLK)
             {
                 if (!IsWindowVisible(window))
                 {
@@ -318,11 +338,24 @@ win32_tray_icon_clicked(SDL_Event event)
                     //ShowWindow(window, SW_RESTORE);
                     //SetForegroundWindow(window);
                 }
-            } break;
-        }
+            }
+        } break;
+        
+        default:
+        {
+            if (msg == win32_context.TASKBARCREATED)
+            {
+                // TODO: re add tray icon
+                // wait 3-5 seconds to allow explorer to initialise
+                // then can try to re-add icon
+                
+                // TODO: If this doesn't work it can be impossible to access program without manually task manager killing the process and re-running, same goes for all tray icon code
+                Sleep(6000);
+                Shell_NotifyIconA(NIM_ADD, &win32_context.nid);
+            }
+        } break;
     }
 }
-
 
 struct Process_Ids
 {
@@ -438,14 +471,14 @@ platform_get_program_from_window(Platform_Window window, char *buf, size_t *leng
     // TODO: Just for debugging
     if (handle == win32_context.desktop_window)
     {
-        char *win = "Desktop Window";
+        char *win = "Desktop Window: debug";
         strcpy(buf, win);
         *length = strlen(win);
         return true;
     }
     if (handle == win32_context.shell_window)
     {
-        char *win = "Shell Window";
+        char *win = "Shell Window: debug";
         strcpy(buf, win);
         *length = strlen(win);
         return true;
@@ -929,6 +962,29 @@ platform_get_icon_from_executable(char *path, u32 desired_size,
     return success;
 }
 
+bool
+platform_show_other_instance_if_already_running()
+{
+    
+#if 0    
+    wchar_t class_name[1000];
+    UINT len = RealGetWindowClassW(win32_context.window, class_name, 1000);
+    
+    char text[1000];
+    int count = GetWindowTextA(win32_context.window, text, 1000);
+#endif
+    
+    
+    HWND other_window = FindWindowA("SDL_app", PROGRAM_NAME);
+    if (other_window)
+    {
+        SendMessage(other_window, CUSTOM_WM_SHOW_WINDOW, 0, 0); 
+        return true;
+    }
+    
+    return false;
+}
+
 #if 0
 void
 platform_get_changed_window()
@@ -1068,39 +1124,6 @@ void CALLBACK browser_title_changed_proc(HWINEVENTHOOK hWinEventHook,
         Assert(0);
     }
 }
-#endif
-
-
-#if 0
-// TRUE means thread owns the mutex, must have name to be visible to other processes
-// CreateMutex opens mutex if it exists, and creates it if it doesn't
-// ReleaseMutex gives up ownership ERROR_ALREADY_EXISTS and returns handle but not ownership
-// If mutex already exists then LastError gives ERROR_ALREADY_EXISTS
-// Dont need ownership to close handle
-// NOTE:
-// * Each process should create mutex (maybe open mutex instead) once, and hold onto handle
-//   using WaitForSingleObject to wait for it and ReleaseMutex to release the lock.
-// * A mutex can be in two states: signaled (when no thread owns the mutex) or unsignaled
-//
-// Can also run FindWindow ?
-HANDLE mutex = CreateMutexA(nullptr, TRUE, MutexName);
-DWORD error = GetLastError();
-if (mutex == nullptr ||
-    error == ERROR_ACCESS_DENIED ||
-    error == ERROR_INVALID_HANDLE)
-{
-    tprint("Error creating mutex\n");
-    return 1;
-}
-
-bool already_running = (error == ERROR_ALREADY_EXISTS);
-if (already_running)
-{
-    //CloseHandle(mutex); // this right?
-    // maximise GUI, unless already maximise
-}
-
-CloseHandle(mutex);
 #endif
 
 HANDLE
