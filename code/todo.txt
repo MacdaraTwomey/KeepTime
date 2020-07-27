@@ -22,7 +22,7 @@
 * Day start/end time for allowed recording
 * Autostart at system startup
 * Make imgui_impl files better, remove unneeded stuff
-
+* Array textures
 
 
 

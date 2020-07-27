@@ -20,7 +20,7 @@ struct Platform_Window
     bool is_valid;
 };
 
-u32 platform_SDL_get_monitor_refresh_rate_milliseconds();
+u32 platform_SDL_get_monitor_refresh_rate();
 
 Platform_Window platform_get_active_window();
 

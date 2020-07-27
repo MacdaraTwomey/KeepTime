@@ -48,105 +48,19 @@ static char *global_debug_savefile_path;
 #define WINDOW_WIDTH 1240
 #define WINDOW_HEIGHT 720
 
-void
-init_imgui(SDL_Window *window, SDL_GLContext gl_context)
-{
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    
-    ImGui_ImplSDL2_InitForOpenGL(window, gl_context); // just sets keymap, gets cursors and sets backend flags
-    ImGui_ImplOpenGL3_Init("#version 130"); // just sets what version of opengl, and backend flags for imgui
-    
-    ImGuiIO& io = ImGui::GetIO(); 
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-    io.IniFilename = NULL; // Disable imgui.ini filecreation
-    
-    ImGui::StyleColorsLight();
-    //ImGui::Spectrum::StyleColorsSpectrum(); 
-    
-#if 0
-    auto light_grey = ImVec4(0.79f, 0.79f, 0.79f, 0.80f);
-    auto medium_grey = ImVec4(0.63f, 0.63f, 0.63f, 0.80f);
-    auto dark_grey = ImVec4(0.63f, 0.63f, 0.63f, 1.00f);
-    
-    ImVec4* colors = ImGui::GetStyle().Colors;
-    colors[ImGuiCol_PopupBg]                = ImVec4(0.94f, 0.94f, 0.94f, 1.00f);
-    colors[ImGuiCol_ScrollbarGrab]          = light_grey;
-    colors[ImGuiCol_ScrollbarGrabHovered]   = medium_grey;
-    colors[ImGuiCol_ScrollbarGrabActive]    = dark_grey;
-    colors[ImGuiCol_CheckMark]              = ImVec4(0.40f, 0.40f, 0.40f, 1.00f);
-    
-    colors[ImGuiCol_SliderGrab]             = light_grey;
-    colors[ImGuiCol_SliderGrabActive]       = dark_grey;
-    
-    
-    colors[ImGuiCol_Button]                 = light_grey;
-    colors[ImGuiCol_ButtonHovered]          = medium_grey;
-    colors[ImGuiCol_ButtonActive]           = dark_grey;
-#endif
-    
-    
-    
-    // TODO: could remove glyphs to reduce size with online tool
-    // SourceSansProRegular_compressed_data is in helper.h
-    io.Fonts->AddFontFromMemoryCompressedTTF(SourceSansProRegular_compressed_data, SourceSansProRegular_compressed_size, 22.0f);
-    ImFontConfig icons_config; 
-    icons_config.MergeMode = true; 
-    icons_config.PixelSnapH = true;
-    
-    // NOTE: glyph ranges must exist at least until atlas is built
-    ImVector<ImWchar> range_22;
-    ImFontGlyphRangesBuilder builder_22;
-    builder_22.AddText(ICON_MD_DATE_RANGE);
-    builder_22.AddText(ICON_MD_ARROW_FORWARD);
-    builder_22.AddText(ICON_MD_ARROW_BACK);
-    builder_22.AddText(ICON_MD_SETTINGS);
-    builder_22.BuildRanges(&range_22);                          
-    
-    // TODO: could remove glyphs to reduce size with online tool
-    icons_config.GlyphOffset = ImVec2(0, 4); // move glyphs down or else they render too high
-    io.Fonts->AddFontFromFileTTF("c:\\dev\\projects\\monitor\\build\\fonts\\MaterialIcons-Regular.ttf", 22.0f, &icons_config, range_22.Data);
-    
-    // NOTE: FreeType assumes blending in linear space rather than gamma space. See FreeType note for FT_Render_Glyph. For correct results you need to be using sRGB and convert to linear space in the pixel shader output. The default Dear ImGui styles will be impacted by this change (alpha values will need tweaking).
-    // NOTE: Freetype is an additional dependency/dll ...
-#if 1
-    // for freetype: call before Build or GetTexDataAsRGBA32 
-    unsigned font_flags = ImGuiFreeType::LightHinting;
-    for (int n = 0; n < io.Fonts->ConfigData.Size; n++)
-    {
-        ImFontConfig* font_config = (ImFontConfig*)&io.Fonts->ConfigData[n];
-        font_config->RasterizerMultiply = 1.0f;
-        font_config->RasterizerFlags = font_flags;
-    }
-    ImGuiFreeType::BuildFontAtlas(io.Fonts, font_flags);
-#else
-    // for stb:
-    //io.Fonts->Build();
-#endif
-    
-    ImGuiStyle& style = ImGui::GetStyle();
-    style.FrameRounding = 0.0f; // 0 to 12 ? 
-    style.WindowBorderSize = 1.0f; // or 1.0
-    style.GrabRounding = style.FrameRounding; // Make GrabRounding always the same value as FrameRounding
-    style.FrameBorderSize = 1.0f;
-    style.PopupBorderSize = 1.0f;
-    style.ChildBorderSize = 1.0f;
-    style.WindowRounding = 0.0f;
-}
-
 u32
-platform_SDL_get_monitor_refresh_rate_milliseconds()
+platform_SDL_get_monitor_refresh_rate()
 {
     // or if 0 is not correct, could pass in sdl_window and get index with SDL_GetWindowDisplayIndex
     SDL_DisplayMode display_mode;
     int result = SDL_GetCurrentDisplayMode(0, &display_mode);
     if (result == 0)
     {
-        return 16; // 60fps default
+        return display_mode.refresh_rate;
     }
     else
     {
-        return display_mode.refresh_rate;
+        return 16; // 60fps default
     }
 }
 
@@ -217,14 +131,22 @@ int main(int argc, char* argv[])
         return 1;
     }
     
-    init_imgui(window, gl_context);
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    
+    ImGui_ImplSDL2_InitForOpenGL(window, gl_context); // just sets keymap, gets cursors and sets backend flags
+    ImGui_ImplOpenGL3_Init("#version 130"); // just sets what version of opengl, and backend flags for imgui
     
     SDL_EventState(SDL_SYSWMEVENT, SDL_ENABLE);
     
     SDL_SysWMinfo info;
     SDL_VERSION(&info.version); /* initialize info structure with SDL version info */
-    if(SDL_GetWindowWMInfo(window,&info)) {
-        init_win32_context(info.info.win.window);
+    if(SDL_GetWindowWMInfo(window,&info)) 
+    {
+        if (!init_win32_context(info.info.win.window))
+        {
+            return 1;
+        }
     }
     else
     {
@@ -256,17 +178,14 @@ int main(int argc, char* argv[])
     {
         ZoneScopedN("Frame");
         
-        //auto frame_start_time = win32_get_time();
-        
         // Initial state of window is set by events after window is opened 
         Window_Event window_event = Window_No_Change;
         
+        platform_wait_for_event();
+        
         SDL_Event event;
-        int got_event = SDL_WaitEvent(&event);
-        do
+        while (SDL_PollEvent(&event))
         {
-            if (!got_event) break;
-            
             ImGui_ImplSDL2_ProcessEvent(&event);
             if (event.type == SDL_QUIT)
             {
@@ -310,8 +229,6 @@ int main(int argc, char* argv[])
                 win32_handle_message(sys_msg->msg.win.msg, sys_msg->msg.win.lParam, sys_msg->msg.win.wParam);
             }
         }
-        while (SDL_PollEvent(&event)); // if more events keep getting them
-        
         
         auto new_time = win32_get_time();
         s64 dt_microseconds = win32_get_microseconds_elapsed(old_time, new_time);

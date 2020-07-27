@@ -25,14 +25,16 @@ opengl_create_texture(Database *database, Bitmap bitmap)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     
-    // Not sure if needed (probably not)
-    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+    // This sets the number of pixels in the row for the glTexImage2D to expect, good 
+    //glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
     
     // TODO: Maybe change from GL_BGRA (only the default on windows for icons probably)
     // TODO: I think that the bitmap pixel lines must be multiple of 4 bytes, texture doesn't necessrily need to be PoT but have to submit bitmap with rows padded to 4 bytes.
     
     // can maybe use this to choose alignment, though I couldn't induce a bug before using it, so maybe it wasn't related to alignment.
     //glPixelStorei(GL_PACK_ALIGNMENT, 1);
+    
+    // You create storage for a Texture and upload pixels to it with glTexImage2D (or similar functions, as appropriate to the type of texture). If your program crashes during the upload, or diagonal lines appear in the resulting image, this is because the alignment of each horizontal line of your pixel array is not multiple of 4. This typically happens to users loading an image that is of the RGB or BGR format (for example, 24 BPP images), depending on the source of your image data. 
     
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, bitmap.width, bitmap.height, 0, GL_BGRA, GL_UNSIGNED_BYTE, bitmap.pixels);
     

@@ -15,6 +15,9 @@
 #define CUSTOM_WM_TRAY_ICON (WM_APP + 1)
 #define CUSTOM_WM_SHOW_WINDOW (WM_APP + 2)
 
+//#define UNICODE 1
+//#define _UNICODE 1
+
 // Visual studio can generate manifest file
 //#pragma comment(linker, "\"/manifestdependency:type='Win32' name='Test.Research.SampleAssembly' version='6.0.0.0' processorArchitecture='X86' publicKeyToken='0000000000000000' language='*'\"")
 
@@ -32,14 +35,6 @@ struct Win32_Context
     
     UINT TASKBARCREATED; // custom message id recieved when taskbar restarts
     
-#if 0
-    HWINEVENTHOOK window_changed_hook;
-    HWINEVENTHOOK browser_title_changed_hook;
-    HWND last_browser_window;
-    bool window_changed;
-    bool browser_title_changed;
-#endif
-    
     IUIAutomation *uia;
     VARIANT navigation_name; // VT_BSTR
     VARIANT variant_offscreen_false; // VT_BOOL - don't need to initialise default is false
@@ -56,9 +51,20 @@ struct Win32_Context
     
     // TODO: Put statics in platform_get_firefox_url in here
     // and free any IUIAutomationElement remaining open before close
+    
+    
+#if 0
+    HWINEVENTHOOK window_changed_hook;
+    HWINEVENTHOOK browser_title_changed_hook;
+    HWND last_browser_window;
+    bool window_changed;
+    bool browser_title_changed;
+#endif
+    
 };
 static Win32_Context win32_context;
 
+#if 0
 s64
 win32_get_wall_time_microseconds()
 {
@@ -70,8 +76,28 @@ win32_get_wall_time_microseconds()
     
     return (s64)now.QuadPart;
 }
+#endif
 
-void
+LARGE_INTEGER
+win32_get_time()
+{
+    LARGE_INTEGER now;
+    QueryPerformanceCounter(&now);
+    return now;
+}
+
+// TODO: I would rather not pass in perf_freq (maybe make a global in this file)
+s64
+win32_get_microseconds_elapsed(LARGE_INTEGER start, LARGE_INTEGER end)
+{
+    LARGE_INTEGER microseconds;
+    microseconds.QuadPart = end.QuadPart - start.QuadPart;
+    microseconds.QuadPart *= 1000000; // microseconds per second
+    microseconds.QuadPart /= win32_context.performance_frequency.QuadPart; // ticks per second
+    return microseconds.QuadPart;
+}
+
+bool
 init_win32_context(HWND hwnd)
 {
     win32_context = {};
@@ -79,7 +105,10 @@ init_win32_context(HWND hwnd)
     
     // TODO: Why don't we need to link ole32.lib?
     // Call this because we use CoCreateInstance in UIAutomation
-    CoInitializeEx(NULL, COINIT_APARTMENTTHREADED); // equivalent to CoInitialize(NULL)
+    if (CoInitializeEx(NULL, COINIT_APARTMENTTHREADED) != S_OK)
+    {
+        return false;
+    }
     
     QueryPerformanceFrequency(&win32_context.performance_frequency);
     
@@ -90,22 +119,10 @@ init_win32_context(HWND hwnd)
     
     // Register a message that is sent when the taskbar restarts
     win32_context.TASKBARCREATED = RegisterWindowMessage(TEXT("TaskbarCreated"));
-    
-#if 0    
-    // Out of context hooks are asynchronous, but events are guaranteed to be in sequential order
-    // TODO: Might want WINEVENT_SKIPOWNPROCESS
-    // This might require CoInitialize
-    // The client thread that calls SetWinEventHook must have a message loop in order to receive events.
-    win32_context.window_changed_hook = SetWinEventHook(EVENT_SYSTEM_FOREGROUND,
-                                                        EVENT_SYSTEM_FOREGROUND,
-                                                        NULL, window_changed_proc, 
-                                                        0, 0, // If these are zero gets from all processes on desktop
-                                                        WINEVENT_OUTOFCONTEXT);
-    if (win32_context.window_changed_hook == 0)
+    if (win32_context.TASKBARCREATED == 0)
     {
-        Assert(0);
+        return false;
     }
-#endif
     
     HRESULT err = CoCreateInstance(CLSID_CUIAutomation, NULL, CLSCTX_INPROC_SERVER, IID_IUIAutomation,
                                    (void **)(&win32_context.uia));
@@ -113,6 +130,7 @@ init_win32_context(HWND hwnd)
     {
         // Don't get urls?
         Assert(0);
+        return false;
     }
     
     win32_context.navigation_name.vt = VT_BSTR;
@@ -120,6 +138,7 @@ init_win32_context(HWND hwnd)
     if (win32_context.navigation_name.bstrVal == NULL)
     {
         Assert(0);
+        return 1;
     }
     
     // Default is false
@@ -145,6 +164,7 @@ init_win32_context(HWND hwnd)
         err6 != S_OK || err7 != S_OK || err8 != S_OK)
     {
         Assert(0);
+        return false;
     }
     
     
@@ -167,20 +187,43 @@ init_win32_context(HWND hwnd)
     ZeroMemory(&win32_context.nid, sizeof(win32_context.nid));
     win32_context.nid.cbSize = sizeof(NOTIFYICONDATA);
     win32_context.nid.hWnd = hwnd;
-    win32_context.nid.uID = ID_TRAY_APP_ICON; // // Not sure why we need this
+    win32_context.nid.uID = ID_TRAY_APP_ICON; 
     win32_context.nid.uFlags = NIF_ICON|NIF_MESSAGE|NIF_TIP;
     win32_context.nid.uCallbackMessage = CUSTOM_WM_TRAY_ICON;
     // Recommented you provide 32x32 icon for higher DPI systems
     // Can use LoadIconMetric to specify correct one with correct settings is used
     win32_context.nid.hIcon = (HICON)LoadIcon(GetModuleHandle(NULL), MAKEINTRESOURCE(ID_MAIN_ICON));
     
-    // TODO: This tooltip with program name
-    TCHAR tooltip[] = {"Tooltip dinosaur"}; // Must use max 64 chars
+    TCHAR tooltip[] = {PROGRAM_NAME}; 
+    static_assert(array_count(tooltip) <= 64, "Tooltip must be 64 characters");
+    
     strncpy(win32_context.nid.szTip, tooltip, sizeof(tooltip));
     
     
     // TODO: If this doesn't work it can be impossible to access program without manually task manager killing the process and re-running, same goes for all tray icon code
-    Shell_NotifyIconA(NIM_ADD, &win32_context.nid);
+    if (Shell_NotifyIconA(NIM_ADD, &win32_context.nid) == FALSE)
+    {
+        return false;
+    }
+    
+    
+#if 0    
+    // Out of context hooks are asynchronous, but events are guaranteed to be in sequential order
+    // TODO: Might want WINEVENT_SKIPOWNPROCESS
+    // This might require CoInitialize
+    // The client thread that calls SetWinEventHook must have a message loop in order to receive events.
+    win32_context.window_changed_hook = SetWinEventHook(EVENT_SYSTEM_FOREGROUND,
+                                                        EVENT_SYSTEM_FOREGROUND,
+                                                        NULL, window_changed_proc, 
+                                                        0, 0, // If these are zero gets from all processes on desktop
+                                                        WINEVENT_OUTOFCONTEXT);
+    if (win32_context.window_changed_hook == 0)
+    {
+        Assert(0);
+    }
+#endif
+    
+    return true;
 }
 
 void
@@ -210,6 +253,14 @@ win32_free_context()
     if (win32_context.uia) win32_context.uia->Release();
     
     CoUninitialize();
+}
+
+void
+platform_wait_for_event()
+{
+    // Only returns for new events in the queue
+    // Doesn't return if there are unread events in the queue when called
+    WaitMessage();
 }
 
 void
@@ -260,11 +311,6 @@ win32_handle_message(UINT msg, LPARAM lParam, WPARAM wParam)
     HWND window = win32_context.window;
     switch (msg)
     {
-        case WM_CLOSE:
-        {
-            // this is deleted in free_context
-            // Shell_NotifyIconA(NIM_DELETE, &win32_context.nid); 
-        } break;
         case WM_QUERYENDSESSION:
         case WM_ENDSESSION:
         {
@@ -321,7 +367,7 @@ win32_handle_message(UINT msg, LPARAM lParam, WPARAM wParam)
                 SetForegroundWindow(window); 
                 
                 BOOL button = TrackPopupMenu(menu,
-                                             0, //TPM_RETURNCMD,
+                                             0,
                                              mouse.x,
                                              mouse.y,
                                              0,
@@ -351,7 +397,19 @@ win32_handle_message(UINT msg, LPARAM lParam, WPARAM wParam)
                 
                 // TODO: If this doesn't work it can be impossible to access program without manually task manager killing the process and re-running, same goes for all tray icon code
                 Sleep(6000);
-                Shell_NotifyIconA(NIM_ADD, &win32_context.nid);
+                for (int i = 0; i < 10; ++i)
+                {
+                    if (Shell_NotifyIconA(NIM_ADD, &win32_context.nid))
+                    {
+                        return;
+                    }
+                    else
+                    {
+                        Sleep(100);
+                    }
+                }
+                
+                // Want to try to restart program here if we couldn't recreate the icon
             }
         } break;
     }
@@ -362,25 +420,6 @@ struct Process_Ids
     DWORD parent;
     DWORD child;
 };
-
-LARGE_INTEGER
-win32_get_time()
-{
-    LARGE_INTEGER now;
-    QueryPerformanceCounter(&now);
-    return now;
-}
-
-// TODO: I would rather not pass in perf_freq (maybe make a global in this file)
-s64
-win32_get_microseconds_elapsed(LARGE_INTEGER start, LARGE_INTEGER end)
-{
-    LARGE_INTEGER microseconds;
-    microseconds.QuadPart = end.QuadPart - start.QuadPart;
-    microseconds.QuadPart *= 1000000; // microseconds per second
-    microseconds.QuadPart /= win32_context.performance_frequency.QuadPart; // ticks per second
-    return microseconds.QuadPart;
-}
 
 Platform_Window
 platform_get_active_window()

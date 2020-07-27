@@ -13,27 +13,54 @@
 #include "monitor.h"
 #include "platform.h"
 
+#include "resources/source_code_pro.cpp"
+#include "resources/world_icon.cpp"
+
 #include "icon.cpp"    // Deals with win32 icon interface TODO: Move platform dependent parts to win
 #include "file.cpp"
-#include "network.cpp"
 #include "ui.cpp"
 
-#include "world_icon.cpp"
 
-i32
-load_icon_and_add_to_database(Database *database, Bitmap bitmap)
+s32
+new_icon_slot(Database *database)
+{
+    // could also scan through for a unloaded icon slot
+    s32 icon_index = database->icon_count;
+    database->icon_count += 1;
+}
+
+s32
+load_icon_asset(Database *database, Bitmap bitmap, App_Id id)
 {
     // TODO: Either delete unused icons, or make more room
     Assert(database->icon_count < 200);
     
-    i32 icon_index = database->icon_count;
-    database->icon_count += 1;
-    
+    s32 icon_index = new_icon_slot(database);
     Icon_Asset *icon = &database->icons[icon_index];
-    icon->texture_handle = opengl_create_texture(database, bitmap); // This binds
+    
+    icon->texture_handle = opengl_create_texture(database, bitmap); 
     icon->bitmap = bitmap;
+    icon->loaded = true;
+    icon->id = id;
     
     return icon_index;
+}
+
+void
+unload_icon_asset(Database *database, s32 icon_index, App_Id id)
+{
+    Assert(database->icon_count < 200);
+    
+    Icon_Asset *icon = &database->icons[icon_index];
+    Assert(icon->id == id);
+    Assert(icon->loaded);
+    
+    glDeleteTextures(1, &icon->texture_handle);
+    icon->loaded = false;
+    free(icon->bitmap.pixels);
+    *icon = {};
+    
+    database->icon_count -= 1;
 }
 
 Icon_Asset *
@@ -44,7 +71,7 @@ get_app_icon_asset(Database *database, App_Id id)
         //get_favicon_from_website(url);
         
         Icon_Asset *default_icon = database->icons + database->default_website_icon_index;
-        Assert(default_icon->texture_handle != 0);
+        Assert(default_icon->loaded && default_icon->texture_handle != 0);
         return default_icon;
     }
     
@@ -68,7 +95,7 @@ get_app_icon_asset(Database *database, App_Id id)
             if (success)
             {
                 // TODO: Maybe mark old paths that couldn't get correct icon for deletion.
-                info.icon_index = load_icon_and_add_to_database(database, bitmap);
+                info.icon_index = load_icon_asset(database, bitmap, id);
                 return database->icons + info.icon_index;
             }
         }
@@ -110,45 +137,6 @@ get_local_time_day()
     //auto test_date = std::floor<date::local_days>()};
     //Assert(using local_days    = local_time<days>;
     return now;
-}
-
-time_type
-microseconds_until_tomorrow()
-{
-    time_t rawtime;
-    time( &rawtime );
-    
-    struct tm *info;
-    info = localtime( &rawtime );
-    
-    // 23 * 3600 + 59 * 60 + 59 = 86399 (last second of the day)
-    s64 second_of_day = info->tm_hour * 3600 + info->tm_min * 60 + info->tm_sec;
-    s64 seconds_left_in_day = (86400 - 1) - second_of_day;
-    time_type microseconds_left_in_day = seconds_left_in_day * MICROSECS_PER_SEC;
-    
-    // returns 0 for last second of the day
-    return microseconds_left_in_day;
-}
-
-date::sys_days
-get_current_date()
-{
-#if 0
-    date::sys_days result = state->current_date;
-    
-    state->microseconds_until_next_day -= dt_microseconds;
-    if (state->microseconds_until_next_day < 0)
-    {
-        state->microseconds_until_next_day = microseconds_until_tomorrow();
-        state->current_date = get_local_time_day();
-        
-        Assert(state->current_date != result);
-        
-        result = state->current_date;
-    }
-#endif
-    
-    return get_local_time_day();
 }
 
 void
@@ -455,7 +443,8 @@ init_database(Database *database, date::sys_days current_date)
         bitmap = make_bitmap(ICON_SIZE, ICON_SIZE, 0x000000); // transparent icon
     }
     
-    database->default_local_program_icon_index = load_icon_and_add_to_database(database, bitmap);
+    // Choose an id that will never realistically be assigned 
+    database->default_local_program_icon_index = load_icon_asset(database, bitmap, 0x8000 - 1);
     
 #if 0
     Assert(world_icon_size == ICON_SIZE*ICON_SIZE*4);
@@ -469,7 +458,7 @@ init_database(Database *database, date::sys_days current_date)
     website_bitmap.height = world_icon_height;
     website_bitmap.pitch = world_icon_width*4;
     
-    database->default_website_icon_index = load_icon_and_add_to_database(database, website_bitmap);
+    database->default_website_icon_index = load_icon_asset(database, website_bitmap, UINT32_MAX - 1);
 }
 
 
@@ -697,7 +686,8 @@ update(Monitor_State *state, SDL_Window *window, time_type dt_microseconds, Wind
         // state->ui_visible = false; should be false in final version
         // Assert(window_event == Window_Hidden);
         
-        state->monitor_refresh_rate = platform_SDL_get_monitor_refresh_rate_milliseconds();
+        // will be 16ms for 60fps monitor
+        state->refresh_frame_time = (u32)(MILLISECS_PER_SEC / (float)platform_SDL_get_monitor_refresh_rate());
         
         init_database(&state->database, current_date);
         
@@ -725,6 +715,8 @@ update(Monitor_State *state, SDL_Window *window, time_type dt_microseconds, Wind
         // TODO: Just use google or duckduckgo service for now (look up how duckduckgo browser does it, ever since they switched from using their service...)
         
         //create_world_icon_source_file("c:\\dev\\projects\\monitor\\build\\world.png",  "c:\\dev\\projects\\monitor\\code\\world_icon.cpp", ICON_SIZE);
+        
+        init_imgui();
         
         state->is_initialised = true;
     }
@@ -800,6 +792,6 @@ update(Monitor_State *state, SDL_Window *window, time_type dt_microseconds, Wind
     }
     
     return (state->ui_visible) ? 
-        state->monitor_refresh_rate : state->settings.misc_options.poll_frequency_milliseconds;
+        state->refresh_frame_time : state->settings.misc_options.poll_frequency_milliseconds;
 }
 

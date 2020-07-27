@@ -101,8 +101,8 @@ namespace std
 enum Id_Type
 {
 	Id_Invalid, 
-	Id_LocalProgram,     // Start at 1
-	Id_Website,          // Start at 0x800000
+	Id_LocalProgram,    
+	Id_Website,         
 };
 struct Record
 {
@@ -129,7 +129,7 @@ struct Day_List
 
 enum Range_Type : int
 {
-    Range_Type_Daily = 0, // code relies on this
+    Range_Type_Daily = 0, // code relies on these number values/order
     Range_Type_Weekly,
     Range_Type_Monthly,
     Range_Type_Custom,
@@ -145,24 +145,26 @@ struct Day_View
 struct Local_Program_Info
 {
     String short_name;
-    i32 icon_index;   // -1 means not loaded
-    
+    s32 icon_index;   // -1 means not loaded
+    //bool icon_retreival_failure;
     String full_name; // this must be null terminated because passed to curl as url or OS as a path
 };
 
 struct Website_Info
 {
     String short_name;
-    i32 icon_index;   // -1 means not loaded
+    s32 icon_index;   // -1 means not loaded
 };
 
 struct Icon_Asset
 {
     // how to get back to icon_index if this is deleted
     
-    // Do I even need to keep CPU side textures around after giving to GPU
-    Bitmap bitmap;
+    // TODO: Do I even need to keep CPU side textures around after giving to GPU
     u32 texture_handle;
+    App_Id id;
+    Bitmap bitmap;
+    bool loaded;
 };
 
 struct App_List
@@ -197,6 +199,8 @@ struct Database
     
     u32 default_website_icon_index;
     u32 default_local_program_icon_index;
+    
+    // Count is just the number of loaded textures in the array
     u32 icon_count;
     Icon_Asset icons[200]; // 200 icons isn't really that much, should make like 1000
 };
@@ -285,7 +289,7 @@ Monitor_State
     //time_type microseconds_until_next_day;
     //date::sys_days current_date;
     
-    u32 monitor_refresh_rate; // in milliseconds
+    u32 refresh_frame_time; // in milliseconds
     
     bool ui_visible;
     

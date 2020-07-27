@@ -12,6 +12,86 @@ void add_keyword(Settings *settings, char *str);
 String get_app_name(App_List *apps, App_Id id);
 
 
+void
+init_imgui()
+{
+    ImGuiIO& io = ImGui::GetIO(); 
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+    io.IniFilename = NULL; // Disable imgui.ini filecreation
+    
+    ImGui::StyleColorsLight();
+    //ImGui::Spectrum::StyleColorsSpectrum(); 
+    
+#if 0
+    auto light_grey = ImVec4(0.79f, 0.79f, 0.79f, 0.80f);
+    auto medium_grey = ImVec4(0.63f, 0.63f, 0.63f, 0.80f);
+    auto dark_grey = ImVec4(0.63f, 0.63f, 0.63f, 1.00f);
+    
+    ImVec4* colors = ImGui::GetStyle().Colors;
+    colors[ImGuiCol_PopupBg]                = ImVec4(0.94f, 0.94f, 0.94f, 1.00f);
+    colors[ImGuiCol_ScrollbarGrab]          = light_grey;
+    colors[ImGuiCol_ScrollbarGrabHovered]   = medium_grey;
+    colors[ImGuiCol_ScrollbarGrabActive]    = dark_grey;
+    colors[ImGuiCol_CheckMark]              = ImVec4(0.40f, 0.40f, 0.40f, 1.00f);
+    
+    colors[ImGuiCol_SliderGrab]             = light_grey;
+    colors[ImGuiCol_SliderGrabActive]       = dark_grey;
+    
+    
+    colors[ImGuiCol_Button]                 = light_grey;
+    colors[ImGuiCol_ButtonHovered]          = medium_grey;
+    colors[ImGuiCol_ButtonActive]           = dark_grey;
+#endif
+    
+    
+    
+    // TODO: could remove glyphs to reduce size with online tool
+    io.Fonts->AddFontFromMemoryCompressedTTF(SourceSansProRegular_compressed_data, SourceSansProRegular_compressed_size, 22.0f);
+    ImFontConfig icons_config; 
+    icons_config.MergeMode = true; 
+    icons_config.PixelSnapH = true;
+    
+    // NOTE: glyph ranges must exist at least until atlas is built
+    ImVector<ImWchar> range_22;
+    ImFontGlyphRangesBuilder builder_22;
+    builder_22.AddText(ICON_MD_DATE_RANGE);
+    builder_22.AddText(ICON_MD_ARROW_FORWARD);
+    builder_22.AddText(ICON_MD_ARROW_BACK);
+    builder_22.AddText(ICON_MD_SETTINGS);
+    builder_22.BuildRanges(&range_22);                          
+    
+    // TODO: could remove glyphs to reduce size with online tool
+    icons_config.GlyphOffset = ImVec2(0, 4); // move glyphs down or else they render too high
+    io.Fonts->AddFontFromFileTTF("c:\\dev\\projects\\monitor\\build\\fonts\\MaterialIcons-Regular.ttf", 22.0f, &icons_config, range_22.Data);
+    
+    // NOTE: FreeType assumes blending in linear space rather than gamma space. See FreeType note for FT_Render_Glyph. For correct results you need to be using sRGB and convert to linear space in the pixel shader output. The default Dear ImGui styles will be impacted by this change (alpha values will need tweaking).
+    // NOTE: Freetype is an additional dependency/dll ...
+#if 1
+    // for freetype: call before Build or GetTexDataAsRGBA32 
+    unsigned font_flags = ImGuiFreeType::LightHinting;
+    for (int n = 0; n < io.Fonts->ConfigData.Size; n++)
+    {
+        ImFontConfig* font_config = (ImFontConfig*)&io.Fonts->ConfigData[n];
+        font_config->RasterizerMultiply = 1.0f;
+        font_config->RasterizerFlags = font_flags;
+    }
+    ImGuiFreeType::BuildFontAtlas(io.Fonts, font_flags);
+#else
+    // for stb:
+    //io.Fonts->Build();
+#endif
+    
+    ImGuiStyle& style = ImGui::GetStyle();
+    style.FrameRounding = 0.0f; // 0 to 12 ? 
+    style.WindowBorderSize = 1.0f; // or 1.0
+    style.GrabRounding = style.FrameRounding; // Make GrabRounding always the same value as FrameRounding
+    style.FrameBorderSize = 1.0f;
+    style.PopupBorderSize = 1.0f;
+    style.ChildBorderSize = 1.0f;
+    style.WindowRounding = 0.0f;
+}
+
+
 const char *
 day_suffix(int day)
 {
