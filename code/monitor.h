@@ -153,7 +153,7 @@ struct Local_Program_Info
 struct Website_Info
 {
     String short_name;
-    s32 icon_index;   // -1 means not loaded
+    //s32 icon_index;   // -1 means not loaded
 };
 
 struct Icon_Asset
@@ -294,6 +294,6 @@ Monitor_State
     bool ui_visible;
     
     // debug temporary
-    time_type total_runtime;
-    LARGE_INTEGER startup_time;
+    //time_type total_runtime;
+    //LARGE_INTEGER startup_time;
 };

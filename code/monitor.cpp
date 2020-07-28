@@ -286,7 +286,7 @@ get_website_app_id(App_List *apps, String short_name)
         
         Website_Info info;
         info.short_name = push_string(&apps->names_arena, short_name); 
-        info.icon_index = -1;
+        //info.icon_index = -1;
         
         apps->websites.push_back(info);
         
@@ -682,15 +682,11 @@ update(Monitor_State *state, SDL_Window *window, time_type dt_microseconds, Wind
         *state = {};
         
         state->accumulated_time = 0;
-        state->total_runtime = 0;
         
         state->ui_visible = true;
         Assert(window_event == Window_Shown);
         // state->ui_visible = false; should be false in final version
         // Assert(window_event == Window_Hidden);
-        
-        // will be 16ms for 60fps monitor
-        state->refresh_frame_time = (u32)(MILLISECS_PER_SEC / (float)platform_SDL_get_monitor_refresh_rate());
         
         init_database(&state->database, current_date);
         
@@ -703,7 +699,12 @@ update(Monitor_State *state, SDL_Window *window, time_type dt_microseconds, Wind
         
         state->settings.misc_options = options;
         
-        //platform_change_wakeup_frequancy(16);
+        
+        // will be 16ms for 60fps monitor
+        state->refresh_frame_time = (u32)(MILLISECS_PER_SEC / (float)platform_SDL_get_monitor_refresh_rate());
+        
+        // will be poll_frequency_milliseconds in release
+        platform_set_sleep_time(16);
         
         // minimum block size of this should be MAX_KEYWORD_COUNT * MAX_KEYWORD_SIZE, then should only need 1 block
         init_arena(&state->settings.keyword_arena, MAX_KEYWORD_COUNT * MAX_KEYWORD_SIZE);
@@ -716,12 +717,11 @@ update(Monitor_State *state, SDL_Window *window, time_type dt_microseconds, Wind
         add_keyword(&state->settings, "google");
         add_keyword(&state->settings, "github");
         
-        
         // TODO: Just use google or duckduckgo service for now (look up how duckduckgo browser does it, ever since they switched from using their service...)
         
         //create_world_icon_source_file("c:\\dev\\projects\\monitor\\build\\world.png",  "c:\\dev\\projects\\monitor\\code\\world_icon.cpp", ICON_SIZE);
         
-        init_imgui();
+        init_imgui(22.0f);
         
         state->is_initialised = true;
     }
@@ -752,7 +752,6 @@ update(Monitor_State *state, SDL_Window *window, time_type dt_microseconds, Wind
     // Else may have a degenerate case where the function is called slightly before when it should have and the accumulated time is slightly < then poll freq, then we have to wait another full poll freq to do one poll, essentailly halving the experienced poll frequency.
     
     state->accumulated_time += dt_microseconds;
-    state->total_runtime += dt_microseconds;
     time_type poll_window_freq = 100000;
     //s64 poll_window_freq = state->settings.misc_options.poll_frequency_milliseconds * MICROSECS_PER_MILLISEC;
     if (state->accumulated_time >= poll_window_freq)
@@ -796,6 +795,6 @@ update(Monitor_State *state, SDL_Window *window, time_type dt_microseconds, Wind
         
     }
     
-    return 0; //(state->ui_visible) ? state->refresh_frame_time : state->settings.misc_options.poll_frequency_milliseconds;
+    return 0;
 }
 

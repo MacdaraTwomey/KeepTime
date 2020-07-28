@@ -29,6 +29,8 @@ struct Win32_Context
     HWND window;
     // HINSTANCE instance = info.info.win.hinstance;
     
+    DWORD sleep_time;
+    
     HWND desktop_window;
     HWND shell_window;
     
@@ -103,6 +105,9 @@ init_win32_context(HWND hwnd)
 {
     win32_context = {};
     win32_context.window = hwnd;
+    
+    // NOTE: Set to a proper value in update function
+    win32_context.sleep_time = 16;
     
     // TODO: Why don't we need to link ole32.lib?
     // Call this because we use CoCreateInstance in UIAutomation
@@ -222,33 +227,61 @@ init_win32_context(HWND hwnd)
 #endif
     
     
-#if 0    
-    float fps = 60;
-    float seconds_per_frame = 1/fps;
-    u32 target_frame_time = (s64)floor(seconds_per_frame * 1000.0f); // in ms
-    //SDL_TimerID timer_id = SDL_AddTimer(target_frame_time, timer_callback, nullptr);
-#endif
-    
-#if 0    
-    // If called on window with existing timer it replaces it
-    UINT_PTR timer = SetTimer(win32_context.window, MY_TIMER_ID, 16, NULL);
-    if (timer == 0)
-    {
-        return false;
-    }
-#endif
-    
     return true;
 }
 
 void
-platform_change_wakeup_frequancy(u32 milliseconds)
+platform_wait_for_event_with_timout()
+{
+    static LARGE_INTEGER old_time;
+    auto new_time = win32_get_time();
+    s64 time_to_update = win32_get_microseconds_elapsed(old_time, new_time);// / 1000;
+    old_time = new_time;
+    
+    // NOTE: Waking on any event is not important when running 60fps for the UI
+    // Don't wake on mouse move, stops task manager reporting excessive cpu usage on mouse moves, though only appears excessive because we are sleeping because GPU is waiting for a vblank.
+    DWORD wake_mask = QS_ALLEVENTS ^ QS_MOUSEMOVE;
+    char msg[2000];
+    DWORD result = MsgWaitForMultipleObjects(0, nullptr, FALSE, win32_context.sleep_time, wake_mask);
+    if (result == WAIT_OBJECT_0)
+    {
+        strcpy(msg, "Wait object 0\n");
+    }
+    else if (result == WAIT_ABANDONED_0)
+    {
+        strcpy(msg, "Wait abandoned\n");
+    }
+    else if (result == WAIT_TIMEOUT)
+    {
+        strcpy(msg, "Wait Timeout\n");
+        
+    }
+    else if (result == WAIT_FAILED)
+    {
+        strcpy(msg, "Wait failed\n");
+        Assert(0);
+    }
+    else
+    {
+        strcpy(msg, "other ...\n");
+        Assert(0);
+    }
+    
+    auto after_wait = win32_get_time();
+    s64 time_waited = win32_get_microseconds_elapsed(new_time, after_wait);// / 1000;
+    
+    OutputDebugString(msg);
+    sprintf(msg, 
+            "Time to update: %llims\n"
+            "time waited: %llims\n", time_to_update, time_waited);
+    OutputDebugString(msg);
+}
+
+void
+platform_set_sleep_time(u32 milliseconds)
 {
     Assert(milliseconds >= 0);
-    
-    // If called on window with existing timer it replaces it
-    UINT_PTR timer = SetTimer(win32_context.window, MY_TIMER_ID, milliseconds, NULL);
-    Assert(timer != 0);
+    win32_context.sleep_time = milliseconds;
 }
 
 void
@@ -278,16 +311,6 @@ win32_free_context()
     if (win32_context.uia) win32_context.uia->Release();
     
     CoUninitialize();
-}
-
-void
-platform_wait_for_event()
-{
-    // Only returns for new events in the queue
-    // Doesn't return if there are unread events in the queue when called
-    
-    // doesn't process more timer messages after first is in queue I think
-    WaitMessage();
 }
 
 void

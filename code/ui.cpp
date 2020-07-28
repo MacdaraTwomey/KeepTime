@@ -12,21 +12,97 @@ void add_keyword(Settings *settings, char *str);
 String get_app_name(App_List *apps, App_Id id);
 
 
+
+#if 1
+struct FreeTypeTest
+{
+    enum FontBuildMode
+    {
+        FontBuildMode_FreeType,
+        FontBuildMode_Stb
+    };
+    
+    FontBuildMode BuildMode;
+    bool          WantRebuild;
+    float         FontsMultiply;
+    int           FontsPadding;
+    unsigned int  FontsFlags;
+    float font_size;
+    
+    FreeTypeTest()
+    {
+        BuildMode = FontBuildMode_FreeType;
+        WantRebuild = true;
+        FontsMultiply = 1.0f;
+        FontsPadding = 1;
+        FontsFlags = ImGuiFreeType::LightHinting;;
+        font_size = 22.0f;
+    }
+    
+    // Call _BEFORE_ NewFrame()
+    bool UpdateRebuild()
+    {
+        if (!WantRebuild)
+            return false;
+        ImGuiIO& io = ImGui::GetIO();
+        io.Fonts->TexGlyphPadding = FontsPadding;
+        for (int n = 0; n < io.Fonts->ConfigData.Size; n++)
+        {
+            ImFontConfig* font_config = (ImFontConfig*)&io.Fonts->ConfigData[n];
+            font_config->RasterizerMultiply = FontsMultiply;
+            font_config->RasterizerFlags = (BuildMode == FontBuildMode_FreeType) ? FontsFlags : 0x00;
+            font_config->SizePixels = font_size;
+        }
+        if (BuildMode == FontBuildMode_FreeType)
+            ImGuiFreeType::BuildFontAtlas(io.Fonts, FontsFlags);
+        else if (BuildMode == FontBuildMode_Stb)
+            io.Fonts->Build();
+        WantRebuild = false;
+        return true;
+    }
+    
+    // Call to draw interface
+    void ShowFreetypeOptionsWindow()
+    {
+        ImGui::Begin("FreeType Options");
+        ImGui::ShowFontSelector("Fonts");
+        WantRebuild |= ImGui::RadioButton("FreeType", (int*)&BuildMode, FontBuildMode_FreeType);
+        ImGui::SameLine();
+        WantRebuild |= ImGui::RadioButton("Stb (Default)", (int*)&BuildMode, FontBuildMode_Stb);
+        WantRebuild |= ImGui::DragFloat("Multiply", &FontsMultiply, 0.001f, 0.0f, 2.0f);
+        WantRebuild |= ImGui::DragInt("Padding", &FontsPadding, 0.1f, 0, 16);
+        
+        ImGui::SetCursorPosY(300);
+        ImGui::PushItemWidth(200);
+        WantRebuild |= ImGui::InputFloat("Size", &font_size, 1.0f, 0, 2);
+        ImGui::PopItemWidth();
+        
+        if (BuildMode == FontBuildMode_FreeType)
+        {
+            WantRebuild |= ImGui::CheckboxFlags("NoHinting",     &FontsFlags, ImGuiFreeType::NoHinting);
+            WantRebuild |= ImGui::CheckboxFlags("NoAutoHint",    &FontsFlags, ImGuiFreeType::NoAutoHint);
+            WantRebuild |= ImGui::CheckboxFlags("ForceAutoHint", &FontsFlags, ImGuiFreeType::ForceAutoHint);
+            WantRebuild |= ImGui::CheckboxFlags("LightHinting",  &FontsFlags, ImGuiFreeType::LightHinting);
+            WantRebuild |= ImGui::CheckboxFlags("MonoHinting",   &FontsFlags, ImGuiFreeType::MonoHinting);
+            WantRebuild |= ImGui::CheckboxFlags("Bold",          &FontsFlags, ImGuiFreeType::Bold);
+            WantRebuild |= ImGui::CheckboxFlags("Oblique",       &FontsFlags, ImGuiFreeType::Oblique);
+            WantRebuild |= ImGui::CheckboxFlags("Monochrome",    &FontsFlags, ImGuiFreeType::Monochrome);
+        }
+        ImGui::End();
+    }
+};
+#endif
+
 void
-init_imgui()
+init_imgui(float font_size)
 {
     ImGuiIO& io = ImGui::GetIO(); 
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
     io.IniFilename = NULL; // Disable imgui.ini filecreation
     
     ImGui::StyleColorsLight();
-    //ImGui::Spectrum::StyleColorsSpectrum(); 
     
 #if 0
-    auto light_grey = ImVec4(0.79f, 0.79f, 0.79f, 0.80f);
-    auto medium_grey = ImVec4(0.63f, 0.63f, 0.63f, 0.80f);
-    auto dark_grey = ImVec4(0.63f, 0.63f, 0.63f, 1.00f);
-    
     ImVec4* colors = ImGui::GetStyle().Colors;
     colors[ImGuiCol_PopupBg]                = ImVec4(0.94f, 0.94f, 0.94f, 1.00f);
     colors[ImGuiCol_ScrollbarGrab]          = light_grey;
@@ -37,32 +113,29 @@ init_imgui()
     colors[ImGuiCol_SliderGrab]             = light_grey;
     colors[ImGuiCol_SliderGrabActive]       = dark_grey;
     
-    
     colors[ImGuiCol_Button]                 = light_grey;
     colors[ImGuiCol_ButtonHovered]          = medium_grey;
     colors[ImGuiCol_ButtonActive]           = dark_grey;
 #endif
     
-    
-    
     // TODO: could remove glyphs to reduce size with online tool
-    io.Fonts->AddFontFromMemoryCompressedTTF(SourceSansProRegular_compressed_data, SourceSansProRegular_compressed_size, 22.0f);
+    io.Fonts->AddFontFromMemoryCompressedTTF(SourceSansProRegular_compressed_data, SourceSansProRegular_compressed_size, font_size);
     ImFontConfig icons_config; 
     icons_config.MergeMode = true; 
     icons_config.PixelSnapH = true;
     
     // NOTE: glyph ranges must exist at least until atlas is built
-    ImVector<ImWchar> range_22;
-    ImFontGlyphRangesBuilder builder_22;
-    builder_22.AddText(ICON_MD_DATE_RANGE);
-    builder_22.AddText(ICON_MD_ARROW_FORWARD);
-    builder_22.AddText(ICON_MD_ARROW_BACK);
-    builder_22.AddText(ICON_MD_SETTINGS);
-    builder_22.BuildRanges(&range_22);                          
+    ImVector<ImWchar> range;
+    ImFontGlyphRangesBuilder builder;
+    builder.AddText(ICON_MD_DATE_RANGE);
+    builder.AddText(ICON_MD_ARROW_FORWARD);
+    builder.AddText(ICON_MD_ARROW_BACK);
+    builder.AddText(ICON_MD_SETTINGS);
+    builder.BuildRanges(&range);                          
     
     // TODO: could remove glyphs to reduce size with online tool
     icons_config.GlyphOffset = ImVec2(0, 4); // move glyphs down or else they render too high
-    io.Fonts->AddFontFromFileTTF("c:\\dev\\projects\\monitor\\build\\fonts\\MaterialIcons-Regular.ttf", 22.0f, &icons_config, range_22.Data);
+    io.Fonts->AddFontFromFileTTF("c:\\dev\\projects\\monitor\\build\\fonts\\MaterialIcons-Regular.ttf", font_size, &icons_config, range.Data);
     
     // NOTE: FreeType assumes blending in linear space rather than gamma space. See FreeType note for FT_Render_Glyph. For correct results you need to be using sRGB and convert to linear space in the pixel shader output. The default Dear ImGui styles will be impacted by this change (alpha values will need tweaking).
     // NOTE: Freetype is an additional dependency/dll ...
@@ -262,7 +335,8 @@ do_misc_settings(Edit_Settings *edit_settings)
     
     // TODO: DEBUG make the step much greater
     float freq_secs = (float)edit_settings->misc_options.poll_frequency_milliseconds / MILLISECS_PER_SEC;
-    if (ImGui::InputFloat("Update frequency (s)", &freq_secs, 0.01f, 1.0f, 4))
+    ImGui::PushItemWidth(150);
+    if (ImGui::InputFloat("Update frequency (s)", &freq_secs, 0.01f, 1.0f, 2))
     {
         if (freq_secs < POLL_FREQUENCY_MIN_SECONDS) 
             freq_secs = POLL_FREQUENCY_MIN_SECONDS;
@@ -271,6 +345,7 @@ do_misc_settings(Edit_Settings *edit_settings)
         else 
             edit_settings->misc_options.poll_frequency_milliseconds = (u32)(freq_secs * MILLISECS_PER_SEC);
     }
+    ImGui::PopItemWidth();
     
     //ImGui::PopItemWidth();
     
@@ -877,7 +952,7 @@ date_picker_forwards(Date_Picker *date_picker, date::sys_days oldest_date, date:
 void
 do_date_select_popup(Date_Picker *date_picker, date::sys_days oldest_date, date::sys_days newest_date)
 {
-    ImVec2 pos = ImVec2(ImGui::GetWindowWidth() / 2.0f, ImGui::GetCursorPosY());
+    ImVec2 pos = ImVec2(ImGui::GetWindowWidth() / 2.0f, ImGui::GetCursorPosY() + 5);
     ImGui::SetNextWindowPos(pos, true, ImVec2(0.5f, 0)); // centre on x
     
     //ImGui::SetNextWindowSize(ImVec2(300,300));
@@ -1104,9 +1179,13 @@ draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *database,
     
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplSDL2_NewFrame(window);
-    ImGui::NewFrame();
     
-#if 0    
+#if 0
+    ImGui::NewFrame();
+    bool show_demo_window = true;
+    if (show_demo_window)
+        ImGui::ShowDemoWindow(&show_demo_window);
+#else
     // Light hinting with freetype looks better than stb font renderer (at least at size 22 pixels)
     if (freetype_test.UpdateRebuild())
     {
@@ -1115,15 +1194,20 @@ draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *database,
         ImGui_ImplOpenGL3_CreateDeviceObjects();
     }
     ImGui::NewFrame();
-    freetype_test.ShowFreetypeOptionsWindow();
-#endif
-    
-    
-    ImGuiIO& io = ImGui::GetIO();
     
     bool show_demo_window = true;
     if (show_demo_window)
         ImGui::ShowDemoWindow(&show_demo_window);
+    
+    ImGui::SetNextWindowPos(ImVec2(900, 0), true);
+    freetype_test.ShowFreetypeOptionsWindow();
+    
+#endif
+    
+    
+    
+    ImGuiIO& io = ImGui::GetIO();
+    
     
     ImGuiWindowFlags flags =
         ImGuiWindowFlags_NoTitleBar
@@ -1151,6 +1235,19 @@ draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *database,
         // debug: simulate effect of pressing x button
         win32_hide_win();
     }
+    ImGui::SameLine();
+    static bool UI_time = true;
+    if (ImGui::Checkbox("SleepT", &UI_time))
+    {
+        if (UI_time)
+        {
+            platform_set_sleep_time(16);
+        }
+        else
+        {
+            platform_set_sleep_time(100);
+        }
+    }
     
     // TODO: Make in exact middle
     ImGui::SameLine(ImGui::GetWindowWidth() * 0.35f);
@@ -1170,7 +1267,7 @@ draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *database,
         }
         
         ImGui::SameLine();
-        if (ImGui::Button(date_picker->date_label, ImVec2(200, 0))) // passing zero uses default I guess
+        if (ImGui::Button(date_picker->date_label, ImVec2(250, 0))) // passing zero uses default I guess
         {
             ImGui::OpenPopup("Date Select");
         }
@@ -1271,20 +1368,18 @@ draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *database,
         // Barplot
         u32 one = 1;
         static u32 text_down = 5;
-        ImGui::InputScalar("text down", ImGuiDataType_U32, &text_down, &one);
+        //ImGui::InputScalar("text down", ImGuiDataType_U32, &text_down, &one);
         
         static u32 text_right = 7;
-        ImGui::InputScalar("text right", ImGuiDataType_U32, &text_right, &one);
+        //ImGui::InputScalar("text right", ImGuiDataType_U32, &text_right, &one);
         
         static float bar_height = 32;
-        ImGui::InputFloat("bar_height", &bar_height, 1.0f,0.0f,"%.3f");
+        //ImGui::InputFloat("bar_height", &bar_height, 1.0f,0.0f,"%.3f");
         
         static float bar_down = 1;
-        ImGui::InputFloat("bar_down", &bar_down, 1.0f,0.0f,"%.3f");
+        //ImGui::InputFloat("bar_down", &bar_down, 1.0f,0.0f,"%.3f");
         
-        // To allow frame border (can just use beginchild instead)
-        ImGuiWindowFlags child_flags = 0;
-        ImGui::BeginChildFrame(55, ImVec2(ImGui::GetWindowSize().x * 0.9, ImGui::GetWindowSize().y * 0.7), child_flags);
+        ImGui::BeginChild(55, ImVec2(0,ImGui::GetWindowHeight() * 0.9), true);
         
         ImDrawList* draw_list = ImGui::GetWindowDrawList();
         
@@ -1448,32 +1543,31 @@ draw_ui_and_update(SDL_Window *window, Monitor_State *state, Database *database,
         float red[] = {255.0f, 0, 0};
         float black[] = {0, 0, 0};
         
-        double total_runtime_seconds = (double)state->total_runtime / 1000000;
+        //double total_runtime_seconds = (double)state->total_runtime / 1000000;
         //double sum_duration_seconds = (double)sum_duration / 1000000;
         
         auto now = win32_get_time();
-        auto start_time = win32_get_microseconds_elapsed(state->startup_time, now);
+        //auto start_time = win32_get_microseconds_elapsed(state->startup_time, now);
         
-        double time_since_startup_seconds = (double)start_time / 1000000;
+        //double time_since_startup_seconds = (double)start_time / 1000000;
         
         //double diff_seconds2 = (double)(start_time - sum_duration) / 1000000;
         
         
-        ImGui::Text("Total runtime:        %.5fs", total_runtime_seconds);
+        //ImGui::Text("Total runtime:        %.5fs", total_runtime_seconds);
         //ImGui::Text("Sum duration:        %.5fs", sum_duration_seconds);
         
         
         ImGuiStyle& style = ImGui::GetStyle();
         
-        ImGui::SameLine();
+        //ImGui::SameLine();
         memcpy((void *)style.Colors, red, 3 * sizeof(float));
         //ImGui::Text("diff: %llu", state->total_runtime - sum_duration);
         memcpy((void *)style.Colors, black, 3 * sizeof(float));
         
         
-        ImGui::Text("time since startup: %.5fs", time_since_startup_seconds);
+        //ImGui::Text("time since startup: %.5fs", time_since_startup_seconds);
         
-        ImGui::SameLine();
         memcpy((void *)style.Colors, red, 3 * sizeof(float));
         //ImGui::Text("diff between time since startup and sum duration: %.5fs", diff_seconds2);
         memcpy((void *)style.Colors, black, 3 * sizeof(float));
