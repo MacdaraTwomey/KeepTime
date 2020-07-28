@@ -25,15 +25,18 @@ s32
 new_icon_slot(Database *database)
 {
     // could also scan through for a unloaded icon slot
+    Assert(database->icon_count < array_count(database->icons));
+    
     s32 icon_index = database->icon_count;
     database->icon_count += 1;
+    return icon_index;
 }
 
 s32
 load_icon_asset(Database *database, Bitmap bitmap, App_Id id)
 {
     // TODO: Either delete unused icons, or make more room
-    Assert(database->icon_count < 200);
+    Assert(database->icon_count < array_count(database->icons));
     
     s32 icon_index = new_icon_slot(database);
     Icon_Asset *icon = &database->icons[icon_index];
@@ -49,7 +52,7 @@ load_icon_asset(Database *database, Bitmap bitmap, App_Id id)
 void
 unload_icon_asset(Database *database, s32 icon_index, App_Id id)
 {
-    Assert(database->icon_count < 200);
+    Assert(icon_index < array_count(database->icons));
     
     Icon_Asset *icon = &database->icons[icon_index];
     Assert(icon->id == id);
@@ -669,7 +672,7 @@ update(Monitor_State *state, SDL_Window *window, time_type dt_microseconds, Wind
 {
     ZoneScoped;
     
-    date::sys_days current_date = get_current_date();
+    date::sys_days current_date = get_local_time_day();
     
     if (!state->is_initialised)
     {
@@ -699,6 +702,8 @@ update(Monitor_State *state, SDL_Window *window, time_type dt_microseconds, Wind
         options.poll_frequency_milliseconds = 16;  // or want 17?
         
         state->settings.misc_options = options;
+        
+        //platform_change_wakeup_frequancy(16);
         
         // minimum block size of this should be MAX_KEYWORD_COUNT * MAX_KEYWORD_SIZE, then should only need 1 block
         init_arena(&state->settings.keyword_arena, MAX_KEYWORD_COUNT * MAX_KEYWORD_SIZE);
@@ -791,7 +796,6 @@ update(Monitor_State *state, SDL_Window *window, time_type dt_microseconds, Wind
         
     }
     
-    return (state->ui_visible) ? 
-        state->refresh_frame_time : state->settings.misc_options.poll_frequency_milliseconds;
+    return 0; //(state->ui_visible) ? state->refresh_frame_time : state->settings.misc_options.poll_frequency_milliseconds;
 }
 

@@ -14,6 +14,7 @@
 #define ID_TRAY_APP_MENU_EXIT 2001
 #define CUSTOM_WM_TRAY_ICON (WM_APP + 1)
 #define CUSTOM_WM_SHOW_WINDOW (WM_APP + 2)
+#define MY_TIMER_ID 30
 
 //#define UNICODE 1
 //#define _UNICODE 1
@@ -105,10 +106,7 @@ init_win32_context(HWND hwnd)
     
     // TODO: Why don't we need to link ole32.lib?
     // Call this because we use CoCreateInstance in UIAutomation
-    if (CoInitializeEx(NULL, COINIT_APARTMENTTHREADED) != S_OK)
-    {
-        return false;
-    }
+    CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
     
     QueryPerformanceFrequency(&win32_context.performance_frequency);
     
@@ -223,7 +221,34 @@ init_win32_context(HWND hwnd)
     }
 #endif
     
+    
+#if 0    
+    float fps = 60;
+    float seconds_per_frame = 1/fps;
+    u32 target_frame_time = (s64)floor(seconds_per_frame * 1000.0f); // in ms
+    //SDL_TimerID timer_id = SDL_AddTimer(target_frame_time, timer_callback, nullptr);
+#endif
+    
+#if 0    
+    // If called on window with existing timer it replaces it
+    UINT_PTR timer = SetTimer(win32_context.window, MY_TIMER_ID, 16, NULL);
+    if (timer == 0)
+    {
+        return false;
+    }
+#endif
+    
     return true;
+}
+
+void
+platform_change_wakeup_frequancy(u32 milliseconds)
+{
+    Assert(milliseconds >= 0);
+    
+    // If called on window with existing timer it replaces it
+    UINT_PTR timer = SetTimer(win32_context.window, MY_TIMER_ID, milliseconds, NULL);
+    Assert(timer != 0);
 }
 
 void
@@ -260,6 +285,8 @@ platform_wait_for_event()
 {
     // Only returns for new events in the queue
     // Doesn't return if there are unread events in the queue when called
+    
+    // doesn't process more timer messages after first is in queue I think
     WaitMessage();
 }
 
@@ -311,6 +338,10 @@ win32_handle_message(UINT msg, LPARAM lParam, WPARAM wParam)
     HWND window = win32_context.window;
     switch (msg)
     {
+        case WM_TIMER:
+        {
+            int x = 3;
+        };
         case WM_QUERYENDSESSION:
         case WM_ENDSESSION:
         {

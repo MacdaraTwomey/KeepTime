@@ -16,13 +16,6 @@
 #undef min
 #undef max
 
-#include "cian.h"
-#include "monitor.h"
-#include "graphics.h"
-#include "platform.h"
-
-#include "resource.h"
-
 #include <chrono>
 #include <vector>
 #include <algorithm>
@@ -36,6 +29,13 @@
 #include <atlbase.h>
 #include "tracy.hpp"
 #include "../tracy/TracyClient.cpp"
+
+#include "cian.h"
+#include "monitor.h"
+#include "graphics.h"
+#include "platform.h"
+
+#include "resource.h"
 
 #include "utilities.cpp" // xalloc, string copy, concat string, make filepath, get_filename_from_path
 #include "bitmap.cpp"
@@ -92,7 +92,10 @@ int main(int argc, char* argv[])
         return 0;
     }
     
-    if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_TIMER|SDL_INIT_EVENTS) != 0)
+    // TODO: Remove timer?
+    if (SDL_Init(SDL_INIT_VIDEO|
+                 //SDL_INIT_TIMER|
+                 SDL_INIT_EVENTS) != 0)
     {
         return 1;
     }
@@ -118,13 +121,12 @@ int main(int argc, char* argv[])
     //SDL_HideWindow(window);
     //SDL_SetThreadPriority(SDL_THREAD_PRIORITY_LOW); // maybe
     
-    
     SDL_GLContext gl_context = SDL_GL_CreateContext(window);
     SDL_GL_MakeCurrent(window, gl_context);
     
     // NOTE: VSync is not on every computer so need to manage own framerate for the UI in addition to the normal polling rate we also manage.
     // Also VSync rate varies 60 fps, 30 fps
-    SDL_GL_SetSwapInterval(1); // enable VSync
+    SDL_GL_SetSwapInterval(1); // enable VSync (seems this needs to be explicitly set to 0, to achieve no sync, when texting)
     
     if (glewInit() != GLEW_OK)
     {
@@ -166,11 +168,6 @@ int main(int argc, char* argv[])
     // This may just be temporary.
     Monitor_State monitor_state = {};
     
-    float fps = 60;
-    float seconds_per_frame = 1/fps;
-    u32 target_frame_time = (s64)floor(seconds_per_frame * 1000.0f); // in ms
-    SDL_TimerID timer_id = SDL_AddTimer(target_frame_time, timer_callback, nullptr);
-    
     auto old_time = win32_get_time();
     
     bool running = true;
@@ -181,7 +178,9 @@ int main(int argc, char* argv[])
         // Initial state of window is set by events after window is opened 
         Window_Event window_event = Window_No_Change;
         
-        platform_wait_for_event();
+        // TODO: NOT working, doesn't seem to wake up on timer stuff
+        //SDL_PumpEvents();
+        //platform_wait_for_event();
         
         SDL_Event event;
         while (SDL_PollEvent(&event))
@@ -235,6 +234,49 @@ int main(int argc, char* argv[])
         old_time = new_time;
         
         u32 desired_frame_time = update(&monitor_state, window, dt_microseconds, window_event);
+        
+        
+#if 1     
+        auto after_update = win32_get_time();
+        s64 time_to_update = win32_get_microseconds_elapsed(new_time, after_update);// / 1000;
+        
+        char msg[2000];
+        DWORD result = MsgWaitForMultipleObjects(0, nullptr, FALSE, 16, QS_ALLEVENTS);
+        if (result == WAIT_OBJECT_0)
+        {
+            strcpy(msg, "Wait object 0\n");
+        }
+        else if (result == WAIT_ABANDONED_0)
+        {
+            strcpy(msg, "Wait abandoned\n");
+        }
+        else if (result == WAIT_TIMEOUT)
+        {
+            strcpy(msg, "Wait Timeout\n");
+            
+        }
+        else if (result == WAIT_FAILED)
+        {
+            strcpy(msg, "Wait failed\n");
+            
+        }
+        else
+        {
+            strcpy(msg, "other ...\n");
+            
+        }
+        
+        auto after_wait = win32_get_time();
+        s64 time_waited = win32_get_microseconds_elapsed(after_update, after_wait);// / 1000;
+        
+        OutputDebugString(msg);
+        sprintf(msg, 
+                "Time to update: %llims\n"
+                "time waited: %llims\n", time_to_update, time_waited);
+        OutputDebugString(msg);
+#endif
+        
+#if 0        
         if (desired_frame_time != target_frame_time)
         {
             target_frame_time = desired_frame_time;
@@ -243,6 +285,7 @@ int main(int argc, char* argv[])
             SDL_RemoveTimer(timer_id);
             timer_id = SDL_AddTimer(target_frame_time, timer_callback, nullptr);
         }
+#endif
         
         // NOTE: With the self regulated 60fps, cpu usage spikes to 25% for 30 secs then goes to 1% and stays there
         // this may have been the case before i just didn't wait long enough for cpu usage to go down, but probably not because we were not sleeping, but just letting GPU sleep us.

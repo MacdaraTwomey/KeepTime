@@ -3,6 +3,46 @@
 // TODO: async
 
 
+time_type
+microseconds_until_tomorrow()
+{
+    time_t rawtime;
+    time( &rawtime );
+    
+    struct tm *info;
+    info = localtime( &rawtime );
+    
+    // 23 * 3600 + 59 * 60 + 59 = 86399 (last second of the day)
+    s64 second_of_day = info->tm_hour * 3600 + info->tm_min * 60 + info->tm_sec;
+    s64 seconds_left_in_day = (86400 - 1) - second_of_day;
+    time_type microseconds_left_in_day = seconds_left_in_day * MICROSECS_PER_SEC;
+    
+    // returns 0 for last second of the day
+    return microseconds_left_in_day;
+}
+
+date::sys_days
+get_current_date()
+{
+#if 0
+    date::sys_days result = state->current_date;
+    
+    state->microseconds_until_next_day -= dt_microseconds;
+    if (state->microseconds_until_next_day < 0)
+    {
+        state->microseconds_until_next_day = microseconds_until_tomorrow();
+        state->current_date = get_local_time_day();
+        
+        Assert(state->current_date != result);
+        
+        result = state->current_date;
+    }
+#endif
+    
+    return get_local_time_day();
+}
+
+
 bool
 platform_get_firefox_url2(Platform_Window window, char *buf, int buf_size, size_t *length)
 {
