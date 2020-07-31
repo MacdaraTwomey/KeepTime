@@ -134,10 +134,6 @@ int main(int argc, char* argv[])
     }
     
     IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    
-    ImGui_ImplSDL2_InitForOpenGL(window, gl_context); // just sets keymap, gets cursors and sets backend flags
-    ImGui_ImplOpenGL3_Init("#version 130"); // just sets what version of opengl, and backend flags for imgui
     
     SDL_EventState(SDL_SYSWMEVENT, SDL_ENABLE);
     
@@ -170,6 +166,8 @@ int main(int argc, char* argv[])
     
     auto old_time = win32_get_time();
     
+    bool imgui_initialised = false;
+    
     bool running = true;
     while (running)
     {
@@ -201,11 +199,29 @@ int main(int argc, char* argv[])
                     {
                         // SDL_SetThreadPriority
                         window_event = Window_Shown;
+                        
+                        if (!imgui_initialised)
+                        {
+                            ImGui::CreateContext();
+                            // sets keymap, gets cursors and sets backend flags
+                            ImGui_ImplSDL2_InitForOpenGL(window, gl_context);
+                            // Queries opengl version, and loader, and sets backend flags for imgui
+                            ImGui_ImplOpenGL3_Init("#version 130");
+                            imgui_initialised = true;
+                        }
                     } break;
                     case SDL_WINDOWEVENT_HIDDEN:
                     {
                         // SDL_SetThreadPriority
                         window_event = Window_Hidden;
+                        
+                        if (imgui_initialised)
+                        {
+                            ImGui_ImplOpenGL3_Shutdown();
+                            ImGui_ImplSDL2_Shutdown();
+                            ImGui::DestroyContext();
+                            imgui_initialised = false;
+                        }
                     } break;
                     case SDL_WINDOWEVENT_CLOSE:
                     {
@@ -232,7 +248,7 @@ int main(int argc, char* argv[])
         s64 dt_microseconds = win32_get_microseconds_elapsed(old_time, new_time);
         old_time = new_time;
         
-        u32 desired_frame_time = update(&monitor_state, window, dt_microseconds, window_event);
+        update(&monitor_state, window, dt_microseconds, window_event);
         
         
         // NOTE: With the self regulated 60fps, cpu usage spikes to 25% for 30 secs then goes to 1% and stays there
@@ -287,47 +303,19 @@ int main(int argc, char* argv[])
     win32_free_context();
 #endif
     
-    ImGui_ImplOpenGL3_Shutdown();
-    ImGui_ImplSDL2_Shutdown();
-    ImGui::DestroyContext();
+    if (imgui_initialised)
+    {
+        // Not needed
+        ImGui_ImplOpenGL3_Shutdown();
+        ImGui_ImplSDL2_Shutdown();
+        ImGui::DestroyContext();
+    }
     
-    SDL_GL_DeleteContext(gl_context);
+    // Do I need to call these
+    SDL_GL_DeleteContext(gl_context); // probably yes
     SDL_DestroyWindow(window);
     SDL_Quit();
     
     return 0;
 }
 
-
-#if 0        
-// SDL wait until event functions are just a loop that waits 1ms at a time peeping for events ...
-auto frame_end_time = win32_get_time();
-s64 frame_time_elapsed_microseconds = win32_get_microseconds_elapsed(frame_start_time, frame_end_time);
-s64 remaining = target_time_per_frame - frame_time_elapsed_microseconds;
-while (remaining > 0) 
-{
-    SDL_PumpEvents();
-    SDL_Event e;
-    
-    switch (SDL_PeepEvents(&e, 1, SDL_PEEKEVENT, SDL_FIRSTEVENT, SDL_LASTEVENT)) {
-        case -1: // failure
-        case 0: // no events
-        {
-            SDL_Delay(1); // millisecs
-            auto now = win32_get_time();
-            s64 time_elapsed = win32_get_microseconds_elapsed(frame_end_time, now);
-            remaining -= time_elapsed;
-        } break;
-        
-        default: // Has events
-        remaining = 0;
-        break;
-    }
-}
-//or
-auto frame_end_time = win32_get_time();
-s64 frame_time_elapsed_microseconds = win32_get_microseconds_elapsed(frame_start_time, frame_end_time);
-s64 remaining = target_time_per_frame - frame_time_elapsed_microseconds;
-SDL_Event e;
-SDL_WaitEventTimeout(&e, remaining / 1000);
-#endif

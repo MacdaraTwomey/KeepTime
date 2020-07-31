@@ -1,6 +1,4 @@
 
 build/
 .vs/
-debug_monitor_db.txt
-monitor_db.pmd
 curl_7.69.1/

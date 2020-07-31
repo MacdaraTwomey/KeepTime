@@ -30,8 +30,6 @@ bool platform_get_firefox_url(Platform_Window window, char *buf, size_t *length)
 
 bool platform_get_default_icon(u32 desired_size, i32 *width, i32 *height, i32 *pitch, u32 **pixels);
 
-bool platform_get_icon_from_executable(char *path, u32 desired_size, 
-                                       i32 *width, i32 *height, i32 *pitch, u32 **pixels, 
-                                       bool load_default_on_failure);
+bool platform_get_icon_from_executable(char *path, u32 desired_size, i32 *width, i32 *height, i32 *pitch, u32 **pixels);
 
 #endif //PLATFORM_H

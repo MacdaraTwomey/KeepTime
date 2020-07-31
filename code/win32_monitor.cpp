@@ -891,6 +891,69 @@ platform_get_firefox_url(Platform_Window window, char *buf, size_t *length)
 }
 
 
+
+#if 0
+bool
+win32_get_bitmap_data_from_HICON(HICON icon, i32 *width, i32 *height, i32 *pitch, u32 **pixels)
+{
+    // Doesn't draw all programs icons (e.g. ConEmu)
+    
+    // I think a HICON corresponds to a particular size so this doesn't make that much sense, only that it doesn't use my icon bitmap to pixel array code.
+    
+    bool success = false;
+    
+    HDC hdc = CreateCompatibleDC(NULL);
+    if (!hdc) return success;
+    
+    HBITMAP hbmp = CreateBitmap(32, 32, 1, 32, NULL); // creates specified 32 bit bitmap
+    if (!hbmp) return success;
+    
+    HGDIOBJ region = SelectObject(hdc, hbmp);
+    if (!region) return success;
+    
+    BOOL drawn = DrawIconEx(hdc, 0, 0, icon, 32, 32, 0, NULL, DI_NORMAL); //DI_IMAGE|DI_MASK
+    //BOOL drawn = DrawIcon(hdc, 0, 0, icon);
+    if (!drawn) return success;
+    
+    u32 buf[32*32*100] = {};
+    BITMAPINFO bmi;
+    ZeroMemory(&bmi, sizeof(BITMAPINFO));
+    
+    BITMAPINFOHEADER *header = &bmi.bmiHeader;
+    header->biSize = sizeof(BITMAPINFOHEADER);
+    header->biWidth = 32;
+    header->biHeight = -32; // top down = -32
+    header->biPlanes = 1;
+    header->biBitCount = 32;
+    header->biCompression = BI_RGB;
+    header->biSizeImage = 32*32*4;
+    
+    //int err = GetDIBits(hdc, hbmp, 0, 32, NULL, &bmi, DIB_RGB_COLORS);
+    int err = GetDIBits(hdc, hbmp, 0, 32, buf, &bmi, DIB_RGB_COLORS);
+    if (err == 0)
+    {
+        return success;
+    }
+    
+    u32 *p = (u32 *)xalloc(32*32*4);
+    memcpy(p, buf, 32*32*4);
+    *pixels = p;
+    *width = 32;
+    *height = 32;
+    *pitch = 32*4;
+    Assert(p);
+    
+    success = true;
+    
+    DeleteDC(hdc);
+    DeleteObject(hbmp);
+    // Delete icon elsewhere
+    
+    return success;
+}
+#endif
+
+
 bool
 win32_get_bitmap_data_from_HICON(HICON icon, i32 *width, i32 *height, i32 *pitch, u32 **pixels)
 {
@@ -916,6 +979,7 @@ win32_get_bitmap_data_from_HICON(HICON icon, i32 *width, i32 *height, i32 *pitch
         and_mask_handle = (HBITMAP)CopyImage(ii.hbmMask, IMAGE_BITMAP, 0, 0, LR_CREATEDIBSECTION);
         if (colours_handle && and_mask_handle)
         {
+            // GetObject uses Gdi
             int result_1 = GetObject(colours_handle, sizeof(BITMAP), &colour_mask) == sizeof(BITMAP);
             int result_2 = GetObject(and_mask_handle, sizeof(BITMAP), &and_mask) == sizeof(BITMAP);
             if (result_1 && result_2)
@@ -985,38 +1049,15 @@ win32_get_bitmap_data_from_HICON(HICON icon, i32 *width, i32 *height, i32 *pitch
 #define STB_IMAGE_RESIZE_IMPLEMENTATION
 #include "stb_image_resize.h"
 bool
-platform_get_default_icon(u32 desired_size, i32 *width, i32 *height, i32 *pitch, u32 **pixels)
+platform_get_default_icon(i32 *width, i32 *height, i32 *pitch, u32 **pixels)
 {
+    // NOTE: You don't need to delete LoadIcon hicon
     bool success = false;
     HICON hico = (HICON)LoadIcon(NULL, IDI_APPLICATION);
     if (hico)
     {
-#if 0
-        s32 big_w = 0;
-        s32 big_h = 0;
-        s32 big_pitch = 0;
-        u32 *big_pixels = 0;
-        if (win32_get_bitmap_data_from_HICON(hico, &big_w, &big_h, &big_pitch, &big_pixels))
-        {
-            u32 *out_pixels = (u32 *)malloc(desired_size * desired_size * 4);
-            if (out_pixels)
-            {
-                if (stbir_resize_uint8((u8 *)big_pixels, big_w , big_h, 0, // packed in memory
-                                       (u8 *)out_pixels, desired_size, desired_size, 0, // packed in memory
-                                       4))
-                {
-                    *width = desired_size;
-                    *height = desired_size;
-                    *pitch = desired_size*4;
-                    *pixels = out_pixels;
-                    success = true;
-                }
-            }
-        }
-#endif
-        
         if (win32_get_bitmap_data_from_HICON(hico, width, height, pitch, pixels))
-        { 
+        {
             success = true;
         }
     }
@@ -1030,6 +1071,7 @@ platform_get_icon_from_executable(char *path, u32 desired_size,
 {
     // path must be null terminated
     
+    // NOTE: These must be destroyed
     HICON small_icon_handle = 0;
     HICON icon_handle = 0;
     

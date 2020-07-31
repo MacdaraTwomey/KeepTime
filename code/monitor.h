@@ -8,9 +8,7 @@
 #include <unordered_map>
 #include <chrono>
 
-// Doing non PoT texture sizes seems to have artifacts and may even cause crash for some reason
-// must be 32 to match default windows icon size from LoadIcon too
-// NOTE: Problem was probably a non-4 byte pitch when submitting texture to GPU (https://www.khronos.org/opengl/wiki/Common_Mistakes#Texture_upload_and_pixel_reads)
+// Seems that all sizes work except 16 and except larger sizes (64 works though)
 constexpr u32 ICON_SIZE = 32;
 
 //constexpr s32 MAX_KEYWORD_COUNT = 6;
@@ -24,6 +22,9 @@ constexpr s32 MICROSECS_PER_SEC = 1000000;
 constexpr float POLL_FREQUENCY_MIN_SECONDS = 0.001f;  // debug
 //constexpr float POLL_FREQUENCY_MIN_SECONDS = 0.1f; 
 constexpr float POLL_FREQUENCY_MAX_SECONDS = 60.0f; 
+
+constexpr u32 DEFAULT_LOCAL_PROGRAM_ICON_INDEX = 0;
+constexpr u32 DEFAULT_WEBSITE_ICON_INDEX = 1;
 
 #define PROGRAM_NAME "MonitorXXXX"
 #define VERSION_STRING "0.0.0"
@@ -40,15 +41,18 @@ typedef u32 App_Id;
 
 // TODO: should i be using local_days instead of sys_days (does it actually matter, using sys days and the get_localtime function I did fix the "day not changing after midnight because of utc time" issue)
 
+constexpr u32 WEBSITE_ID_START = 0x80000000;
+constexpr u32 LOCAL_PROGRAM_ID_START = 1;
+constexpr u32 APP_TYPE_BIT = WEBSITE_ID_START;
 
 bool is_local_program(App_Id id)
 {
-    return !(id & (1 << 31)) && id != 0;
+    return ((id & APP_TYPE_BIT) == 0) && id != 0;
 }
 
 bool is_website(App_Id id)
 {
-    return id & (1 << 31);
+    return id & APP_TYPE_BIT;
 }
 
 u32
@@ -56,12 +60,14 @@ index_from_id(App_Id id)
 {
     Assert(id != 0);
     
+    // Get bottom 31 bits of id
+    u32 index = id & (WEBSITE_ID_START - 1);
     
-    u32 index = id & (0x8000 - 1);
+    // Local progams start at 1, and we would rather id = 1 to index to 0
     if (is_local_program(id)) index -= 1;
     
     Assert(index < id);
-    Assert(index >= 0 && (index <= (0x8000 - 1)));
+    Assert(index >= 0 && (index <= (WEBSITE_ID_START - 1)));
     
     return index;
 }
@@ -158,13 +164,9 @@ struct Website_Info
 
 struct Icon_Asset
 {
-    // how to get back to icon_index if this is deleted
-    
-    // TODO: Do I even need to keep CPU side textures around after giving to GPU
     u32 texture_handle;
-    App_Id id;
-    Bitmap bitmap;
-    bool loaded;
+    int width;
+    int height;
 };
 
 struct App_List
@@ -177,45 +179,29 @@ struct App_List
     // Contains domain names (e.g. developer.mozilla.org)
     std::unordered_map<String, App_Id> website_ids;
     
+    // These are just used by UI to get names, and icons
     // Indexed by app id low 31-bits
     std::vector<Local_Program_Info> local_programs;
     std::vector<Website_Info> websites;
     
-    App_Id next_program_id;      // starts at 0x00000001
-    App_Id next_website_id;      // starts at 0x80000000 top bit set
+    App_Id next_program_id;  
+    App_Id next_website_id;  
     
     Arena names_arena;
+    
+    // TODO: Allocated bitmap for loading icons
 };
-
-struct Database
-{
-    App_List apps;
-    
-    // Just allocate 100 days + days we already have to stop repeated allocs and potential failure
-    // Also say we can have max of 1000 daily records or so, so we can just alloc a 1000 record chunk from arena per day to easily ensure it will be contiguous.
-    Day_List day_list;
-    
-    // Also make a malloc failure routine that maybe writes to savefile, and frees stuff and maybe exits gracefully
-    
-    u32 default_website_icon_index;
-    u32 default_local_program_icon_index;
-    
-    // Count is just the number of loaded textures in the array
-    u32 icon_count;
-    Icon_Asset icons[200]; // 200 icons isn't really that much, should make like 1000
-};
-
 
 struct Misc_Options
 {
     // solution just make them u32 for gods sake
     
     // In minute of the day 0-1439
-    u32 day_start_time;  // Changing this won't trigger conversion of previously saved records
-    u32 poll_start_time; // Default 0 (12:00AM) (if start == end, always poll)
-    u32 poll_end_time;   // Default 0 (12:00AM)
+    //u32 day_start_time;  // Changing this won't trigger conversion of previously saved records
+    //u32 poll_start_time; // Default 0 (12:00AM) (if start == end, always poll)
+    //u32 poll_end_time;   // Default 0 (12:00AM)
     
-    b32 run_at_system_startup;   
+    //b32 run_at_system_startup;   
     u32 poll_frequency_milliseconds;   
 };
 
@@ -270,30 +256,31 @@ struct Date_Picker
     Calendar second_calendar;
 };
 
+struct UI_State
+{
+    std::vector<Icon_Asset> icons;
+    Date_Picker date_picker;
+    Edit_Settings *edit_settings; // allocated when needed
+    // Day_View day_view
+};
+
+// TODO: make a malloc failure routine that maybe writes to savefile, and frees stuff and maybe exits gracefully
 struct
 Monitor_State
 {
-    bool is_initialised;
+    bool ui_visible;
+    UI_State ui;
     
-    // Persists on disk
-    Database database; // mostly
-    Settings settings;
-    
-    // persists ui open/closes
-    Date_Picker date_picker;
-    
-    Edit_Settings *edit_settings; // allocated when needed
-    
-    // microsecs
-    time_type accumulated_time;
-    //time_type microseconds_until_next_day;
-    //date::sys_days current_date;
-    
+    time_type accumulated_time; // microsecs
     u32 refresh_frame_time; // in milliseconds
     
-    bool ui_visible;
     
-    // debug temporary
-    //time_type total_runtime;
-    //LARGE_INTEGER startup_time;
+    // NOTE: Should this be here?
+    // Just allocate 100 days + days we already have to stop repeated allocs and potential failure
+    // Also say we can have max of 1000 daily records or so, so we can just alloc a 1000 record chunk from arena per day to easily ensure it will be contiguous.
+    Day_List day_list;
+    App_List apps;
+    Settings settings;
+    
+    bool is_initialised;
 };

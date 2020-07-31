@@ -138,6 +138,28 @@ static GLint        g_AttribLocationTex = 0, g_AttribLocationProjMtx = 0;       
 static GLuint       g_AttribLocationVtxPos = 0, g_AttribLocationVtxUV = 0, g_AttribLocationVtxColor = 0; // Vertex attributes location
 static unsigned int g_VboHandle = 0, g_ElementsHandle = 0;
 
+
+#define GLCheck(x) GLClearError(); x; GLLogCall(#x, __FILE__, __LINE__)
+
+void
+GLClearError()
+{
+    while (glGetError() != GL_NO_ERROR);
+}
+
+bool
+GLLogCall(const char *function, const char *file, int line)
+{
+    while (GLenum error = glGetError())
+    {
+        printf("[OpenGL Error] (%u) %s %s: Line %i\n", error, function, file, line);
+        return false;
+    }
+    
+    return true;
+}
+
+
 // Functions
 bool    ImGui_ImplOpenGL3_Init(const char* glsl_version)
 {
@@ -288,8 +310,8 @@ static void ImGui_ImplOpenGL3_SetupRenderState(ImDrawData* draw_data, int fb_wid
 // Note that this implementation is little overcomplicated because we are saving/setting up/restoring every OpenGL state explicitly, in order to be able to run within any OpenGL engine that doesn't do so.
 void    ImGui_ImplOpenGL3_RenderDrawData(ImDrawData* draw_data)
 {
-    //OPTICK_EVENT();
     ZoneScoped;
+    
     // Avoid rendering when minimized, scale coordinates for retina displays (screen coordinates != framebuffer coordinates)
     int fb_width = (int)(draw_data->DisplaySize.x * draw_data->FramebufferScale.x);
     int fb_height = (int)(draw_data->DisplaySize.y * draw_data->FramebufferScale.y);
@@ -302,23 +324,10 @@ void    ImGui_ImplOpenGL3_RenderDrawData(ImDrawData* draw_data)
     // Putting a 10ms sleep before swap buffers (called in the previous frame) reduces the time spent waiting in the first opengl call here (the total frame time is still 16ms)
     
     
+    // Backup GL state
     GLenum last_active_texture;
-    {
-        // this first
-        ZoneNamedN(ZoneOuter1_2, "Get Active texture state", true);
-        glGetIntegerv(GL_ACTIVE_TEXTURE, (GLint*)&last_active_texture);
-    }
-    
-    {
-        ZoneNamedN(ZoneOuter1, "Active texture", true);
-        // Backup GL state
-        glActiveTexture(GL_TEXTURE0);
-    }
-    
-    {
-        ZoneNamedN(ZoneOuter2, "Start get gll State", true);
-    }
-    
+    glGetIntegerv(GL_ACTIVE_TEXTURE, (GLint*)&last_active_texture);
+    glActiveTexture(GL_TEXTURE0);
     GLuint last_program; glGetIntegerv(GL_CURRENT_PROGRAM, (GLint*)&last_program);
     GLuint last_texture; glGetIntegerv(GL_TEXTURE_BINDING_2D, (GLint*)&last_texture);
 #ifdef GL_SAMPLER_BINDING
@@ -403,17 +412,19 @@ void    ImGui_ImplOpenGL3_RenderDrawData(ImDrawData* draw_data)
                         glScissor((int)clip_rect.x, (int)(fb_height - clip_rect.w), (int)(clip_rect.z - clip_rect.x), (int)(clip_rect.w - clip_rect.y));
                         
                         // Bind texture, Draw
-                        glBindTexture(GL_TEXTURE_2D, (GLuint)(intptr_t)pcmd->TextureId);
+                        GLCheck(glBindTexture(GL_TEXTURE_2D, (GLuint)(intptr_t)pcmd->TextureId));
                     }
                     
                     {
                         ZoneNamedN(ZoneVar3, "Draw call", true);
 #if IMGUI_IMPL_OPENGL_MAY_HAVE_VTX_OFFSET
                         if (g_GlVersion >= 320)
-                            glDrawElementsBaseVertex(GL_TRIANGLES, (GLsizei)pcmd->ElemCount, sizeof(ImDrawIdx) == 2 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT, (void*)(intptr_t)(pcmd->IdxOffset * sizeof(ImDrawIdx)), (GLint)pcmd->VtxOffset);
-                        else
+                        {
+                            GLCheck(glDrawElementsBaseVertex(GL_TRIANGLES, (GLsizei)pcmd->ElemCount, sizeof(ImDrawIdx) == 2 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT, (void*)(intptr_t)(pcmd->IdxOffset * sizeof(ImDrawIdx)), (GLint)pcmd->VtxOffset));
+                        } else {
 #endif
-                        glDrawElements(GL_TRIANGLES, (GLsizei)pcmd->ElemCount, sizeof(ImDrawIdx) == 2 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT, (void*)(intptr_t)(pcmd->IdxOffset * sizeof(ImDrawIdx)));
+                            GLCheck(glDrawElements(GL_TRIANGLES, (GLsizei)pcmd->ElemCount, sizeof(ImDrawIdx) == 2 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT, (void*)(intptr_t)(pcmd->IdxOffset * sizeof(ImDrawIdx))));
+                        }
                     }
                     
                 }
