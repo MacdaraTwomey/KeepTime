@@ -9,6 +9,8 @@
 #include <shellapi.h>
 #include <shlobj_core.h> // SHDefExtractIconA
 
+#include "resource.h" // included by icon.rc also
+
 #define ID_TRAY_APP_ICON 1001
 #define ID_TRAY_APP_MENU_OPEN 2000
 #define ID_TRAY_APP_MENU_EXIT 2001
@@ -55,7 +57,6 @@ struct Win32_Context
     // TODO: Put statics in platform_get_firefox_url in here
     // and free any IUIAutomationElement remaining open before close
     
-    
 #if 0
     HWINEVENTHOOK window_changed_hook;
     HWINEVENTHOOK browser_title_changed_hook;
@@ -81,27 +82,26 @@ win32_get_wall_time_microseconds()
 }
 #endif
 
-LARGE_INTEGER
-win32_get_time()
+s64
+platform_get_time()
 {
     LARGE_INTEGER now;
     QueryPerformanceCounter(&now);
-    return now;
+    return now.QuadPart;
 }
 
-// TODO: I would rather not pass in perf_freq (maybe make a global in this file)
 s64
-win32_get_microseconds_elapsed(LARGE_INTEGER start, LARGE_INTEGER end)
+platform_get_microseconds_elapsed(s64 start, s64 end)
 {
-    LARGE_INTEGER microseconds;
-    microseconds.QuadPart = end.QuadPart - start.QuadPart;
-    microseconds.QuadPart *= 1000000; // microseconds per second
-    microseconds.QuadPart /= win32_context.performance_frequency.QuadPart; // ticks per second
-    return microseconds.QuadPart;
+    s64 microseconds;
+    microseconds = end - start;
+    microseconds *= 1000000; // microseconds per second
+    microseconds /= win32_context.performance_frequency.QuadPart; // ticks per second
+    return microseconds;
 }
 
 bool
-init_win32_context(HWND hwnd)
+platform_init_context(HWND hwnd)
 {
     win32_context = {};
     win32_context.window = hwnd;
@@ -209,33 +209,22 @@ init_win32_context(HWND hwnd)
         return false;
     }
     
-    
-#if 0    
-    // Out of context hooks are asynchronous, but events are guaranteed to be in sequential order
-    // TODO: Might want WINEVENT_SKIPOWNPROCESS
-    // This might require CoInitialize
-    // The client thread that calls SetWinEventHook must have a message loop in order to receive events.
-    win32_context.window_changed_hook = SetWinEventHook(EVENT_SYSTEM_FOREGROUND,
-                                                        EVENT_SYSTEM_FOREGROUND,
-                                                        NULL, window_changed_proc, 
-                                                        0, 0, // If these are zero gets from all processes on desktop
-                                                        WINEVENT_OUTOFCONTEXT);
-    if (win32_context.window_changed_hook == 0)
-    {
-        Assert(0);
-    }
-#endif
-    
-    
     return true;
 }
 
 void
-platform_wait_for_event_with_timout()
+win32_hide_win()
 {
-    static LARGE_INTEGER old_time;
-    auto new_time = win32_get_time();
-    s64 time_to_update = win32_get_microseconds_elapsed(old_time, new_time);// / 1000;
+    // used in UI debug
+    ShowWindow(win32_context.window, SW_HIDE);
+}
+
+void
+platform_wait_for_event_with_timeout()
+{
+    static s64 old_time;
+    auto new_time = platform_get_time();
+    s64 time_to_update = platform_get_microseconds_elapsed(old_time, new_time);// / 1000;
     old_time = new_time;
     
     // NOTE: Waking on any event is not important when running 60fps for the UI
@@ -267,8 +256,8 @@ platform_wait_for_event_with_timout()
         Assert(0);
     }
     
-    auto after_wait = win32_get_time();
-    s64 time_waited = win32_get_microseconds_elapsed(new_time, after_wait);// / 1000;
+    auto after_wait = platform_get_time();
+    s64 time_waited = platform_get_microseconds_elapsed(new_time, after_wait);// / 1000;
     
     OutputDebugString(msg);
     sprintf(msg, 
@@ -285,7 +274,7 @@ platform_set_sleep_time(u32 milliseconds)
 }
 
 void
-win32_free_context()
+platform_free_context()
 {
     Shell_NotifyIconA(NIM_DELETE, &win32_context.nid);
     
@@ -350,13 +339,7 @@ print_flags(SDL_Window *window)
 }
 
 void
-win32_hide_win()
-{
-    ShowWindow(win32_context.window, SW_HIDE);
-}
-
-void
-win32_handle_message(UINT msg, LPARAM lParam, WPARAM wParam)
+platform_handle_message(UINT msg, LPARAM lParam, WPARAM wParam)
 {
     HWND window = win32_context.window;
     switch (msg)
@@ -891,69 +874,6 @@ platform_get_firefox_url(Platform_Window window, char *buf, size_t *length)
 }
 
 
-
-#if 0
-bool
-win32_get_bitmap_data_from_HICON(HICON icon, i32 *width, i32 *height, i32 *pitch, u32 **pixels)
-{
-    // Doesn't draw all programs icons (e.g. ConEmu)
-    
-    // I think a HICON corresponds to a particular size so this doesn't make that much sense, only that it doesn't use my icon bitmap to pixel array code.
-    
-    bool success = false;
-    
-    HDC hdc = CreateCompatibleDC(NULL);
-    if (!hdc) return success;
-    
-    HBITMAP hbmp = CreateBitmap(32, 32, 1, 32, NULL); // creates specified 32 bit bitmap
-    if (!hbmp) return success;
-    
-    HGDIOBJ region = SelectObject(hdc, hbmp);
-    if (!region) return success;
-    
-    BOOL drawn = DrawIconEx(hdc, 0, 0, icon, 32, 32, 0, NULL, DI_NORMAL); //DI_IMAGE|DI_MASK
-    //BOOL drawn = DrawIcon(hdc, 0, 0, icon);
-    if (!drawn) return success;
-    
-    u32 buf[32*32*100] = {};
-    BITMAPINFO bmi;
-    ZeroMemory(&bmi, sizeof(BITMAPINFO));
-    
-    BITMAPINFOHEADER *header = &bmi.bmiHeader;
-    header->biSize = sizeof(BITMAPINFOHEADER);
-    header->biWidth = 32;
-    header->biHeight = -32; // top down = -32
-    header->biPlanes = 1;
-    header->biBitCount = 32;
-    header->biCompression = BI_RGB;
-    header->biSizeImage = 32*32*4;
-    
-    //int err = GetDIBits(hdc, hbmp, 0, 32, NULL, &bmi, DIB_RGB_COLORS);
-    int err = GetDIBits(hdc, hbmp, 0, 32, buf, &bmi, DIB_RGB_COLORS);
-    if (err == 0)
-    {
-        return success;
-    }
-    
-    u32 *p = (u32 *)xalloc(32*32*4);
-    memcpy(p, buf, 32*32*4);
-    *pixels = p;
-    *width = 32;
-    *height = 32;
-    *pitch = 32*4;
-    Assert(p);
-    
-    success = true;
-    
-    DeleteDC(hdc);
-    DeleteObject(hbmp);
-    // Delete icon elsewhere
-    
-    return success;
-}
-#endif
-
-
 bool
 win32_get_bitmap_data_from_HICON(HICON icon, i32 *width, i32 *height, i32 *pitch, u32 **pixels)
 {
@@ -1098,19 +1018,9 @@ platform_get_icon_from_executable(char *path, u32 desired_size,
 }
 
 bool
-platform_show_other_instance_if_already_running()
+platform_show_other_instance_if_already_running(char *program_name)
 {
-    
-#if 0    
-    wchar_t class_name[1000];
-    UINT len = RealGetWindowClassW(win32_context.window, class_name, 1000);
-    
-    char text[1000];
-    int count = GetWindowTextA(win32_context.window, text, 1000);
-#endif
-    
-    
-    HWND other_window = FindWindowA("SDL_app", PROGRAM_NAME);
+    HWND other_window = FindWindowA("SDL_app", program_name);
     if (other_window)
     {
         SendMessage(other_window, CUSTOM_WM_SHOW_WINDOW, 0, 0); 
@@ -1261,6 +1171,25 @@ void CALLBACK browser_title_changed_proc(HWINEVENTHOOK hWinEventHook,
 }
 #endif
 
+
+#if 0    
+// Out of context hooks are asynchronous, but events are guaranteed to be in sequential order
+// TODO: Might want WINEVENT_SKIPOWNPROCESS
+// This might require CoInitialize
+// The client thread that calls SetWinEventHook must have a message loop in order to receive events.
+win32_context.window_changed_hook = SetWinEventHook(EVENT_SYSTEM_FOREGROUND,
+                                                    EVENT_SYSTEM_FOREGROUND,
+                                                    NULL, window_changed_proc, 
+                                                    0, 0, // If these are zero gets from all processes on desktop
+                                                    WINEVENT_OUTOFCONTEXT);
+if (win32_context.window_changed_hook == 0)
+{
+    Assert(0);
+}
+#endif
+
+
+#if 0
 HANDLE
 win32_create_console()
 {
@@ -1277,3 +1206,67 @@ win32_create_console()
     
     return GetStdHandle(STD_INPUT_HANDLE);
 }
+#endif
+
+
+
+#if 0
+bool
+win32_get_bitmap_data_from_HICON(HICON icon, i32 *width, i32 *height, i32 *pitch, u32 **pixels)
+{
+    // Doesn't draw all programs icons (e.g. ConEmu)
+    
+    // I think a HICON corresponds to a particular size so this doesn't make that much sense, only that it doesn't use my icon bitmap to pixel array code.
+    
+    bool success = false;
+    
+    HDC hdc = CreateCompatibleDC(NULL);
+    if (!hdc) return success;
+    
+    HBITMAP hbmp = CreateBitmap(32, 32, 1, 32, NULL); // creates specified 32 bit bitmap
+    if (!hbmp) return success;
+    
+    HGDIOBJ region = SelectObject(hdc, hbmp);
+    if (!region) return success;
+    
+    BOOL drawn = DrawIconEx(hdc, 0, 0, icon, 32, 32, 0, NULL, DI_NORMAL); //DI_IMAGE|DI_MASK
+    //BOOL drawn = DrawIcon(hdc, 0, 0, icon);
+    if (!drawn) return success;
+    
+    u32 buf[32*32*100] = {};
+    BITMAPINFO bmi;
+    ZeroMemory(&bmi, sizeof(BITMAPINFO));
+    
+    BITMAPINFOHEADER *header = &bmi.bmiHeader;
+    header->biSize = sizeof(BITMAPINFOHEADER);
+    header->biWidth = 32;
+    header->biHeight = -32; // top down = -32
+    header->biPlanes = 1;
+    header->biBitCount = 32;
+    header->biCompression = BI_RGB;
+    header->biSizeImage = 32*32*4;
+    
+    //int err = GetDIBits(hdc, hbmp, 0, 32, NULL, &bmi, DIB_RGB_COLORS);
+    int err = GetDIBits(hdc, hbmp, 0, 32, buf, &bmi, DIB_RGB_COLORS);
+    if (err == 0)
+    {
+        return success;
+    }
+    
+    u32 *p = (u32 *)malloc(32*32*4);
+    memcpy(p, buf, 32*32*4);
+    *pixels = p;
+    *width = 32;
+    *height = 32;
+    *pitch = 32*4;
+    Assert(p);
+    
+    success = true;
+    
+    DeleteDC(hdc);
+    DeleteObject(hbmp);
+    // Delete icon elsewhere
+    
+    return success;
+}
+#endif

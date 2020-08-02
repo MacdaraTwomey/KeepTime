@@ -85,7 +85,7 @@ write_memory_to_file(void *memory, size_t size, FILE *file)
     }
 }
 
-
+#if 0
 bool
 write_to_MBF(Monitor_State *state, FILE *file)
 {
@@ -245,7 +245,7 @@ write_to_MBF(Monitor_State *state, FILE *file)
     
     return true;
 }
-
+#endif
 
 bool
 make_empty_savefile(char *filepath)

@@ -151,7 +151,7 @@ struct Day_View
 struct Local_Program_Info
 {
     String short_name;
-    s32 icon_index;   // -1 means not loaded
+    s32 icon_index;   // -1 means not loaded, (TODO: Can this be somehow stored in record array we create during ui barplot display)
     //bool icon_retreival_failure;
     String full_name; // this must be null terminated because passed to curl as url or OS as a path
 };
@@ -159,7 +159,7 @@ struct Local_Program_Info
 struct Website_Info
 {
     String short_name;
-    //s32 icon_index;   // -1 means not loaded
+    //s32 icon_index;   
 };
 
 struct Icon_Asset
@@ -192,6 +192,13 @@ struct App_List
     // TODO: Allocated bitmap for loading icons
 };
 
+enum Settings_Misc_Keyword_Status : s32
+{
+    Settings_Misc_Keyword_All,
+    Settings_Misc_Keyword_Custom,
+    Settings_Misc_Keyword_None,
+};
+
 struct Misc_Options
 {
     // solution just make them u32 for gods sake
@@ -203,13 +210,14 @@ struct Misc_Options
     
     //b32 run_at_system_startup;   
     u32 poll_frequency_milliseconds;   
+    Settings_Misc_Keyword_Status keyword_status;
 };
 
 struct Edit_Settings
 {
     // This array can have blank strings representing empty input boxes in between valid strings
     char pending[MAX_KEYWORD_COUNT][MAX_KEYWORD_SIZE];
-    Misc_Options misc_options;
+    Misc_Options misc;
     int day_start_time_item;
     int poll_start_time_item;
     int poll_end_time_item;
@@ -224,7 +232,7 @@ struct Settings
     // contains at most MAX_KEYWORD_COUNT 
     // each of length MAX_KEYWORD_SIZE
     Array<String, MAX_KEYWORD_COUNT> keywords; // null terminated strings
-    Misc_Options misc_options;
+    Misc_Options misc;
     Arena keyword_arena;
 };
 
@@ -260,15 +268,15 @@ struct UI_State
 {
     std::vector<Icon_Asset> icons;
     Date_Picker date_picker;
+    Day_View day_view;
     Edit_Settings *edit_settings; // allocated when needed
-    // Day_View day_view
+    bool open;
 };
 
 // TODO: make a malloc failure routine that maybe writes to savefile, and frees stuff and maybe exits gracefully
 struct
 Monitor_State
 {
-    bool ui_visible;
     UI_State ui;
     
     time_type accumulated_time; // microsecs

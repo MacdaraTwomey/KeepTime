@@ -1,0 +1,32 @@
+
+            
+            // From Khronos OpenGl wiki
+            //As such, you should only use glFinish when you are doing something that the specification specifically states will not be synchronous. 
+            
+            // Adding this aswell makes CPU usage what it should be, but graphics cards are complex and some implementations may not have finished processing after this call
+            
+            // doesn"t return until all sent render commands are completed (pixels are in targeted framebuffers for rendering commands)
+            //glFinish();
+            
+            // I'm assuming this does nothing when the window is hidden
+            // So normally I think this is non_blocking (on my machine), but does block on next opengl call is there is still work to do, I think
+            // With VSync on (or off for that matter), your render loop will block when the driver decides it should block. This may be when you swap buffers, but it may not be. It could be inside some random GL command when the driver FIFO has just filled up. It could also be when the GPU has gotten too many frames behind the commands you’re submitting on the CPU. In any case, you can force the driver to block on VSync by following SwapBuffers with a glFinish() call. That will force any conformant driver to wait until it can swap and does swap, which is (in a VSync-limited case with VSync enabled when VSync isn’t being “virtualized” by a compositor) typically after it hits the vertical retrace in the video signal. This is fine to do on a desktop GPU, but don’t do this on a tile-based mobile GPU
+            // - Khronos Senior Community member
+            
+            // Another post - Senior member
+            // That’s what SwapBuffers pretty much does. On drivers I’m familiar with, it merely queues a “I’m done; you can swap when ready” event on the command queue. If the command queue isn’t full (by driver-internal criteria), then you get the CPU back and can do what you want – before the Swap has occurred. Some driver’s will buffer up as much as another frame or two of commands before they block the draw thread in a GL call because their “queue full” criteria is met.
+            
+            //To force the driver “not” to do that (on a desktop discrete GPU only; i.e. sort-last architecture) and instead wait for the swap, you put a glFinish() right after SwapBuffers. When that returns, you know that the SwapBuffers has occurred, which means you’ve synchronized your draw thread with the VSync clock.
+            // block until all GL execution is complete
+            // Appers to make the waiting for vblank to happen here not during a later openGL call next frame such as glGetIntegerv();
+            // glGetIntegerv may actually be triggering a glFinish internally
+            
+            // NOTE: With the self regulated 60fps, cpu usage spikes to 25% for 30 secs then goes to 1% and stays there
+            // this may have been the case before i just didn't wait long enough for cpu usage to go down, but probably not because we were not sleeping, but just letting GPU sleep us.
+            
+            // Sleeping longer reduces the time spent waiting for vblank in a opengl driver context (making task manager report lower CPU usage)
+            //Sleep(10);
+            
+            // vsync may not be supported, or be disabled by user, so need to limit frame rate to 60fps anyway, to stop high refresh in scenario where user is making lots on input
+            
+            //glFinish();

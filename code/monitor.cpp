@@ -2,11 +2,9 @@
 
 #include "cian.h"
 #include "monitor_string.h"
-#include "helper.h"
 #include "graphics.h"
 #include "icon.h"
 #include "helper.h"
-#include "helper.cpp"
 
 #include "date.h"
 
@@ -16,8 +14,12 @@
 #include "resources/source_code_pro.cpp"
 #include "resources/world_icon.cpp"
 
+#include "utilities.cpp" // xalloc, string copy, concat string, make filepath, get_filename_from_path
+#include "helper.cpp"
+#include "bitmap.cpp"
 #include "icon.cpp"    // Deals with win32 icon interface TODO: Move platform dependent parts to win
 #include "file.cpp"
+#include "apps.cpp"
 #include "ui.cpp"
 
 #define GLCheck(x) GLClearError(); x; GLLogCall(#x, __FILE__, __LINE__)
@@ -180,214 +182,6 @@ get_app_icon_asset(App_List *apps, std::vector<Icon_Asset> &icons, App_Id id)
     return default_icon;
 }
 
-
-date::sys_days
-get_local_time_day()
-{
-    time_t rawtime;
-    time( &rawtime );
-    
-    struct tm *info;
-    // tm_mday;        /* day of the month, range 1 to 31  */
-    // tm_mon;         /* month, range 0 to 11             */
-    // tm_year;        /* The number of years since 1900   */
-    // tm_hour; hours since midnight    0-23
-    // tm_min; minutes after the hour   0-59
-    // tm_sec; seconds after the minute 0-61* (*generally 0-59 extra range to accomodate leap secs in some systems)
-    // tm_isdst; Daylight Saving Time flag 
-    /* is greater than zero if Daylight Saving Time is in effect, zero if Daylight Saving Time is not in effect, and less than zero if the information is not available. */
-    
-    // Looks if TZ database
-    info = localtime( &rawtime );
-    auto now = date::sys_days{
-        date::month{(unsigned)(info->tm_mon + 1)}/date::day{(unsigned)info->tm_mday}/date::year{info->tm_year + 1900}};
-    
-    //auto test_date = std::floor<date::local_days>()};
-    //Assert(using local_days    = local_time<days>;
-    return now;
-}
-
-void
-start_new_day(Day_List *day_list, date::sys_days date)
-{
-    // day points to next free space
-    Day new_day = {};
-    new_day.record_count = 0;
-    new_day.date = date;
-    new_day.records = (Record *)push_size(&day_list->arena, MAX_DAILY_RECORDS * sizeof(Record));
-    
-    day_list->days.push_back(new_day);
-}
-
-void
-add_or_update_record(Day_List *day_list, App_Id id, time_type dt)
-{
-    // Assumes a day's records are sequential in memory
-    
-    // DEBUG: Record id can be 0, used to denote 'no program'
-    Assert(day_list->days.size() > 0);
-    
-    Day *cur_day = &day_list->days.back();
-    for (u32 i = 0; i < cur_day->record_count; ++i)
-    {
-        if (id == cur_day->records[i].id)
-        {
-            // Existing id today
-            cur_day->records[i].duration += dt;
-            return;
-        }
-    }
-    
-    if (cur_day->record_count < MAX_DAILY_RECORDS)
-    {
-        
-        // Add new record to block
-        cur_day->records[cur_day->record_count] = Record{ id, dt };
-        cur_day->record_count += 1;
-    }
-    else
-    {
-        // TODO: in release we will just not add record if above daily limit (which is extremely high)
-        Assert(0);
-    }
-}
-
-Day_View
-get_day_view(Day_List *day_list)
-{
-    // TODO: Handle zero day in day_list
-    // (are we handling zero records in list?)
-    
-    // TODO: This should not default to daily, but keep the alst used range, even if the records are updated
-    
-    Day_View day_view = {};
-    
-    // If no records this might allocate 0 bytes (probably fine)
-    Day *cur_day = &day_list->days.back();
-    day_view.copy_of_current_days_records = (Record *)calloc(1, cur_day->record_count * sizeof(Record));
-    memcpy(day_view.copy_of_current_days_records, cur_day->records, cur_day->record_count * sizeof(Record));
-    
-    // copy vector
-    day_view.days = day_list->days;
-    day_view.days.back().records = day_view.copy_of_current_days_records;
-    
-    return day_view;
-}
-
-void
-free_day_view(Day_View *day_view)
-{
-    if (day_view->copy_of_current_days_records)
-    {
-        free(day_view->copy_of_current_days_records);
-    }
-    
-    // TODO: Should I deallocate day_view->days vector memory? (probably)
-    *day_view = {};
-}
-
-App_Id 
-make_local_program_id(App_List *apps)
-{
-    App_Id id = apps->next_program_id;
-    apps->next_program_id += 1;
-    Assert(is_local_program(id));
-    return id;
-}
-
-App_Id 
-make_website_id(App_List *apps)
-{
-    App_Id id = apps->next_website_id;
-    apps->next_website_id += 1;
-    Assert(is_website(id));
-    return id;
-}
-
-App_Id
-get_local_program_app_id(App_List *apps, String short_name, String full_name)
-{
-    // TODO: String of shortname can point into string of full_name for paths
-    // imgui can use non null terminated strings so interning a string is fine
-    
-    // if using custom hash table impl can use open addressing, and since nothing is ever deleted don't need a occupancy flag or whatever can just use id == 0 or string == null to denote empty.
-    
-    App_Id result = Id_Invalid;
-    
-    if (apps->local_program_ids.count(short_name) == 0)
-    {
-        App_Id new_id = make_local_program_id(apps);
-        
-        Local_Program_Info info;
-        info.full_name = push_string(&apps->names_arena, full_name); 
-        info.short_name = push_string(&apps->names_arena, short_name); // string intern this from fullname
-        info.icon_index = -1;
-        
-        apps->local_programs.push_back(info);
-        
-        // TODO: Make this share short_name given to above functions
-        String key_copy = push_string(&apps->names_arena, short_name);
-        apps->local_program_ids.insert({key_copy, new_id});
-        
-        result = new_id;
-    }
-    else
-    {
-        // if for some reason this is not here this should return 0 (default for an integer)
-        result = apps->local_program_ids[short_name];
-    }
-    
-    return result;
-}
-App_Id
-get_website_app_id(App_List *apps, String short_name)
-{
-    App_Id result = Id_Invalid;
-    
-    if (apps->website_ids.count(short_name) == 0)
-    {
-        App_Id new_id = make_website_id(apps);
-        
-        Website_Info info;
-        info.short_name = push_string(&apps->names_arena, short_name); 
-        //info.icon_index = -1;
-        
-        apps->websites.push_back(info);
-        
-        String key_copy = push_string(&apps->names_arena, short_name);
-        apps->website_ids.insert({key_copy, new_id});
-        
-        result = new_id;
-    }
-    else
-    {
-        result = apps->website_ids[short_name];
-    }
-    
-    return result;
-}
-
-String 
-get_app_name(App_List *apps, App_Id id)
-{
-    String result;
-    
-    u32 index = index_from_id(id);
-    if (is_local_program(id))
-    {
-        result = apps->local_programs[index].short_name;
-    }
-    else if (is_website(id))
-    {
-        result = apps->websites[index].short_name;
-    }
-    else
-    {
-        result = make_string_from_literal(" ");
-    }
-    
-    return result;
-}
 
 void
 debug_add_records(App_List *apps, Day_List *day_list, date::sys_days cur_date)
@@ -793,12 +587,11 @@ update(Monitor_State *state, SDL_Window *window, time_type dt_microseconds, Wind
         // Do i need this to construct all vectors etc, as opposed to just zeroed memory?
         *state = {};
         
-        state->ui_visible = false;
         // ui is uninitialised until window shown
         
         // will be 16ms for 60fps monitor
         state->accumulated_time = 0;
-        state->refresh_frame_time = (u32)(MILLISECS_PER_SEC / (float)platform_SDL_get_monitor_refresh_rate());
+        state->refresh_frame_time = (u32)(MILLISECS_PER_SEC / (float)platform_get_monitor_refresh_rate());
         
         App_List *apps = &state->apps;
         apps->local_program_ids = std::unordered_map<String, App_Id>(30);
@@ -820,14 +613,15 @@ update(Monitor_State *state, SDL_Window *window, time_type dt_microseconds, Wind
         start_new_day(day_list, current_date);
         
         
-        Misc_Options options = {};
-        options.poll_frequency_milliseconds = 16;  // or want 17?
+        Misc_Options misc = {};
+        misc.poll_frequency_milliseconds = 16;  // or want 17?
+        misc.keyword_status = Settings_Misc_Keyword_All;
         
-        state->settings.misc_options = options;
+        state->settings.misc = misc;
         
         Settings *settings = &state->settings;
         // minimum block size of this should be MAX_KEYWORD_COUNT * MAX_KEYWORD_SIZE, then should only need 1 block
-        init_arena(&settings.keyword_arena, MAX_KEYWORD_COUNT * MAX_KEYWORD_SIZE);
+        init_arena(&settings->keyword_arena, MAX_KEYWORD_COUNT * MAX_KEYWORD_SIZE);
         
         // Keywords must be null terminated when given to platform gui
         add_keyword(settings, "CITS3003");
@@ -843,6 +637,7 @@ update(Monitor_State *state, SDL_Window *window, time_type dt_microseconds, Wind
     }
     
     App_List *apps = &state->apps;
+    UI_State *ui = &state->ui;
     
     if (window_event == Window_Closed)
     {
@@ -850,44 +645,48 @@ update(Monitor_State *state, SDL_Window *window, time_type dt_microseconds, Wind
         // no need to free stuff or delete textures (as glcontext is deleted)
     }
     
-    if (window_event == Window_Hidden && state->ui_visible)
+    if (window_event == Window_Hidden)
     {
-        invalidate_icon_indexes(apps);
-        
-        date_picker = {};
-        unload_all_icon_assets(state->icons);
-        if (state->edit_settings)
+        if (ui->open)
         {
-            free(state->edit_settings);
+            invalidate_icon_indexes(apps); // not part of ui
+            
+            ui->date_picker = {};
+            unload_all_icon_assets(ui->icons);
+            if (ui->edit_settings)
+            {
+                free(ui->edit_settings);
+            }
+            
+            ui->open = false;
+            //platform_set_sleep_time(settings->poll_frequency_milliseconds);
         }
-        
-        //platform_set_sleep_time(settings->poll_frequency_milliseconds);
-        
-        state->ui_visible = false;
     }
     
-    if (window_event == Window_Shown && !state->ui_visible)
+    if (window_event == Window_Shown)
     {
-        init_imgui_fonts_and_style(22.0f);
-        
-        UI_State *ui = &state->ui;
-        ui->icons.reserve(100);
-        load_default_icon_assets(ui->icons);
-        
-        date::sys_days oldest_date = database->day_list.days.front().date;
-        date::sys_days newest_date = database->day_list.days.back().date;
-        
-        init_date_picker(&state->date_picker, current_date, oldest_date, newest_date);
-        
-        // will be poll_frequency_milliseconds in release
-        platform_set_sleep_time(16);
-        
-        state->ui_visible = true;
+        if (!ui->open)
+        {
+            init_imgui_fonts_and_style(22.0f);
+            
+            ui->icons.reserve(100);
+            load_default_icon_assets(ui->icons);
+            
+            date::sys_days oldest_date = state->day_list.days.front().date;
+            date::sys_days newest_date = state->day_list.days.back().date;
+            
+            init_date_picker(&ui->date_picker, current_date, oldest_date, newest_date);
+            
+            // will be poll_frequency_milliseconds in release
+            platform_set_sleep_time(16);
+            
+            ui->open = true;
+        }
     }
     
-    if (current_date != database->day_list.days.back().date)
+    if (current_date != state->day_list.days.back().date)
     {
-        start_new_day(&database->day_list, current_date);
+        start_new_day(&state->day_list, current_date);
         
         // Not really needed as we just unload all icons on UI close, and GPU can a lot of icons
         //unload_all_icon_assets(database, state->icons);
@@ -905,24 +704,24 @@ update(Monitor_State *state, SDL_Window *window, time_type dt_microseconds, Wind
         App_Id id = poll_windows(apps, &state->settings);
         if (id != Id_Invalid)
         {
-            add_or_update_record(&database->day_list, id, state->accumulated_time);
+            add_or_update_record(&state->day_list, id, state->accumulated_time);
         }
         else
         {
             // debug to account for no time records
-            add_or_update_record(&database->day_list, 0, state->accumulated_time);
+            add_or_update_record(&state->day_list, 0, state->accumulated_time);
         }
         
         state->accumulated_time = 0;
     }
     
-    Day_View day_view = get_day_view(&database->day_list);
+    ui->day_view = get_day_view(&state->day_list);
     
-    if (state->ui_visible)
+    if (ui->open)
     {
-        draw_ui_and_update(window, state, database, &day_view);
+        draw_ui_and_update(window, ui, &state->settings, apps, state); // state is just for debug
     }
     
-    free_day_view(&day_view);
+    free_day_view(&ui->day_view);
 }
 

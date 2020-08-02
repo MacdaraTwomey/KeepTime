@@ -6,7 +6,6 @@
 * Read/write from savefile
 * Make all child backgrounds white
 * Larger icon limit, free all icons once a day, and allow them to be reloaded on demand, (no real limit because 32x32 icon is 4K, so 10,000 icons is only 40MB, and GPU can swap to main memory)
-* Unload all UI resources when ui closed
 * Safer writing to database file, (maybe copy and delete old file)
 * Popup on unrecoverable errors
 * Add own licence and licences of used open source code (and maybe fonts)

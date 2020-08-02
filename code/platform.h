@@ -1,8 +1,6 @@
 #ifndef PLATFORM_H
 #define PLATFORM_H
 
-#include "graphics.h"
-
 static constexpr i32 PLATFORM_MAX_PATH_LEN = 2000;
 static constexpr i32 PLATFORM_MAX_URL_LEN  = 2000;
 
@@ -20,7 +18,7 @@ struct Platform_Window
     bool is_valid;
 };
 
-u32 platform_SDL_get_monitor_refresh_rate();
+u32 platform_get_monitor_refresh_rate(); // using SDL functions
 
 Platform_Window platform_get_active_window();
 
