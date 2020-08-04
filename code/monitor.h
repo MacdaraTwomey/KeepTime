@@ -270,6 +270,9 @@ struct UI_State
     Date_Picker date_picker;
     Day_View day_view;
     Edit_Settings *edit_settings; // allocated when needed
+    
+    //ImFont *normal_font;
+    ImFont *small_font;
     bool open;
 };
 

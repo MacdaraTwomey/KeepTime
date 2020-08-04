@@ -394,3 +394,48 @@ decode_favicon_file(Size_Mem icon_file)
     
     return favicon;
 }
+
+void
+create_world_icon_source_file(char *png_file, char *cpp_file, int dimension)
+{
+    static bool done = false;
+    if (!done)
+    {
+        int x = 0;
+        int y = 0;
+        int channels = 0;
+        
+        u32 *pixels = (u32 *)stbi_load(png_file, &x, &y, 0, 4);
+        Assert(pixels);
+        
+        Assert(x == dimension);
+        Assert(y == dimension);
+        //Assert(channels == 4);
+        
+        int size = x*y*4;
+        
+        FILE *out = fopen(cpp_file, "w");
+        Assert(out);
+        
+        fprintf(out, "static const unsigned int world_icon_size = %d;\n", size);
+        fprintf(out, "static const unsigned int world_icon_width = %d;\n", x);
+        fprintf(out, "static const unsigned int world_icon_height = %d;\n", y);
+        fprintf(out, "static const unsigned int world_icon_data[%d/4] =\n{", size);
+        
+        int column = 0;
+        for (int i = 0; i < x*y; ++i)
+        {
+            unsigned d = pixels[i];
+            if ((column++ % 8) == 0)
+                fprintf(out, "\n    0x%08x, ", d);
+            else
+                fprintf(out, "0x%08x, ", d);
+        }
+        fprintf(out, "\n};\n\n");
+        
+        fclose(out);
+        
+        free(pixels);
+        done = true;
+    }
+}

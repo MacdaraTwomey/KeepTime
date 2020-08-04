@@ -10,6 +10,8 @@
 * Popup on unrecoverable errors
 * Add own licence and licences of used open source code (and maybe fonts)
 * Get memory allocation sizes right
+* Make program use all, custom none keyword flags
+* Icons in UI state?
 
   -- Finished product --
 * Low framerate UI (not that needed, and adds lots of complexity)

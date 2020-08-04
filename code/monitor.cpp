@@ -14,12 +14,11 @@
 #include "resources/source_code_pro.cpp"
 #include "resources/world_icon.cpp"
 
-#include "utilities.cpp" // xalloc, string copy, concat string, make filepath, get_filename_from_path
 #include "helper.cpp"
 #include "bitmap.cpp"
-#include "icon.cpp"    // Deals with win32 icon interface TODO: Move platform dependent parts to win
 #include "file.cpp"
 #include "apps.cpp"
+#include "date_picker.cpp"
 #include "ui.cpp"
 
 #define GLCheck(x) GLClearError(); x; GLLogCall(#x, __FILE__, __LINE__)
@@ -343,7 +342,7 @@ debug_add_records(App_List *apps, Day_List *day_list, date::sys_days cur_date)
     }
 }
 
-
+#if 0
 bool
 resize_bitmap(Bitmap *in, Bitmap *out, u32 dimension)
 {
@@ -368,6 +367,7 @@ resize_bitmap(Bitmap *in, Bitmap *out, u32 dimension)
     
     return false;
 }
+#endif
 
 void 
 add_keyword(Settings *settings, char *str)
@@ -379,15 +379,16 @@ add_keyword(Settings *settings, char *str)
 }
 
 bool
-string_matches_keyword(String string, std::vector<String> &keywords)
+string_matches_keyword(String string, Array<String, MAX_KEYWORD_COUNT> &keywords)
 {
-    // TODO: Sort based on common substrings, or alphabetically, so we don't have to look further.
-    for (i32 i = 0; i < keywords.size(); ++i)
+    for (i32 i = 0; i < keywords.count; ++i)
     {
         if (search_for_substr(string, 0, keywords[i]) != -1)
         {
-            // TODO: When we match keyword move it to the front of array, 
+            // TODO: Maybe cache last few keywords, if it doesn't match cache?
             // maybe shuffle others down to avoid first and last being swapped and re-swapped repeatedly.
+            // However, don't really want to change order of keywords in the settings window. So maybe settings should be able to change it's order but also has a array on index values that it maintains so it can copy into edit_settings in original order.
+            
             return true;
         }
     }
@@ -511,9 +512,9 @@ extract_domain_name(String url)
 App_Id
 poll_windows(App_List *apps, Settings *settings)
 {
-    ZoneScoped;
-    
     // Returns 0 if we return early
+    
+    ZoneScoped;
     
     char buf[PLATFORM_MAX_PATH_LEN];
     size_t len = 0;
@@ -539,7 +540,7 @@ poll_windows(App_List *apps, Settings *settings)
     // string_to_lower(&program_name);
     
     bool program_is_firefox = string_equals(program_name, "firefox");
-    if (program_is_firefox)
+    if (program_is_firefox && settings->misc.keyword_status != Settings_Misc_Keyword_None)
     {
         // TODO: Maybe cache last url to quickly get record without comparing with keywords
         char url_buf[PLATFORM_MAX_URL_LEN];
@@ -553,15 +554,19 @@ poll_windows(App_List *apps, Settings *settings)
                 String domain_name = extract_domain_name(url);
                 if (domain_name.length > 0)
                 {
-#if MONITOR_DEBUG
-                    // match will all urls we can get a domain from
-                    return get_website_app_id(apps, domain_name);
-#else
-                    if (string_matches_keyword(domain_name, settings->keywords))
+                    Assert(settings->misc.keyword_status >= Settings_Misc_Keyword_All && settings->misc.keyword_status <= Settings_Misc_Keyword_None);
+                    if (settings->misc.keyword_status == Settings_Misc_Keyword_All)
                     {
                         return get_website_app_id(apps, domain_name);
                     }
-#endif
+                    else
+                    {
+                        // Custom
+                        if (string_matches_keyword(domain_name, settings->keywords))
+                        {
+                            return get_website_app_id(apps, domain_name);
+                        }
+                    }
                 }
             }
         }
@@ -611,7 +616,6 @@ update(Monitor_State *state, SDL_Window *window, time_type dt_microseconds, Wind
         // add fake days before current_date
         debug_add_records(apps, day_list, current_date);
         start_new_day(day_list, current_date);
-        
         
         Misc_Options misc = {};
         misc.poll_frequency_milliseconds = 16;  // or want 17?
@@ -667,7 +671,7 @@ update(Monitor_State *state, SDL_Window *window, time_type dt_microseconds, Wind
     {
         if (!ui->open)
         {
-            init_imgui_fonts_and_style(22.0f);
+            init_imgui_fonts_and_style(&ui->small_font);
             
             ui->icons.reserve(100);
             load_default_icon_assets(ui->icons);

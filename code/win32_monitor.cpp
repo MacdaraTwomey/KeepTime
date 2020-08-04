@@ -966,8 +966,7 @@ win32_get_bitmap_data_from_HICON(HICON icon, i32 *width, i32 *height, i32 *pitch
 }
 
 
-#define STB_IMAGE_RESIZE_IMPLEMENTATION
-#include "stb_image_resize.h"
+
 bool
 platform_get_default_icon(i32 *width, i32 *height, i32 *pitch, u32 **pixels)
 {
