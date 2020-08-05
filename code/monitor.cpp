@@ -19,164 +19,61 @@
 #include "file.cpp"
 #include "apps.cpp"
 #include "date_picker.cpp"
+#include "icon.cpp" 
 #include "ui.cpp"
 
-#define GLCheck(x) GLClearError(); x; GLLogCall(#x, __FILE__, __LINE__)
-
-void
-GLClearError()
-{
-    while (glGetError() != GL_NO_ERROR);
-}
-
-bool
-GLLogCall(const char *function, const char *file, int line)
-{
-    while (GLenum error = glGetError())
-    {
-        printf("[OpenGL Error] (%u) %s %s: Line %i\n", error, function, file, line);
-        return false;
-    }
-    
-    return true;
-}
-
-
-// TODO: NOt sure where to put this
-u32
-opengl_create_texture(Bitmap bitmap)
-{
-    GLuint image_texture;
-    GLCheck(glGenTextures(1, &image_texture)); // I think this can fail if out of texture mem
-    
-    GLCheck(glBindTexture(GL_TEXTURE_2D, image_texture));
-    
-    GLCheck(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
-    GLCheck(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
-    
-    // Can be PACK for glReadPixels or UNPCK GL_UNPACK_ROW_LENGTH
-    
-    // This sets the number of pixels in the row for the glTexImage2D to expect, good 
-    //glPixelStorei(GL_UNPACK_ROW_LENGTH, 24);
-    
-    // Alignment of the first pixel in each row
-    GLCheck(glPixelStorei(GL_UNPACK_ALIGNMENT, 1));
-    
-    // You create storage for a Texture and upload pixels to it with glTexImage2D (or similar functions, as appropriate to the type of texture). If your program crashes during the upload, or diagonal lines appear in the resulting image, this is because the alignment of each horizontal line of your pixel array is not multiple of 4. This typically happens to users loading an image that is of the RGB or BGR format (for example, 24 BPP images), depending on the source of your image data. 
-    
-    GLCheck(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, bitmap.width, bitmap.height, 0, GL_BGRA, GL_UNSIGNED_BYTE, bitmap.pixels));
-    
-    return image_texture;
-}
-
-s32
-load_icon_asset(std::vector<Icon_Asset> &icons, Bitmap bitmap)
-{
-    Icon_Asset icon;
-    icon.texture_handle = opengl_create_texture(bitmap); 
-    icon.width = bitmap.width;
-    icon.height = bitmap.height;
-    
-    s32 index = icons.size();
-    icons.push_back(icon);
-    
-    return index;
-}
-
-void 
-invalidate_icon_indexes(App_List *apps)
-{
-    for (u32 i = 0; i < apps->local_programs.size(); ++i)
-    {
-        auto &local_program = apps->local_programs[i];
-        local_program.icon_index = -1;
-    }
-}
-
-void
-unload_all_icon_assets(std::vector<Icon_Asset> &icons)
-{
-    for (u32 icon_index = 0; icon_index < icons.size(); ++icon_index)
-    {
-        GLCheck(glDeleteTextures(1, &icons[icon_index].texture_handle));
-    }
-    
-    // TODO: Free icons memory
-    icons.clear();
-}
-
-void
-load_default_icon_assets(std::vector<Icon_Asset> &icons)
-{
-    Bitmap program_bitmap;
-    if (!platform_get_default_icon(&program_bitmap.width, &program_bitmap.height, &program_bitmap.pitch, &program_bitmap.pixels))
-    {
-        program_bitmap = make_bitmap(ICON_SIZE, ICON_SIZE, 0x000000); // transparent icon
-    }
-    
-    u32 local_program_icon_index = load_icon_asset(icons, program_bitmap);
-    free(program_bitmap.pixels);
-    
-    Bitmap website_bitmap;
-    website_bitmap.pixels = (u32 *)world_icon_data;
-    website_bitmap.width  = world_icon_width;
-    website_bitmap.height = world_icon_height;
-    website_bitmap.pitch  = world_icon_width*4;
-    
-    u32 website_icon_index = load_icon_asset(icons, website_bitmap);
-    
-    Assert(local_program_icon_index == DEFAULT_LOCAL_PROGRAM_ICON_INDEX &&
-           website_icon_index == DEFAULT_WEBSITE_ICON_INDEX);
-}
 
 Icon_Asset *
-get_app_icon_asset(App_List *apps, std::vector<Icon_Asset> &icons, App_Id id)
+get_app_icon_asset(App_List *apps, UI_State *ui, App_Id id)
 {
     if (is_website(id))
     {
         //get_favicon_from_website(url);
         
-        Icon_Asset *default_icon = &icons[DEFAULT_WEBSITE_ICON_INDEX];
+        Icon_Asset *default_icon = &ui->icons[DEFAULT_WEBSITE_ICON_INDEX];
         Assert(default_icon->texture_handle != 0);
         return default_icon;
     }
     
     if (is_local_program(id))
     {
-        u32 name_index = index_from_id(id);
-        
-        Assert(name_index < apps->local_programs.size());
-        Assert(apps->local_programs.size() > 0);
-        
-        Local_Program_Info &info = apps->local_programs[name_index];
-        if (info.icon_index == -1)
+        u32 id_index = index_from_id(id);
+        if (id_index >= ui->icon_indexes.size())
         {
-            Assert(info.full_name.length > 0);
+            ui->icon_indexes.resize(id_index + 1, -1); // insert -1 at the end of array to n=id_index+1 slots
+        }
+        
+        s32 *icon_index = &ui->icon_indexes[id_index];
+        if (*icon_index == -1)
+        {
+            String path = apps->local_programs[id_index].full_name;
+            Assert(path.length > 0);
+            
             Bitmap bitmap;
-            bool success = platform_get_icon_from_executable(info.full_name.str, ICON_SIZE, 
+            bool success = platform_get_icon_from_executable(path.str, ICON_SIZE, 
                                                              &bitmap.width, &bitmap.height, &bitmap.pitch, &bitmap.pixels);
             if (success)
             {
-                // TODO: Maybe mark old paths that couldn't get correct icon for deletion, or
-                info.icon_index = load_icon_asset(icons, bitmap);
+                // TODO: Maybe mark old paths that couldn't get correct icon for deletion or to stop trying to get icon, or assign a default invisible icon
+                *icon_index = load_icon_asset(ui->icons, bitmap);
+                
+                Assert(*icon_index > 1);
                 free(bitmap.pixels);
                 
-                Assert(info.icon_index > 1);
-                
-                return &icons[info.icon_index];
+                return &ui->icons[*icon_index];
             }
         }
         else
         {
             // Icon already loaded
-            Assert(info.icon_index < icons.size());
-            Icon_Asset *icon = &icons[info.icon_index];
+            Assert(*icon_index < ui->icons.size());
+            Icon_Asset *icon = &ui->icons[*icon_index];
             Assert(icon->texture_handle != 0);
             return icon;
         }
     }
     
-    Icon_Asset *default_icon = &icons[DEFAULT_LOCAL_PROGRAM_ICON_INDEX];
+    Icon_Asset *default_icon = &ui->icons[DEFAULT_LOCAL_PROGRAM_ICON_INDEX];
     Assert(default_icon->texture_handle != 0);
     return default_icon;
 }
@@ -185,7 +82,6 @@ get_app_icon_asset(App_List *apps, std::vector<Icon_Asset> &icons, App_Id id)
 void
 debug_add_records(App_List *apps, Day_List *day_list, date::sys_days cur_date)
 {
-    
     static char *some_names[] = {
         "C:\\Program Files\\Krita (x64)\\bin\\krita.exe",
         "C:\\Program Files\\Mozilla Firefox\\firefox.exe",
@@ -577,7 +473,7 @@ poll_windows(App_List *apps, Settings *settings)
 }
 
 void
-update(Monitor_State *state, SDL_Window *window, time_type dt_microseconds, Window_Event window_event)
+update(Monitor_State *state, SDL_Window *window, s64 dt_microseconds, Window_Event window_event)
 {
     ZoneScoped;
     
@@ -609,7 +505,6 @@ update(Monitor_State *state, SDL_Window *window, time_type dt_microseconds, Wind
         size_t size = Kilobytes(30);
         init_arena(&apps->names_arena, size);
         
-        
         Day_List *day_list = &state->day_list;
         // not needed just does the allocation here rather than during firsts push_size
         init_arena(&day_list->arena, Kilobytes(10));
@@ -618,7 +513,7 @@ update(Monitor_State *state, SDL_Window *window, time_type dt_microseconds, Wind
         start_new_day(day_list, current_date);
         
         Misc_Options misc = {};
-        misc.poll_frequency_milliseconds = 16;  // or want 17?
+        misc.poll_frequency_milliseconds = 16;  // this is debug, want 17?
         misc.keyword_status = Settings_Misc_Keyword_All;
         
         state->settings.misc = misc;
@@ -653,16 +548,7 @@ update(Monitor_State *state, SDL_Window *window, time_type dt_microseconds, Wind
     {
         if (ui->open)
         {
-            invalidate_icon_indexes(apps); // not part of ui
-            
-            ui->date_picker = {};
-            unload_all_icon_assets(ui->icons);
-            if (ui->edit_settings)
-            {
-                free(ui->edit_settings);
-            }
-            
-            ui->open = false;
+            unload_ui(ui);
             //platform_set_sleep_time(settings->poll_frequency_milliseconds);
         }
     }
@@ -671,61 +557,53 @@ update(Monitor_State *state, SDL_Window *window, time_type dt_microseconds, Wind
     {
         if (!ui->open)
         {
-            init_imgui_fonts_and_style(&ui->small_font);
-            
-            ui->icons.reserve(100);
-            load_default_icon_assets(ui->icons);
-            
             date::sys_days oldest_date = state->day_list.days.front().date;
             date::sys_days newest_date = state->day_list.days.back().date;
-            
-            init_date_picker(&ui->date_picker, current_date, oldest_date, newest_date);
-            
-            // will be poll_frequency_milliseconds in release
-            platform_set_sleep_time(16);
-            
-            ui->open = true;
+            load_ui(ui, apps->local_programs.size(), current_date, oldest_date, newest_date);
+            //platform_set_sleep_time(state->refresh_frame_time);
         }
     }
     
     if (current_date != state->day_list.days.back().date)
     {
         start_new_day(&state->day_list, current_date);
-        
-        // Not really needed as we just unload all icons on UI close, and GPU can a lot of icons
-        //unload_all_icon_assets(database, state->icons);
-        //load_default_icon_assets(database, state->icons);
+        // Don't really need to unload and reload all icons from GPU as it can easily hold many thousands
     }
     
-    // TODO: Maybe just do a poll when ever this update function is called (except when the ui is open, then we limit the rate). 
-    // Else may have a degenerate case where the function is called slightly before when it should have and the accumulated time is slightly < then poll freq, then we have to wait another full poll freq to do one poll, essentailly halving the experienced poll frequency.
-    
     state->accumulated_time += dt_microseconds;
-    time_type poll_window_freq = 100000;
-    //s64 poll_window_freq = state->settings.misc_options.poll_frequency_milliseconds * MICROSECS_PER_MILLISEC;
-    if (state->accumulated_time >= poll_window_freq)
+    if (ui->open)
     {
+        // If ui is open we need to limit poll rate manually, incase update is called frequently for lots of events
+        
+        // state->settings.misc_options.poll_frequency_milliseconds * MICROSECS_PER_MILLISEC;
+        if (state->accumulated_time >= 100000)
+        {
+            App_Id id = poll_windows(apps, &state->settings);
+            if (id != Id_Invalid)
+                add_or_update_record(&state->day_list, id, state->accumulated_time);
+            else
+                add_or_update_record(&state->day_list, 0, state->accumulated_time); // debug to account for no time records
+            
+            state->accumulated_time = 0;
+        }
+        
+        ui->day_view = get_day_view(&state->day_list); // debug
+        draw_ui_and_update(window, ui, &state->settings, apps, state); // state is just for debug
+        free_day_view(&ui->day_view);
+    }
+    else
+    {
+        // If ui is not open just poll whenever we enter the update function (should usually by the poll frequency after we wakeup from sleep)
+        // This avoids the degenerate case where we repeatedly exit sleep just before our poll frequency mark, and have to do another sleep cycle before polling - effectively halving the experienced poll frequency.
+        
         App_Id id = poll_windows(apps, &state->settings);
         if (id != Id_Invalid)
-        {
             add_or_update_record(&state->day_list, id, state->accumulated_time);
-        }
         else
-        {
-            // debug to account for no time records
-            add_or_update_record(&state->day_list, 0, state->accumulated_time);
-        }
+            add_or_update_record(&state->day_list, 0, state->accumulated_time); // debug to account for no time records
         
         state->accumulated_time = 0;
     }
     
-    ui->day_view = get_day_view(&state->day_list);
-    
-    if (ui->open)
-    {
-        draw_ui_and_update(window, ui, &state->settings, apps, state); // state is just for debug
-    }
-    
-    free_day_view(&ui->day_view);
 }
 

@@ -21,94 +21,10 @@ static float g_bar_down = 1;
 static bool g_fullscreen = false;
 
 // from monitor.cpp
-Icon_Asset *get_app_icon_asset(App_List *apps, std::vector<Icon_Asset> &icons, App_Id id);
+Icon_Asset *get_app_icon_asset(App_List *apps, UI_State *ui, App_Id id);
 String get_app_name(App_List *apps, App_Id id);
 void add_keyword(Settings *settings, char *str);
 
-
-#if 1
-struct FreeTypeTest
-{
-    enum FontBuildMode
-    {
-        FontBuildMode_FreeType,
-        FontBuildMode_Stb
-    };
-    
-    FontBuildMode BuildMode;
-    bool          WantRebuild;
-    float         FontsMultiply;
-    int           FontsPadding;
-    unsigned int  FontsFlags;
-    float font_size;
-    bool first;
-    
-    FreeTypeTest()
-    {
-        BuildMode = FontBuildMode_FreeType;
-        WantRebuild = true;
-        FontsMultiply = 1.0f;
-        FontsPadding = 1;
-        FontsFlags = ImGuiFreeType::LightHinting;;
-        font_size = NORMAL_FONT_SIZE;
-        first = true;
-    }
-    
-    // Call _BEFORE_ NewFrame()
-    bool UpdateRebuild()
-    {
-        if (!WantRebuild)
-            return false;
-        ImGuiIO& io = ImGui::GetIO();
-        io.Fonts->TexGlyphPadding = FontsPadding;
-        for (int n = 0; n < io.Fonts->ConfigData.Size; n++)
-        {
-            ImFontConfig* font_config = (ImFontConfig*)&io.Fonts->ConfigData[n];
-            font_config->RasterizerMultiply = FontsMultiply;
-            font_config->RasterizerFlags = (BuildMode == FontBuildMode_FreeType) ? FontsFlags : 0x00;
-            font_config->SizePixels = font_size;
-        }
-        if (BuildMode == FontBuildMode_FreeType)
-            ImGuiFreeType::BuildFontAtlas(io.Fonts, FontsFlags);
-        else if (BuildMode == FontBuildMode_Stb)
-            io.Fonts->Build();
-        WantRebuild = false;
-        return true;
-    }
-    
-    // Call to draw interface
-    void ShowFreetypeOptionsWindow()
-    {
-        if (first) { ImGui::SetNextWindowPos(ImVec2(900, 0), true); first = false; }
-        
-        ImGui::Begin("FreeType Options");
-        ImGui::ShowFontSelector("Fonts");
-        WantRebuild |= ImGui::RadioButton("FreeType", (int*)&BuildMode, FontBuildMode_FreeType);
-        ImGui::SameLine();
-        WantRebuild |= ImGui::RadioButton("Stb (Default)", (int*)&BuildMode, FontBuildMode_Stb);
-        WantRebuild |= ImGui::DragFloat("Multiply", &FontsMultiply, 0.001f, 0.0f, 2.0f);
-        WantRebuild |= ImGui::DragInt("Padding", &FontsPadding, 0.1f, 0, 16);
-        
-        ImGui::SetCursorPosY(300);
-        ImGui::PushItemWidth(200);
-        WantRebuild |= ImGui::InputFloat("Size", &font_size, 1.0f, 0, 2);
-        ImGui::PopItemWidth();
-        
-        if (BuildMode == FontBuildMode_FreeType)
-        {
-            WantRebuild |= ImGui::CheckboxFlags("NoHinting",     &FontsFlags, ImGuiFreeType::NoHinting);
-            WantRebuild |= ImGui::CheckboxFlags("NoAutoHint",    &FontsFlags, ImGuiFreeType::NoAutoHint);
-            WantRebuild |= ImGui::CheckboxFlags("ForceAutoHint", &FontsFlags, ImGuiFreeType::ForceAutoHint);
-            WantRebuild |= ImGui::CheckboxFlags("LightHinting",  &FontsFlags, ImGuiFreeType::LightHinting);
-            WantRebuild |= ImGui::CheckboxFlags("MonoHinting",   &FontsFlags, ImGuiFreeType::MonoHinting);
-            WantRebuild |= ImGui::CheckboxFlags("Bold",          &FontsFlags, ImGuiFreeType::Bold);
-            WantRebuild |= ImGui::CheckboxFlags("Oblique",       &FontsFlags, ImGuiFreeType::Oblique);
-            WantRebuild |= ImGui::CheckboxFlags("Monochrome",    &FontsFlags, ImGuiFreeType::Monochrome);
-        }
-        ImGui::End();
-    }
-};
-#endif
 
 void
 init_imgui_fonts_and_style(ImFont **small_font)
@@ -197,6 +113,125 @@ init_imgui_fonts_and_style(ImFont **small_font)
     style.ChildBorderSize = 1.0f;
     style.WindowRounding = 0.0f;
 }
+
+void
+load_ui(UI_State *ui, u32 app_count, 
+        date::sys_days current_date, date::sys_days oldest_date, date::sys_days newest_date)
+{
+    init_imgui_fonts_and_style(&ui->small_font);
+    
+    ui->icons.reserve(200);
+    ui->icon_indexes.reserve(app_count + 200); 
+    ui->icon_indexes.assign(app_count, -1); // set size and fill with -1
+    
+    load_default_icon_assets(ui->icons);
+    
+    // TODO: Get oldest and newest date from day_view associated with current ui instance
+    // TODO: Don't reset this so it is on same range when user opens ui again
+    init_date_picker(&ui->date_picker, current_date, oldest_date, newest_date);
+    
+    ui->open = true;
+}
+
+void
+unload_ui(UI_State *ui)
+{
+    ui->date_picker = {}; // TODO: Don't reset this so it is on same range when user opens ui again
+    unload_all_icon_assets(ui);
+    if (ui->edit_settings)
+    {
+        free(ui->edit_settings);
+    }
+    
+    ui->open = false;
+}
+
+
+
+
+#if 1
+struct FreeTypeTest
+{
+    enum FontBuildMode
+    {
+        FontBuildMode_FreeType,
+        FontBuildMode_Stb
+    };
+    
+    FontBuildMode BuildMode;
+    bool          WantRebuild;
+    float         FontsMultiply;
+    int           FontsPadding;
+    unsigned int  FontsFlags;
+    float font_size;
+    bool first;
+    
+    FreeTypeTest()
+    {
+        BuildMode = FontBuildMode_FreeType;
+        WantRebuild = true;
+        FontsMultiply = 1.0f;
+        FontsPadding = 1;
+        FontsFlags = ImGuiFreeType::LightHinting;;
+        font_size = NORMAL_FONT_SIZE;
+        first = true;
+    }
+    
+    // Call _BEFORE_ NewFrame()
+    bool UpdateRebuild()
+    {
+        if (!WantRebuild)
+            return false;
+        ImGuiIO& io = ImGui::GetIO();
+        io.Fonts->TexGlyphPadding = FontsPadding;
+        for (int n = 0; n < io.Fonts->ConfigData.Size; n++)
+        {
+            ImFontConfig* font_config = (ImFontConfig*)&io.Fonts->ConfigData[n];
+            font_config->RasterizerMultiply = FontsMultiply;
+            font_config->RasterizerFlags = (BuildMode == FontBuildMode_FreeType) ? FontsFlags : 0x00;
+            font_config->SizePixels = font_size;
+        }
+        if (BuildMode == FontBuildMode_FreeType)
+            ImGuiFreeType::BuildFontAtlas(io.Fonts, FontsFlags);
+        else if (BuildMode == FontBuildMode_Stb)
+            io.Fonts->Build();
+        WantRebuild = false;
+        return true;
+    }
+    
+    // Call to draw interface
+    void ShowFreetypeOptionsWindow()
+    {
+        if (first) { ImGui::SetNextWindowPos(ImVec2(900, 0), true); first = false; }
+        
+        ImGui::Begin("FreeType Options");
+        ImGui::ShowFontSelector("Fonts");
+        WantRebuild |= ImGui::RadioButton("FreeType", (int*)&BuildMode, FontBuildMode_FreeType);
+        ImGui::SameLine();
+        WantRebuild |= ImGui::RadioButton("Stb (Default)", (int*)&BuildMode, FontBuildMode_Stb);
+        WantRebuild |= ImGui::DragFloat("Multiply", &FontsMultiply, 0.001f, 0.0f, 2.0f);
+        WantRebuild |= ImGui::DragInt("Padding", &FontsPadding, 0.1f, 0, 16);
+        
+        ImGui::SetCursorPosY(300);
+        ImGui::PushItemWidth(200);
+        WantRebuild |= ImGui::InputFloat("Size", &font_size, 1.0f, 0, 2);
+        ImGui::PopItemWidth();
+        
+        if (BuildMode == FontBuildMode_FreeType)
+        {
+            WantRebuild |= ImGui::CheckboxFlags("NoHinting",     &FontsFlags, ImGuiFreeType::NoHinting);
+            WantRebuild |= ImGui::CheckboxFlags("NoAutoHint",    &FontsFlags, ImGuiFreeType::NoAutoHint);
+            WantRebuild |= ImGui::CheckboxFlags("ForceAutoHint", &FontsFlags, ImGuiFreeType::ForceAutoHint);
+            WantRebuild |= ImGui::CheckboxFlags("LightHinting",  &FontsFlags, ImGuiFreeType::LightHinting);
+            WantRebuild |= ImGui::CheckboxFlags("MonoHinting",   &FontsFlags, ImGuiFreeType::MonoHinting);
+            WantRebuild |= ImGui::CheckboxFlags("Bold",          &FontsFlags, ImGuiFreeType::Bold);
+            WantRebuild |= ImGui::CheckboxFlags("Oblique",       &FontsFlags, ImGuiFreeType::Oblique);
+            WantRebuild |= ImGui::CheckboxFlags("Monochrome",    &FontsFlags, ImGuiFreeType::Monochrome);
+        }
+        ImGui::End();
+    }
+};
+#endif
 
 
 s32
@@ -549,7 +584,6 @@ do_settings_popup(Settings *settings, Edit_Settings *edit_settings, ImFont *smal
         ImGui::SameLine();
         if (ImGui::Button("Cancel", ImVec2(UI_DEFAULT_BUTTON_WIDTH, 0)))
         {
-            // Don't update keywords
             ImGui::CloseCurrentPopup();
             open = false;
         }
@@ -584,7 +618,7 @@ do_settings_popup(Settings *settings, Edit_Settings *edit_settings, ImFont *smal
 FreeTypeTest freetype_test;
 
 void
-draw_record_time_text(time_type duration)
+draw_record_time_text(s64 duration)
 {
 #if MONITOR_DEBUG
     float real_seconds = (float)duration / MICROSECS_PER_SEC;
@@ -759,7 +793,7 @@ draw_ui_and_update(SDL_Window *window, UI_State *ui, Settings *settings, App_Lis
         if (records)
         {
             // TODO: Text position seems to depend on more than this, when window is resized
-            time_type max_duration = records[0].duration;
+            s64 max_duration = records[0].duration;
             float max_bar_width = ImGui::GetWindowWidth() * 0.6f;
             float max_text_width = ImGui::GetWindowWidth() - 75.0f;
             float time_text_start = max_text_width + 5.0f;
@@ -780,7 +814,7 @@ draw_ui_and_update(SDL_Window *window, UI_State *ui, Settings *settings, App_Lis
                 
                 // TODO: Check if pos of bar or image will be clipped entirely, and maybe skip rest of loop
                 
-                Icon_Asset *icon = get_app_icon_asset(apps, ui->icons, record.id);
+                Icon_Asset *icon = get_app_icon_asset(apps, ui, record.id);
                 if (icon)
                 {
                     auto border = ImVec4(0,0,0,255);

@@ -11,7 +11,6 @@
 // Seems that all sizes work except 16 and except larger sizes (64 works though)
 constexpr u32 ICON_SIZE = 32;
 
-//constexpr s32 MAX_KEYWORD_COUNT = 6;
 constexpr s32 MAX_KEYWORD_COUNT = 100;
 constexpr s32 MAX_KEYWORD_SIZE = 101;
 
@@ -34,12 +33,7 @@ constexpr u32 DEFAULT_WEBSITE_ICON_INDEX = 1;
 static_assert(sizeof(date::sys_days) == sizeof(u32), "");
 static_assert(sizeof(date::year_month_day) == sizeof(u32), "");
 
-// u32 can overflows after 50 days when usning milliseconds, this might be ok
-// as we only get this when summing multiple days, but for now KISS.
-typedef s64 time_type;
 typedef u32 App_Id;
-
-// TODO: should i be using local_days instead of sys_days (does it actually matter, using sys days and the get_localtime function I did fix the "day not changing after midnight because of utc time" issue)
 
 constexpr u32 WEBSITE_ID_START = 0x80000000;
 constexpr u32 LOCAL_PROGRAM_ID_START = 1;
@@ -91,17 +85,6 @@ namespace std
             return string_equals(a, b);
         }
     };
-    
-    template<> struct std::hash<App_Id>
-    {
-        std::size_t operator()(App_Id const& id) const noexcept
-        {
-            // Probably fine for program ids (start at 1)
-            Assert(id != 0);
-            return (size_t)id;
-        }
-    };
-    
 }
 
 enum Id_Type
@@ -114,7 +97,7 @@ struct Record
 {
     // Could add a 32-bit date in here without changing size in memory
     App_Id id;
-    time_type duration; // microseconds
+    s64 duration; // microseconds
 };
 // might want to set with attention paid to arena size, and extra size that is added etc
 constexpr u32 MAX_DAILY_RECORDS = 1000;
@@ -151,15 +134,12 @@ struct Day_View
 struct Local_Program_Info
 {
     String short_name;
-    s32 icon_index;   // -1 means not loaded, (TODO: Can this be somehow stored in record array we create during ui barplot display)
-    //bool icon_retreival_failure;
     String full_name; // this must be null terminated because passed to curl as url or OS as a path
 };
 
 struct Website_Info
 {
     String short_name;
-    //s32 icon_index;   
 };
 
 struct Icon_Asset
@@ -249,7 +229,6 @@ struct Calendar
 struct Date_Picker
 {
     // TODO: When new days are added do we update end_date
-    // TODO: Get rid of day suffix probably...
     Range_Type range_type;
     
     date::sys_days start;
@@ -267,11 +246,14 @@ struct Date_Picker
 struct UI_State
 {
     std::vector<Icon_Asset> icons;
+    
+    // Maps App_Ids to icons in the icons array
+    std::vector<s32> icon_indexes;  // -1 means not loaded
+    
     Date_Picker date_picker;
     Day_View day_view;
     Edit_Settings *edit_settings; // allocated when needed
     
-    //ImFont *normal_font;
     ImFont *small_font;
     bool open;
 };
@@ -282,11 +264,9 @@ Monitor_State
 {
     UI_State ui;
     
-    time_type accumulated_time; // microsecs
+    s64 accumulated_time; // microsecs
     u32 refresh_frame_time; // in milliseconds
     
-    
-    // NOTE: Should this be here?
     // Just allocate 100 days + days we already have to stop repeated allocs and potential failure
     // Also say we can have max of 1000 daily records or so, so we can just alloc a 1000 record chunk from arena per day to easily ensure it will be contiguous.
     Day_List day_list;

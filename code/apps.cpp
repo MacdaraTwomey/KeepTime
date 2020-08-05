@@ -38,7 +38,7 @@ start_new_day(Day_List *day_list, date::sys_days date)
 }
 
 void
-add_or_update_record(Day_List *day_list, App_Id id, time_type dt)
+add_or_update_record(Day_List *day_list, App_Id id, s64 dt)
 {
     // Assumes a day's records are sequential in memory
     
@@ -139,7 +139,6 @@ get_local_program_app_id(App_List *apps, String short_name, String full_name)
         Local_Program_Info info;
         info.full_name = push_string(&apps->names_arena, full_name); 
         info.short_name = push_string(&apps->names_arena, short_name); // string intern this from fullname
-        info.icon_index = -1;
         
         apps->local_programs.push_back(info);
         
@@ -207,6 +206,14 @@ get_app_name(App_List *apps, App_Id id)
     return result;
 }
 
+s32 
+get_app_count(App_List *apps)
+{
+    s32 count = apps->local_programs.size() + apps->websites.size();
+    Assert(count == (index_from_id(apps->next_website_id) + index_from_id(apps->next_program_id)));
+    
+    return count;
+}
 
 Record *
 get_records_in_date_range(Day_View *day_view, u32 *record_count, 
