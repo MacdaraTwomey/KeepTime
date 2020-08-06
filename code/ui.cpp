@@ -128,6 +128,8 @@ load_ui(UI_State *ui, u32 app_count,
     
     load_default_icon_assets(ui->icons);
     
+    //ui->day_view = get_day_view(&state->day_list); 
+    
     // TODO: Get oldest and newest date from day_view associated with current ui instance
     // TODO: Don't reset this so it is on same range when user opens ui again
     init_date_picker(&ui->date_picker, current_date, oldest_date, newest_date);
@@ -151,6 +153,8 @@ unload_ui(UI_State *ui)
     }
     
     free(ui->icon_bitmap_storage);
+    
+    free_day_view(&ui->day_view);
     
     ui->open = false;
 }

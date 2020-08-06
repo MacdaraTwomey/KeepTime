@@ -134,6 +134,8 @@ struct Day_View
 struct Local_Program_Info
 {
     String short_name;
+    
+    // Only need this when UI is open so could be separate array and only read from disk when ui is open
     String full_name; // this must be null terminated because passed to curl as url or OS as a path
 };
 

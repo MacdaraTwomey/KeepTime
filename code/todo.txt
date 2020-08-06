@@ -4,11 +4,13 @@
 
   -- Minimum viable product --
 * Read/write from savefile
-* Make all child backgrounds white
 * Safer writing to database file, (maybe copy and delete old file)
 * Popup on unrecoverable errors
 * Add own licence and licences of used open source code (and maybe fonts)
 * Get memory allocation sizes right
+
+* Replace vector with custom thing
+* replace hash table with custom thing (no deleting so don't need tombstones)
 
   -- Finished product --
 * Low framerate UI (not that needed, and adds lots of complexity)

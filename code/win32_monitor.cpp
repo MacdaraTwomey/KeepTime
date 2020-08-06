@@ -905,7 +905,7 @@ win32_get_bitmap_data_from_HICON(HICON icon, s32 dimension, u32 *pixels)
             int result_2 = GetObject(and_mask_handle, sizeof(BITMAP), &and_mask) == sizeof(BITMAP);
             if (result_1 && result_2)
             {
-                if (width == dimension && height == dimension && pixels)
+                if (colour_mask.bmWidth == dimension && colour_mask.bmHeight == dimension && pixels)
                 {
                     b32 had_alpha = false;
                     u32 *dest = pixels;
@@ -927,7 +927,7 @@ win32_get_bitmap_data_from_HICON(HICON icon, s32 dimension, u32 *pixels)
                     if (!had_alpha)
                     {
                         int and_mask_pitch = and_mask.bmWidthBytes;
-                        u32 *dest = *pixels;
+                        u32 *dest = pixels;
                         u8 *src_row = (u8 *)and_mask.bmBits + (and_mask.bmWidthBytes * (and_mask.bmHeight-1));
                         for (int y = 0; y < and_mask.bmHeight; ++y)
                         {
@@ -971,7 +971,7 @@ platform_get_default_icon(u32 desired_size, Bitmap *bitmap)
     if (hico)
     {
         // TODO: Not sure how exactly to handle platform icon getting with checking sizes, resizing, allocating
-        u32 allocated_pixels = (u32 *)calloc(1, 4*ICON_SIZE*ICON_SIZE);
+        u32 *allocated_pixels = (u32 *)calloc(1, 4*ICON_SIZE*ICON_SIZE);
         if (win32_get_bitmap_data_from_HICON(hico, desired_size, allocated_pixels))
         {
             bitmap->width = desired_size;

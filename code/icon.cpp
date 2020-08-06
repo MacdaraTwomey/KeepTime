@@ -68,7 +68,7 @@ void
 load_default_icon_assets(std::vector<Icon_Asset> &icons)
 {
     Bitmap program_bitmap;
-    if (!platform_get_default_icon(ICON_SIZE, &program_bitmap.width, &program_bitmap.height, &program_bitmap.pitch, &program_bitmap.pixels))
+    if (!platform_get_default_icon(ICON_SIZE, &program_bitmap))
     {
         program_bitmap = make_bitmap(ICON_SIZE, ICON_SIZE, 0x000000); // transparent icon
     }

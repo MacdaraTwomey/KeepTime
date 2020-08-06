@@ -26,8 +26,8 @@ bool platform_get_program_from_window(Platform_Window window, char *buf, size_t 
 
 bool platform_get_firefox_url(Platform_Window window, char *buf, size_t *length);
 
-bool platform_get_default_icon(u32 desired_size, i32 *width, i32 *height, i32 *pitch, u32 **pixels);
+bool platform_get_default_icon(u32 desired_size, Bitmap *bitmap);
 
-bool platform_get_icon_from_executable(char *path, u32 desired_size, i32 *width, i32 *height, i32 *pitch, u32 **pixels);
+bool platform_get_icon_from_executable(char *path, u32 desired_size, Bitmap *bitmap, u32 *allocated_bitmap_memory);
 
 #endif //PLATFORM_H
