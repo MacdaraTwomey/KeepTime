@@ -268,12 +268,6 @@ init_calendar(Calendar *calendar, date::sys_days selected_date,
              ICON_MD_DATE_RANGE " %u/%02u/%i", unsigned(d.day()), unsigned(d.month()), int(d.year()));
 }
 
-void
-init_calendar(Calendar *calendar)
-{
-    // TODO: make sure initilaised before do_calendar_button call
-}
-
 bool
 do_calendar_button(Calendar *calendar, date::sys_days oldest_date, date::sys_days newest_date)
 {
@@ -422,8 +416,35 @@ date_picker_forwards(Date_Picker *date_picker, date::sys_days oldest_date, date:
 }
 
 void
+init_date_picker(Date_Picker *picker, date::sys_days current_date, 
+                 date::sys_days oldest_date, date::sys_days newest_date)
+{
+    // Current used for selected date of calendar and the picker
+    // oldest and newest used for date picker and calendar limits
+    
+#if 0
+    picker->range_type = Range_Type_Daily;
+    picker->start = current_date;
+    picker->end = current_date;
+#else
+    // DEBUG: Default to monthly
+    auto ymd = date::year_month_day{current_date};
+    picker->range_type = Range_Type_Monthly;
+    picker->start = date::sys_days{ymd.year()/ymd.month()/1};
+    picker->end   = date::sys_days{ymd.year()/ymd.month()/date::last};
+#endif
+    
+    // sets label and if buttons are disabled 
+    date_picker_clip_and_update(picker, oldest_date, newest_date);
+    
+    init_calendar(&picker->first_calendar, current_date, oldest_date, newest_date);
+    init_calendar(&picker->second_calendar, current_date, oldest_date, newest_date);
+}
+
+bool
 do_date_select_popup(Date_Picker *date_picker, date::sys_days oldest_date, date::sys_days newest_date)
 {
+    bool range_changed = false;
     ImVec2 pos = ImVec2(ImGui::GetWindowWidth() / 2.0f, ImGui::GetCursorPosY() + 3);
     ImGui::SetNextWindowPos(pos, true, ImVec2(0.5f, 0)); // centre on x
     
@@ -463,6 +484,7 @@ do_date_select_popup(Date_Picker *date_picker, date::sys_days oldest_date, date:
 #endif
         if (date_picker->range_type != prev_range_type)
         {
+            range_changed = true;
             if (date_picker->range_type == Range_Type_Daily)
             {
                 // end date stays the same
@@ -502,6 +524,7 @@ do_date_select_popup(Date_Picker *date_picker, date::sys_days oldest_date, date:
         {
             if (date_picker->range_type == Range_Type_Custom)
             {
+                range_changed = true;
                 date_picker->start = std::min(date_picker->first_calendar.selected_date, date_picker->second_calendar.selected_date);
                 date_picker->end = std::max(date_picker->first_calendar.selected_date, date_picker->second_calendar.selected_date);
                 date_picker_clip_and_update(date_picker, oldest_date, newest_date);
@@ -512,6 +535,7 @@ do_date_select_popup(Date_Picker *date_picker, date::sys_days oldest_date, date:
         {
             if (date_picker->range_type == Range_Type_Custom)
             {
+                range_changed = true;
                 date_picker->start = std::min(date_picker->first_calendar.selected_date, date_picker->second_calendar.selected_date);
                 date_picker->end = std::max(date_picker->first_calendar.selected_date, date_picker->second_calendar.selected_date);
                 date_picker_clip_and_update(date_picker, oldest_date, newest_date);
@@ -520,27 +544,6 @@ do_date_select_popup(Date_Picker *date_picker, date::sys_days oldest_date, date:
         
         ImGui::EndPopup();
     }
-}
-
-void
-init_date_picker(Date_Picker *picker, date::sys_days current_date, 
-                 date::sys_days oldest_date, date::sys_days newest_date)
-{
-#if 0
-    picker->range_type = Range_Type_Daily;
-    picker->start = current_date;
-    picker->end = current_date;
-#else
-    // DEBUG: Default to monthly
-    auto ymd = date::year_month_day{current_date};
-    picker->range_type = Range_Type_Monthly;
-    picker->start = date::sys_days{ymd.year()/ymd.month()/1};
-    picker->end   = date::sys_days{ymd.year()/ymd.month()/date::last};
-#endif
     
-    // sets label and if buttons are disabled 
-    date_picker_clip_and_update(picker, oldest_date, newest_date);
-    
-    init_calendar(&picker->first_calendar, current_date, oldest_date, newest_date);
-    init_calendar(&picker->second_calendar, current_date, oldest_date, newest_date);
+    return range_changed;
 }

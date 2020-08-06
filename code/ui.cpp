@@ -120,9 +120,11 @@ load_ui(UI_State *ui, u32 app_count,
 {
     init_imgui_fonts_and_style(&ui->small_font);
     
-    ui->icons.reserve(200);
     ui->icon_indexes.reserve(app_count + 200); 
     ui->icon_indexes.assign(app_count, -1); // set size and fill with -1
+    ui->icons.reserve(200);
+    
+    ui->icon_bitmap_storage = (u32 *)xalloc(sizeof(u32)*ICON_SIZE*ICON_SIZE);
     
     load_default_icon_assets(ui->icons);
     
@@ -130,6 +132,7 @@ load_ui(UI_State *ui, u32 app_count,
     // TODO: Don't reset this so it is on same range when user opens ui again
     init_date_picker(&ui->date_picker, current_date, oldest_date, newest_date);
     
+    ui->date_range_changed = true; // so record array is made the first time
     ui->open = true;
 }
 
@@ -137,11 +140,17 @@ void
 unload_ui(UI_State *ui)
 {
     ui->date_picker = {}; // TODO: Don't reset this so it is on same range when user opens ui again
+    
+    ui->record_count = 0;
+    free(ui->sorted_records);
+    
     unload_all_icon_assets(ui);
     if (ui->edit_settings)
     {
         free(ui->edit_settings);
     }
+    
+    free(ui->icon_bitmap_storage);
     
     ui->open = false;
 }
@@ -648,6 +657,85 @@ draw_record_time_text(s64 duration)
 #endif
 }
 
+
+Record *
+get_records_in_date_range(Day_View *day_view, u32 *record_count, 
+                          date::sys_days start_range, date::sys_days end_range)
+{
+    Record *result = nullptr;
+    
+    // Dates should be in our days range
+    int start_idx = -1;
+    int end_idx = -1;
+    for (int i = 0; i < day_view->days.size(); ++i)
+    {
+        if (start_range == day_view->days[i].date)
+        {
+            start_idx = i;
+        }
+        if (end_range == day_view->days[i].date)
+        {
+            end_idx = i;
+            Assert(start_idx != -1);
+            break;
+        }
+    }
+    
+    Assert(start_idx != -1 && end_idx != -1);
+    
+    s32 total_record_count = 0;
+    for (int i = start_idx; i <= end_idx; ++i)
+    {
+        total_record_count += day_view->days[i].record_count;
+    }
+    
+    if (total_record_count > 0)
+    {
+        Record *range_records = (Record *)xalloc(total_record_count * sizeof(Record));
+        Record *deduplicated_records = (Record *)xalloc(total_record_count * sizeof(Record));
+        
+        Record *at = range_records;
+        for (int i = start_idx; i <= end_idx; ++i)
+        {
+            memcpy(at, day_view->days[i].records, day_view->days[i].record_count * sizeof(Record));
+            at += day_view->days[i].record_count;
+        }
+        
+        // Sort by id
+        std::sort(range_records, range_records + total_record_count, 
+                  [](Record &a, Record &b) { return a.id < b.id; });
+        
+        // Merge same id records 
+        deduplicated_records[0] = range_records[0];
+        int unique_id_count = 1; 
+        
+        for (int i = 1; i < total_record_count; ++i)
+        {
+            if (range_records[i].id == deduplicated_records[unique_id_count-1].id)
+            {
+                deduplicated_records[unique_id_count-1].duration += range_records[i].duration;
+            }
+            else
+            {
+                deduplicated_records[unique_id_count] = range_records[i];
+                unique_id_count += 1;
+            }
+        }
+        
+        // Sort by duration
+        std::sort(deduplicated_records, deduplicated_records + unique_id_count, 
+                  [](Record &a, Record &b) { return a.duration > b.duration; });
+        
+        free(range_records);
+        
+        *record_count = unique_id_count;
+        return deduplicated_records;
+    }
+    
+    return result;
+}
+
+
 //@main
 void 
 draw_ui_and_update(SDL_Window *window, UI_State *ui, Settings *settings, App_List *apps, Monitor_State *state)
@@ -678,7 +766,6 @@ draw_ui_and_update(SDL_Window *window, UI_State *ui, Settings *settings, App_Lis
     
     ImGui::SetNextWindowPos(ImVec2(900, 0), true);
     freetype_test.ShowFreetypeOptionsWindow();
-    
 #endif
     
     void debug_ui_options(Monitor_State *state);
@@ -693,7 +780,6 @@ draw_ui_and_update(SDL_Window *window, UI_State *ui, Settings *settings, App_Lis
         | ImGuiWindowFlags_NoResize;
     
     ImGui::SetNextWindowPos(ImVec2(0, 0), true);
-    
     
     ImGuiIO& io = ImGui::GetIO();
     if (g_fullscreen)
@@ -714,6 +800,7 @@ draw_ui_and_update(SDL_Window *window, UI_State *ui, Settings *settings, App_Lis
         
         if (ButtonSpecial(ICON_MD_ARROW_BACK, date_picker->is_backwards_disabled))
         {
+            ui->date_range_changed = true;
             date_picker_backwards(date_picker, oldest_date, newest_date);
         }
         
@@ -726,10 +813,14 @@ draw_ui_and_update(SDL_Window *window, UI_State *ui, Settings *settings, App_Lis
         
         if (ButtonSpecial(ICON_MD_ARROW_FORWARD, date_picker->is_forwards_disabled))
         {
+            ui->date_range_changed = true;
             date_picker_forwards(date_picker, oldest_date, newest_date);
         }
         
-        do_date_select_popup(date_picker, oldest_date, newest_date);
+        if (do_date_select_popup(date_picker, oldest_date, newest_date))
+        {
+            ui->date_range_changed = true;
+        }
         
 #if 0
         ImDrawList* draw_list = ImGui::GetForegroundDrawList();
@@ -773,148 +864,98 @@ draw_ui_and_update(SDL_Window *window, UI_State *ui, Settings *settings, App_Lis
     }
     
     {
-        // Barplot
-        
-        // TODO Make this white
-        //ImGui::BeginChild(UI_BARPLOT_ID, ImVec2(0,ImGui::GetWindowHeight() * 0.9), true);
-        
-        // just for debug
-        ImVec2 pos = ImGui::GetCursorPos();
-        float  h = ImGui::GetWindowHeight();
-        
-        auto wh = ImVec2(0, h - pos.y - 50);
-        ImGui::BeginChildFrame(UI_BARPLOT_ID, wh);
+        ImGui::BeginChildFrame(UI_BARPLOT_ID, {0,0});
         
         ImDrawList* draw_list = ImGui::GetWindowDrawList();
         
-        // TODO: Save records or sizes between frames
-        u32 record_count = 0;
-        Record *records = get_records_in_date_range(&ui->day_view, &record_count, ui->date_picker.start, ui->date_picker.end);
-        if (records)
+        // debug
+        ui->date_range_changed = true;
+        
+        // TODO: Consider doing this elsewhere
+        if (ui->date_range_changed)
         {
-            // TODO: Text position seems to depend on more than this, when window is resized
-            s64 max_duration = records[0].duration;
-            float max_bar_width = ImGui::GetWindowWidth() * 0.6f;
-            float max_text_width = ImGui::GetWindowWidth() - 75.0f;
-            float time_text_start = max_text_width + 5.0f;
+            free(ui->sorted_records);
+            ui->sorted_records = nullptr;
+            ui->sorted_records = get_records_in_date_range(&ui->day_view, &ui->record_count, 
+                                                           ui->date_picker.start, ui->date_picker.end);
+            ui->date_range_changed = false;
+        }
+        
+        s64 max_duration = (ui->record_count > 0) ? ui->sorted_records[0].duration : 1;
+        float max_bar_width = ImGui::GetWindowWidth() * 0.9f;
+        float pixels_per_duration = max_bar_width / max_duration;
+        
+        for (i32 i = 0; i < ui->record_count; ++i)
+        {
+            Record &record = ui->sorted_records[i];
             
-            for (i32 i = 0; i < record_count; ++i)
+            if (record.id == 0) continue;
+            
+            if (i != 0)
             {
-                Record &record = records[i];
-                
-                // if (record.id == 0) continue;
-                
-                if (i != 0)
-                {
-                    // After moving app name text down for in the above line we need to now move this whole line up to compensate for the added space (for every line but the first).
-                    ImVec2 pos = ImGui::GetCursorScreenPos();
-                    pos.y -= g_text_down; 
-                    ImGui::SetCursorScreenPos(pos);
-                }
-                
-                // TODO: Check if pos of bar or image will be clipped entirely, and maybe skip rest of loop
-                
-                Icon_Asset *icon = get_app_icon_asset(apps, ui, record.id);
-                if (icon)
-                {
-                    auto border = ImVec4(0,0,0,255);
-                    ImGui::Image((ImTextureID)(intptr_t)icon->texture_handle, ImVec2((float)icon->width, (float)icon->height));
-                    //ImGui::Image((ImTextureID)(intptr_t)icon->texture_handle, ImVec2((float)icon->bitmap.width, (float)icon->bitmap.height),{0,0},{1,1},{1,1,1,1}, border);
-                }
-                
-                // To start rect where text start
-                ImGui::SameLine();
-                
-                // TODO: make sure colours stay with their record, in order of records.
-                // ... But we probably won't have a live display, so colour change probably not be noticed between
-                // separete openings of the ui, when the ordering of records can change.
-                // The only thing is seeing the same app in different weeks/days etc with a different colour, which probably does mean each app needs a assigned colour per ui run. Can maybe put this in Icon_Asset and call it UI_Asset
-                ImU32 colours[] = {
-#if 1
-                    // pastel
-                    IM_COL32(255, 154, 162, 255),
-                    IM_COL32(255, 183, 178, 255),
-                    IM_COL32(255, 218, 193, 255),
-                    IM_COL32(226, 240, 203, 255),
-                    IM_COL32(181, 234, 215, 255),
-                    IM_COL32(199, 206, 234, 255),
-                    
-                    //
-                    //IM_COL32(247, 217, 196, 255),
-                    IM_COL32(250, 237, 203, 255),
-                    IM_COL32(201, 228, 222, 255),
-                    IM_COL32(198, 222, 241, 255),
-                    IM_COL32(219, 205, 240, 255),
-                    IM_COL32(242, 198, 222, 255),
-                    //IM_COL32(249, 198, 201, 255),
-#endif
-                    
-#if 0                    
-                    // Divergent
-                    IM_COL32(84, 71, 140, 255),
-                    IM_COL32(44, 105, 154, 255),
-                    IM_COL32(4, 139, 168, 255),
-                    IM_COL32(13, 179, 158, 255),
-                    IM_COL32(22, 219, 147, 255),
-                    IM_COL32(131, 227, 119, 255),
-                    IM_COL32(185, 231, 105, 255),
-                    IM_COL32(239, 234, 90, 255),
-                    IM_COL32(241, 196, 83, 255),
-                    IM_COL32(242, 158, 76, 255),
-#endif
-                    
-                    
-                };
-                
-                ImVec2 plot_pos = ImGui::GetWindowPos();
-                float bar_width = floorf(max_bar_width * ((float)record.duration / (float)max_duration));
-                if (bar_width > 5)
-                {
-                    ImVec2 bar0 = ImGui::GetCursorScreenPos();
-                    bar0.x += 1;
-                    bar0.y += g_bar_down; // prabably wants to be 1
-                    ImVec2 bar1 = ImVec2(bar0.x + bar_width - 1, bar0.y + g_bar_height - 1);
-                    ImVec2 outline0 = ImVec2(bar0.x-1, bar0.y-1);
-                    ImVec2 outline1 = ImVec2(bar1.x+1, bar1.y+1);
-                    
-                    draw_list->AddRect(outline0, outline1, IM_COL32(0, 0, 0, 255));
-                    draw_list->AddRectFilled(bar0, bar1, colours[i % array_count(colours)]);                    
-                }
-                
-                String name = {};
-                if (record.id == 0)
-                {
-                    // DEBUG
-                    name = make_string_from_literal("Not polled time");
-                }
-                else
-                {
-                    // NOTE: We will just skipp apps with id 0 instead
-                    // returns string with just a space " " if for some reason there is no app with that id (or id == 0)
-                    name = get_app_name(apps, record.id);
-                }
-                
                 ImVec2 pos = ImGui::GetCursorScreenPos();
-                pos.x += g_text_right;
-                pos.y += g_text_down;
+                pos.y -= g_text_down; 
                 ImGui::SetCursorScreenPos(pos);
-                
-                draw_record_time_text(record.duration);
-                ImGui::SameLine();
-                ImGui::TextUnformatted(name.str, name.str + name.length);
-                
-                // Text underline
-                //ImVec2 max_r = ImGui::GetItemRectMax();
-                //ImVec2 min_r = ImGui::GetItemRectMin();
-                //draw_list->AddLine(ImVec2(min_r.x, max_r.y), ImVec2(min_r.x + 1000, max_r.y), IM_COL32(255,0,0,255), 1.0f);
             }
             
-            free(records);
-        } // if (records)
+            Icon_Asset *icon = get_app_icon_asset(apps, ui, record.id);
+            if (icon)
+            {
+                auto border = ImVec4(0,0,0,255);
+                ImGui::Image((ImTextureID)(intptr_t)icon->texture_handle, ImVec2((float)icon->width, (float)icon->height));
+                //ImGui::Image((ImTextureID)(intptr_t)icon->texture_handle, ImVec2((float)icon->bitmap.width, (float)icon->bitmap.height),{0,0},{1,1},{1,1,1,1}, border);
+            }
+            
+            // To start rect where text start
+            ImGui::SameLine();
+            
+            // TODO: make sure colours stay with their record, in order of records.
+            // ... But we probably won't have a live display, so colour change probably not be noticed between
+            // separete openings of the ui, when the ordering of records can change.
+            // The only thing is seeing the same app in different weeks/days etc with a different colour, which probably does mean each app needs a assigned colour per ui run. Can maybe put this in Icon_Asset and call it UI_Asset
+            ImU32 colours[] = {
+                IM_COL32(255, 154, 162, 255),
+                IM_COL32(255, 183, 178, 255),
+                IM_COL32(255, 218, 193, 255),
+                IM_COL32(226, 240, 203, 255),
+                IM_COL32(181, 234, 215, 255),
+                IM_COL32(199, 206, 234, 255),
+                //
+                IM_COL32(250, 237, 203, 255),
+                IM_COL32(201, 228, 222, 255),
+                IM_COL32(198, 222, 241, 255),
+                IM_COL32(219, 205, 240, 255),
+                IM_COL32(242, 198, 222, 255),
+            };
+            
+            float bar_width = floorf(pixels_per_duration * (float)record.duration);
+            if (bar_width > 5)
+            {
+                ImVec2 bar0 = ImGui::GetCursorScreenPos();
+                bar0.x += 1;
+                bar0.y += g_bar_down; // prabably wants to be 1
+                ImVec2 bar1 = ImVec2(bar0.x + bar_width - 1, bar0.y + g_bar_height - 1);
+                ImVec2 outline0 = ImVec2(bar0.x-1, bar0.y-1);
+                ImVec2 outline1 = ImVec2(bar1.x+1, bar1.y+1);
+                
+                draw_list->AddRect(outline0, outline1, IM_COL32_BLACK);
+                draw_list->AddRectFilled(bar0, bar1, colours[i % array_count(colours)]);                    
+            }
+            
+            ImVec2 pos = ImGui::GetCursorScreenPos();
+            pos.x += g_text_right;
+            pos.y += g_text_down;
+            ImGui::SetCursorScreenPos(pos);
+            
+            draw_record_time_text(record.duration);
+            ImGui::SameLine();
+            
+            String name = get_app_name(apps, record.id);
+            ImGui::TextUnformatted(name.str, name.str + name.length);
+        }
         
         ImGui::EndChild();
         
-        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
         ImGui::End();
         
         ImGui::Render(); 
@@ -933,9 +974,12 @@ void
 debug_ui_options(Monitor_State *state)
 {
     static bool first = true;
-    if (first) { ImGui::SetNextWindowPos(ImVec2(900, 0), true); first = false; }
+    if (first) { ImGui::SetNextWindowPos(ImVec2(860, 20), true); first = false; }
     
     ImGui::Begin("DEBUG Options");
+    
+    ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+    
     ImGui::Checkbox("Fullscreen", &g_fullscreen);
     ImGui::SameLine();
     if (ImGui::Button("Hide"))

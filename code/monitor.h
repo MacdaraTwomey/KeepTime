@@ -168,8 +168,6 @@ struct App_List
     App_Id next_website_id;  
     
     Arena names_arena;
-    
-    // TODO: Allocated bitmap for loading icons
 };
 
 enum Settings_Misc_Keyword_Status : s32
@@ -245,16 +243,22 @@ struct Date_Picker
 
 struct UI_State
 {
-    std::vector<Icon_Asset> icons;
     
+    // TODO: This probably makes more sense as a hash table, as not all ids will have a icon (array would essentially be sparse)
     // Maps App_Ids to icons in the icons array
     std::vector<s32> icon_indexes;  // -1 means not loaded
+    std::vector<Icon_Asset> icons;
+    u32 *icon_bitmap_storage;
     
     Date_Picker date_picker;
     Day_View day_view;
     Edit_Settings *edit_settings; // allocated when needed
     
+    Record *sorted_records;
+    u32 record_count;
+    
     ImFont *small_font;
+    bool date_range_changed;
     bool open;
 };
 

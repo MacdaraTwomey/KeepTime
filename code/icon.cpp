@@ -68,7 +68,7 @@ void
 load_default_icon_assets(std::vector<Icon_Asset> &icons)
 {
     Bitmap program_bitmap;
-    if (!platform_get_default_icon(&program_bitmap.width, &program_bitmap.height, &program_bitmap.pitch, &program_bitmap.pixels))
+    if (!platform_get_default_icon(ICON_SIZE, &program_bitmap.width, &program_bitmap.height, &program_bitmap.pitch, &program_bitmap.pixels))
     {
         program_bitmap = make_bitmap(ICON_SIZE, ICON_SIZE, 0x000000); // transparent icon
     }
@@ -541,4 +541,32 @@ create_world_icon_source_file(char *png_file, char *cpp_file, int dimension)
     }
 }
 
+#endif
+
+
+#if 0
+bool
+resize_bitmap(Bitmap *in, Bitmap *out, u32 dimension)
+{
+    u32 *out_pixels = (u32 *)malloc(dimension * dimension * 4);
+    if (out_pixels)
+    {
+        if (stbir_resize_uint8((u8 *)in->pixels,in->width , in->height, 0, // packed in memory
+                               (u8 *)out_pixels, dimension, dimension, 0, // packed in memory
+                               4))
+        {
+            out->width = dimension;
+            out->height = dimension;
+            out->pitch = dimension*4;
+            out->pixels = out_pixels;
+            return true;
+        }
+        else
+        {
+            free(out_pixels);
+        }
+    }
+    
+    return false;
+}
 #endif

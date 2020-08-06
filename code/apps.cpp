@@ -5,23 +5,12 @@ get_local_time_day()
     time_t rawtime;
     time( &rawtime );
     
+    // Looks in TZ database, not threadsafe
     struct tm *info;
-    // tm_mday;        /* day of the month, range 1 to 31  */
-    // tm_mon;         /* month, range 0 to 11             */
-    // tm_year;        /* The number of years since 1900   */
-    // tm_hour; hours since midnight    0-23
-    // tm_min; minutes after the hour   0-59
-    // tm_sec; seconds after the minute 0-61* (*generally 0-59 extra range to accomodate leap secs in some systems)
-    // tm_isdst; Daylight Saving Time flag 
-    /* is greater than zero if Daylight Saving Time is in effect, zero if Daylight Saving Time is not in effect, and less than zero if the information is not available. */
-    
-    // Looks if TZ database
     info = localtime( &rawtime );
     auto now = date::sys_days{
         date::month{(unsigned)(info->tm_mon + 1)}/date::day{(unsigned)info->tm_mday}/date::year{info->tm_year + 1900}};
     
-    //auto test_date = std::floor<date::local_days>()};
-    //Assert(using local_days    = local_time<days>;
     return now;
 }
 
@@ -41,8 +30,7 @@ void
 add_or_update_record(Day_List *day_list, App_Id id, s64 dt)
 {
     // Assumes a day's records are sequential in memory
-    
-    // DEBUG: Record id can be 0, used to denote 'no program'
+    Assert(id != Id_Invalid);
     Assert(day_list->days.size() > 0);
     
     Day *cur_day = &day_list->days.back();
@@ -50,7 +38,6 @@ add_or_update_record(Day_List *day_list, App_Id id, s64 dt)
     {
         if (id == cur_day->records[i].id)
         {
-            // Existing id today
             cur_day->records[i].duration += dt;
             return;
         }
@@ -58,7 +45,6 @@ add_or_update_record(Day_List *day_list, App_Id id, s64 dt)
     
     if (cur_day->record_count < MAX_DAILY_RECORDS)
     {
-        
         // Add new record to block
         cur_day->records[cur_day->record_count] = Record{ id, dt };
         cur_day->record_count += 1;
@@ -200,6 +186,8 @@ get_app_name(App_List *apps, App_Id id)
     }
     else
     {
+        // Should never happen
+        Assert(0);
         result = make_string_from_literal(" ");
     }
     
@@ -213,81 +201,4 @@ get_app_count(App_List *apps)
     Assert(count == (index_from_id(apps->next_website_id) + index_from_id(apps->next_program_id)));
     
     return count;
-}
-
-Record *
-get_records_in_date_range(Day_View *day_view, u32 *record_count, 
-                          date::sys_days start_range, date::sys_days end_range)
-{
-    Record *result = nullptr;
-    
-    // Dates should be in our days range
-    int start_idx = -1;
-    int end_idx = -1;
-    for (int i = 0; i < day_view->days.size(); ++i)
-    {
-        if (start_range == day_view->days[i].date)
-        {
-            start_idx = i;
-        }
-        if (end_range == day_view->days[i].date)
-        {
-            end_idx = i;
-            Assert(start_idx != -1);
-            break;
-        }
-    }
-    
-    Assert(start_idx != -1 && end_idx != -1);
-    
-    s32 total_record_count = 0;
-    for (int i = start_idx; i <= end_idx; ++i)
-    {
-        total_record_count += day_view->days[i].record_count;
-    }
-    
-    if (total_record_count > 0)
-    {
-        Record *range_records = (Record *)xalloc(total_record_count * sizeof(Record));
-        Record *deduplicated_records = (Record *)xalloc(total_record_count * sizeof(Record));
-        
-        Record *at = range_records;
-        for (int i = start_idx; i <= end_idx; ++i)
-        {
-            memcpy(at, day_view->days[i].records, day_view->days[i].record_count * sizeof(Record));
-            at += day_view->days[i].record_count;
-        }
-        
-        // Sort by id
-        std::sort(range_records, range_records + total_record_count, 
-                  [](Record &a, Record &b) { return a.id < b.id; });
-        
-        // Merge same id records 
-        deduplicated_records[0] = range_records[0];
-        int unique_id_count = 1; 
-        
-        for (int i = 1; i < total_record_count; ++i)
-        {
-            if (range_records[i].id == deduplicated_records[unique_id_count-1].id)
-            {
-                deduplicated_records[unique_id_count-1].duration += range_records[i].duration;
-            }
-            else
-            {
-                deduplicated_records[unique_id_count] = range_records[i];
-                unique_id_count += 1;
-            }
-        }
-        
-        // Sort by duration
-        std::sort(deduplicated_records, deduplicated_records + unique_id_count, 
-                  [](Record &a, Record &b) { return a.duration > b.duration; });
-        
-        free(range_records);
-        
-        *record_count = unique_id_count;
-        return deduplicated_records;
-    }
-    
-    return result;
 }

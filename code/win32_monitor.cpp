@@ -503,6 +503,7 @@ platform_get_active_window()
     
     if (done)
     {
+        // Can return 0 is certain circumstances, such as when a window is losing activation
         HWND foreground_win = GetForegroundWindow();
         window = {};
         window.handle = foreground_win;
@@ -875,7 +876,7 @@ platform_get_firefox_url(Platform_Window window, char *buf, size_t *length)
 
 
 bool
-win32_get_bitmap_data_from_HICON(HICON icon, i32 *width, i32 *height, i32 *pitch, u32 **pixels)
+win32_get_bitmap_data_from_HICON(HICON icon, s32 dimension, u32 *pixels)
 {
     bool success = false;
     
@@ -904,16 +905,10 @@ win32_get_bitmap_data_from_HICON(HICON icon, i32 *width, i32 *height, i32 *pitch
             int result_2 = GetObject(and_mask_handle, sizeof(BITMAP), &and_mask) == sizeof(BITMAP);
             if (result_1 && result_2)
             {
-                *width = colour_mask.bmWidth;
-                *height = colour_mask.bmHeight;
-                *pitch = *width * 4;
-                *pixels = (u32 *)malloc(*pitch * *height);
-                if (*pixels)
+                if (width == dimension && height == dimension && pixels)
                 {
-                    memset(*pixels, 0, *pitch * *height);
-                    
                     b32 had_alpha = false;
-                    u32 *dest = *pixels;
+                    u32 *dest = pixels;
                     u8 *src_row = (u8 *)colour_mask.bmBits + (colour_mask.bmWidthBytes * (colour_mask.bmHeight-1));
                     for (int y = 0; y < colour_mask.bmHeight; ++y)
                     {
@@ -968,15 +963,21 @@ win32_get_bitmap_data_from_HICON(HICON icon, i32 *width, i32 *height, i32 *pitch
 
 
 bool
-platform_get_default_icon(i32 *width, i32 *height, i32 *pitch, u32 **pixels)
+platform_get_default_icon(u32 desired_size, Bitmap *bitmap)
 {
     // NOTE: You don't need to delete LoadIcon hicon
     bool success = false;
     HICON hico = (HICON)LoadIcon(NULL, IDI_APPLICATION);
     if (hico)
     {
-        if (win32_get_bitmap_data_from_HICON(hico, width, height, pitch, pixels))
+        // TODO: Not sure how exactly to handle platform icon getting with checking sizes, resizing, allocating
+        u32 allocated_pixels = (u32 *)calloc(1, 4*ICON_SIZE*ICON_SIZE);
+        if (win32_get_bitmap_data_from_HICON(hico, desired_size, allocated_pixels))
         {
+            bitmap->width = desired_size;
+            bitmap->height = desired_size;
+            bitmap->pitch = desired_size*4;
+            bitmap->pixels = allocated_pixels;
             success = true;
         }
     }
@@ -985,16 +986,19 @@ platform_get_default_icon(i32 *width, i32 *height, i32 *pitch, u32 **pixels)
 }
 
 bool
-platform_get_icon_from_executable(char *path, u32 desired_size, 
-                                  i32 *width, i32 *height, i32 *pitch, u32 **pixels)
+platform_get_icon_from_executable(char *path, u32 desired_size, Bitmap *bitmap, u32 *allocated_bitmap_memory)
 {
+    Assert(allocated_bitmap_memory);
+    
     // path must be null terminated
+    // If icon is not desired size returns false
+    // Pass in memory to write icon bitmap to
     
     // NOTE: These must be destroyed
     HICON small_icon_handle = 0;
     HICON icon_handle = 0;
     
-    // TODO: maybe just use extract icon, or manually extract to avoid shellapi.h maybe shell32.dll
+    // TODO: maybe just use extract icon and resize
     if(SHDefExtractIconA(path, 0, 0, &icon_handle, &small_icon_handle, desired_size) != S_OK)
     {
         return false;
@@ -1003,16 +1007,25 @@ platform_get_icon_from_executable(char *path, u32 desired_size,
     bool success = false;
     if (icon_handle)
     {
-        success = win32_get_bitmap_data_from_HICON(icon_handle, width, height, pitch, pixels);
+        success = win32_get_bitmap_data_from_HICON(icon_handle, desired_size, allocated_bitmap_memory);
     }
     else if (small_icon_handle)
     {
-        success = win32_get_bitmap_data_from_HICON(small_icon_handle, width, height, pitch, pixels);
+        success = win32_get_bitmap_data_from_HICON(small_icon_handle, desired_size, allocated_bitmap_memory);
     }
     
     // NOTE: Don't need to destroy LoadIcon icons I'm pretty sure, but SHDefExtractIconA does need to be destroyed
     if (icon_handle) DestroyIcon(icon_handle);
     if (small_icon_handle) DestroyIcon(small_icon_handle);
+    
+    if (success)
+    {
+        bitmap->width = desired_size;
+        bitmap->height = desired_size;
+        bitmap->pitch = desired_size*4;
+        bitmap->pixels = allocated_bitmap_memory;
+    }
+    
     return success;
 }
 

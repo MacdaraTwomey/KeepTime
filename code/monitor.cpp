@@ -49,17 +49,13 @@ get_app_icon_asset(App_List *apps, UI_State *ui, App_Id id)
             String path = apps->local_programs[id_index].full_name;
             Assert(path.length > 0);
             
-            Bitmap bitmap;
-            bool success = platform_get_icon_from_executable(path.str, ICON_SIZE, 
-                                                             &bitmap.width, &bitmap.height, &bitmap.pitch, &bitmap.pixels);
+            Bitmap bitmap = {};
+            bool success = platform_get_icon_from_executable(path.str, ICON_SIZE, &bitmap, ui->icon_bitmap_storage);
             if (success)
             {
                 // TODO: Maybe mark old paths that couldn't get correct icon for deletion or to stop trying to get icon, or assign a default invisible icon
                 *icon_index = load_icon_asset(ui->icons, bitmap);
-                
                 Assert(*icon_index > 1);
-                free(bitmap.pixels);
-                
                 return &ui->icons[*icon_index];
             }
         }
@@ -130,7 +126,6 @@ debug_add_records(App_List *apps, Day_List *day_list, date::sys_days cur_date)
     
     if (first)
     {
-        
         exes = (char **)calloc(1, sizeof(char *) * 10000);
         Assert(exes);
         
@@ -237,33 +232,6 @@ debug_add_records(App_List *apps, Day_List *day_list, date::sys_days cur_date)
         }
     }
 }
-
-#if 0
-bool
-resize_bitmap(Bitmap *in, Bitmap *out, u32 dimension)
-{
-    u32 *out_pixels = (u32 *)malloc(dimension * dimension * 4);
-    if (out_pixels)
-    {
-        if (stbir_resize_uint8((u8 *)in->pixels,in->width , in->height, 0, // packed in memory
-                               (u8 *)out_pixels, dimension, dimension, 0, // packed in memory
-                               4))
-        {
-            out->width = dimension;
-            out->height = dimension;
-            out->pitch = dimension*4;
-            out->pixels = out_pixels;
-            return true;
-        }
-        else
-        {
-            free(out_pixels);
-        }
-    }
-    
-    return false;
-}
-#endif
 
 void 
 add_keyword(Settings *settings, char *str)
@@ -508,6 +476,7 @@ update(Monitor_State *state, SDL_Window *window, s64 dt_microseconds, Window_Eve
         Day_List *day_list = &state->day_list;
         // not needed just does the allocation here rather than during firsts push_size
         init_arena(&day_list->arena, Kilobytes(10));
+        
         // add fake days before current_date
         debug_add_records(apps, day_list, current_date);
         start_new_day(day_list, current_date);
@@ -557,8 +526,10 @@ update(Monitor_State *state, SDL_Window *window, s64 dt_microseconds, Window_Eve
     {
         if (!ui->open)
         {
+            // These dates used to determine selected and limits to date navigation in picker and calendars
             date::sys_days oldest_date = state->day_list.days.front().date;
             date::sys_days newest_date = state->day_list.days.back().date;
+            
             load_ui(ui, apps->local_programs.size(), current_date, oldest_date, newest_date);
             //platform_set_sleep_time(state->refresh_frame_time);
         }
@@ -573,16 +544,11 @@ update(Monitor_State *state, SDL_Window *window, s64 dt_microseconds, Window_Eve
     state->accumulated_time += dt_microseconds;
     if (ui->open)
     {
-        // If ui is open we need to limit poll rate manually, incase update is called frequently for lots of events
-        
         // state->settings.misc_options.poll_frequency_milliseconds * MICROSECS_PER_MILLISEC;
         if (state->accumulated_time >= 100000)
         {
             App_Id id = poll_windows(apps, &state->settings);
-            if (id != Id_Invalid)
-                add_or_update_record(&state->day_list, id, state->accumulated_time);
-            else
-                add_or_update_record(&state->day_list, 0, state->accumulated_time); // debug to account for no time records
+            if (id != Id_Invalid) add_or_update_record(&state->day_list, id, state->accumulated_time);
             
             state->accumulated_time = 0;
         }
@@ -599,8 +565,6 @@ update(Monitor_State *state, SDL_Window *window, s64 dt_microseconds, Window_Eve
         App_Id id = poll_windows(apps, &state->settings);
         if (id != Id_Invalid)
             add_or_update_record(&state->day_list, id, state->accumulated_time);
-        else
-            add_or_update_record(&state->day_list, 0, state->accumulated_time); // debug to account for no time records
         
         state->accumulated_time = 0;
     }
