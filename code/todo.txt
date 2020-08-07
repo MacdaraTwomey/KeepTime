@@ -11,6 +11,7 @@
 
 * Replace vector with custom thing
 * replace hash table with custom thing (no deleting so don't need tombstones)
+* ensure memory arenas actually work past 1 block
 
   -- Finished product --
 * Low framerate UI (not that needed, and adds lots of complexity)
@@ -27,17 +28,32 @@
 
 
 
+// Separate thread Idea
+Main thread is hidden message only window
+UI thread is opened closed whenever
+UI can push stuff onto shared memory queue thing to give main (background) thread settings and commands to quit
+UI can push close command to ui when it gets notified from tray icon
+UI gets all its state from reading from file
+Threads share file access
+
+Problems
+multithreading challenges will likely occur
+Communication between threads
+SDL forces you to only have main thread have a window and recieve events
+
+Benefits
+More separatation of concerns, main background doesn't need to know how UI operates
+Simpler to have different 'framerates' 
+day view is clearer, as its just what's in the file is the view
+
+
+
 // -----------------------------------------------------------------
 // TODO:
-// * !!! If GUI is visible don't sleep. But we still want to poll infrequently. So maybe check elapsed poll time.
 // * Remember window width and height
 // * Unicode correctness
 // * Path length correctness
-// * Stop repeating work getting the firefox URL, maybe use UIAutomation cache?
+//  When finished leave asserts and make them write to a log file instead of calling debugbreak()
 // -----------------------------------------------------------------
 
-// Obey licenses (may need to include license and copyright info, can google)
-// TODO: When finished leave asserts and make them write to a log file instead of calling debugbreak()
-// TODO: Don't hardcode sizes, make it a multiple of font size maybe
-// can use array textures maybe, GL_TEXTURE_2D_ARRAY texture target. Textures must be same size
 

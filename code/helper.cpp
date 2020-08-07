@@ -162,6 +162,8 @@ push_string(Arena *arena, String string)
 {
     // Passed string doesn't need to be null terminated
     // Returns null terminated string
+    // Only full_name (path given to OS) needs to be null terminated, short_name would rather not be null terminated
+    // NOTE: Also relied upon by keyword code to be null terminated
     
     char *mem = (char *)push_size(arena, string.length+1);
     memcpy(mem, string.str, string.length);

@@ -53,13 +53,12 @@ init_imgui_fonts_and_style(ImFont **small_font)
     ImVec4* colors = ImGui::GetStyle().Colors;
     //colors[ImGuiCol_FrameBg] = ImVec4(255, 255, 255, 255.00f);
     
-    
-    // NOTE: I think you can put all fonts in one texture then just use the ImFont pointers to select which glyphs you are pulling from
-    
+#if 0    
     static const ImWchar basic_latin[] = {
         0x0020, 0x007E,
         0,
     };
+#endif
     
     static const ImWchar icon_range[] = {
         0xe8b8, 0xe8b8, // settings
@@ -74,7 +73,7 @@ init_imgui_fonts_and_style(ImFont **small_font)
     config.PixelSnapH = true;
     config.GlyphOffset = ImVec2(0, 4); // move icon glyphs down or else they render too high
     
-    ImFont *normal_font = io.Fonts->AddFontFromMemoryCompressedTTF(SourceSansProRegular_compressed_data, SourceSansProRegular_compressed_size, NORMAL_FONT_SIZE, nullptr, basic_latin);
+    ImFont *normal_font = io.Fonts->AddFontFromMemoryCompressedTTF(SourceSansProRegular_compressed_data, SourceSansProRegular_compressed_size, NORMAL_FONT_SIZE, nullptr);
     
     // This adds 56000 IndexAdvanceX floats because it is based off the max codepoint so unused glyph indexes just have default advance
     io.Fonts->AddFontFromFileTTF("c:\\dev\\projects\\monitor\\build\\fonts\\MaterialIcons-Regular.ttf", NORMAL_FONT_SIZE, &config, icon_range);
@@ -83,7 +82,7 @@ init_imgui_fonts_and_style(ImFont **small_font)
     // https://transfonter.org/
     // "c:\\dev\\projects\\monitor\\build\\fonts\\subset-MaterialIcons-Regular.ttf"
     
-    ImFont *loaded_small_font = io.Fonts->AddFontFromMemoryCompressedTTF(SourceSansProRegular_compressed_data, SourceSansProRegular_compressed_size, SMALL_FONT_SIZE, nullptr, basic_latin);
+    ImFont *loaded_small_font = io.Fonts->AddFontFromMemoryCompressedTTF(SourceSansProRegular_compressed_data, SourceSansProRegular_compressed_size, SMALL_FONT_SIZE, nullptr);
     
     
     // NOTE: FreeType assumes blending in linear space rather than gamma space. See FreeType note for FT_Render_Glyph. For correct results you need to be using sRGB and convert to linear space in the pixel shader output. The default Dear ImGui styles will be impacted by this change (alpha values will need tweaking).

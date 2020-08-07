@@ -11,6 +11,7 @@
 // Seems that all sizes work except 16 and except larger sizes (64 works though)
 constexpr u32 ICON_SIZE = 32;
 
+// TODO: Make sure that having null terminators in allocation doesn't make these sizes mess up, ui input of keyword must limit length to MAX_KEYWORD_SIZE - 1
 constexpr s32 MAX_KEYWORD_COUNT = 100;
 constexpr s32 MAX_KEYWORD_SIZE = 101;
 
@@ -18,6 +19,7 @@ constexpr s32 MICROSECS_PER_MILLISEC = 1000;
 constexpr s32 MILLISECS_PER_SEC = 1000;
 constexpr s32 MICROSECS_PER_SEC = 1000000;
 
+constexpr u32 DEFAULT_POLL_FREQUENCY_MILLISECONDS = 100000; // debug (this is fast)
 constexpr float POLL_FREQUENCY_MIN_SECONDS = 0.001f;  // debug
 //constexpr float POLL_FREQUENCY_MIN_SECONDS = 0.1f; 
 constexpr float POLL_FREQUENCY_MAX_SECONDS = 60.0f; 
@@ -87,12 +89,6 @@ namespace std
     };
 }
 
-enum Id_Type
-{
-	Id_Invalid, 
-	Id_LocalProgram,    
-	Id_Website,         
-};
 struct Record
 {
     // Could add a 32-bit date in here without changing size in memory
@@ -181,16 +177,22 @@ enum Settings_Misc_Keyword_Status : s32
 
 struct Misc_Options
 {
-    // solution just make them u32 for gods sake
+    u32 poll_frequency_milliseconds;   
+    Settings_Misc_Keyword_Status keyword_status;
     
     // In minute of the day 0-1439
     //u32 day_start_time;  // Changing this won't trigger conversion of previously saved records
     //u32 poll_start_time; // Default 0 (12:00AM) (if start == end, always poll)
     //u32 poll_end_time;   // Default 0 (12:00AM)
-    
     //b32 run_at_system_startup;   
-    u32 poll_frequency_milliseconds;   
-    Settings_Misc_Keyword_Status keyword_status;
+    
+    Misc_Options default_misc_options()
+    {
+        Misc_Options misc;
+        misc.poll_frequency_milliseconds = DEFAULT_POLL_FREQUENCY_MILLISECONDS;
+        misc.keyword_status = Settings_Misc_Keyword_Custom;
+        return misc;
+    }
 };
 
 struct Edit_Settings
@@ -245,9 +247,7 @@ struct Date_Picker
 
 struct UI_State
 {
-    
     // TODO: This probably makes more sense as a hash table, as not all ids will have a icon (array would essentially be sparse)
-    // Maps App_Ids to icons in the icons array
     std::vector<s32> icon_indexes;  // -1 means not loaded
     std::vector<Icon_Asset> icons;
     u32 *icon_bitmap_storage;

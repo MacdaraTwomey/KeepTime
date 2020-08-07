@@ -30,7 +30,7 @@ void
 add_or_update_record(Day_List *day_list, App_Id id, s64 dt)
 {
     // Assumes a day's records are sequential in memory
-    Assert(id != Id_Invalid);
+    Assert(id != 0);
     Assert(day_list->days.size() > 0);
     
     Day *cur_day = &day_list->days.back();
@@ -108,6 +108,32 @@ make_website_id(App_List *apps)
     return id;
 }
 
+void
+add_local_program(App_List *apps, App_Id id, String short_name, String full_name)
+{
+    Local_Program_Info info;
+    info.full_name = push_string(&apps->names_arena, full_name); 
+    info.short_name = push_string(&apps->names_arena, short_name); // string intern this from fullname
+    
+    apps->local_programs.push_back(info);
+    
+    // TODO: Make this share short_name given to above functions
+    String key_copy = push_string(&apps->names_arena, short_name);
+    apps->local_program_ids.insert({key_copy, id});
+}
+
+void
+add_website(App_List *apps, App_Id id, String short_name, String full_name)
+{
+    Website_Info info;
+    info.short_name = push_string(&apps->names_arena, short_name); 
+    
+    apps->websites.push_back(info);
+    
+    String key_copy = push_string(&apps->names_arena, short_name);
+    apps->website_ids.insert({key_copy, id});
+}
+
 App_Id
 get_local_program_app_id(App_List *apps, String short_name, String full_name)
 {
@@ -116,22 +142,12 @@ get_local_program_app_id(App_List *apps, String short_name, String full_name)
     
     // if using custom hash table impl can use open addressing, and since nothing is ever deleted don't need a occupancy flag or whatever can just use id == 0 or string == null to denote empty.
     
-    App_Id result = Id_Invalid;
+    App_Id result = 0;
     
     if (apps->local_program_ids.count(short_name) == 0)
     {
         App_Id new_id = make_local_program_id(apps);
-        
-        Local_Program_Info info;
-        info.full_name = push_string(&apps->names_arena, full_name); 
-        info.short_name = push_string(&apps->names_arena, short_name); // string intern this from fullname
-        
-        apps->local_programs.push_back(info);
-        
-        // TODO: Make this share short_name given to above functions
-        String key_copy = push_string(&apps->names_arena, short_name);
-        apps->local_program_ids.insert({key_copy, new_id});
-        
+        add_local_program(apps, new_id, short_name, full_name);
         result = new_id;
     }
     else
@@ -145,21 +161,12 @@ get_local_program_app_id(App_List *apps, String short_name, String full_name)
 App_Id
 get_website_app_id(App_List *apps, String short_name)
 {
-    App_Id result = Id_Invalid;
+    App_Id result = 0;
     
     if (apps->website_ids.count(short_name) == 0)
     {
         App_Id new_id = make_website_id(apps);
-        
-        Website_Info info;
-        info.short_name = push_string(&apps->names_arena, short_name); 
-        //info.icon_index = -1;
-        
-        apps->websites.push_back(info);
-        
-        String key_copy = push_string(&apps->names_arena, short_name);
-        apps->website_ids.insert({key_copy, new_id});
-        
+        add_website(apps, new_id, short_name);
         result = new_id;
     }
     else
