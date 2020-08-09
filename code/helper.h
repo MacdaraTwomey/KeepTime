@@ -9,12 +9,14 @@ struct Block
     u8 *buffer;
     Block *prev;
 };
+static_assert(sizeof(Block) == 32, ""); // For 8 byte alignment of buffer after block
 
-static_assert(sizeof(Block) == 32, ""); // For alignment of buffer after block
 
 struct Arena
 {
+    // NOTE: Arena does not align allocations because it each arena is only used for one type, so remains aligned
     Block *block;
+    u64 minimum_extra_size; // extra allocated whenever a new block is created
 };
 
 template<typename T, size_t N>

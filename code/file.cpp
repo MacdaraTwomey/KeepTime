@@ -27,6 +27,8 @@ struct MBF_Header
     u32 total_string_count;
     u32 string_block_size;
     
+    // NOTE: Strings not null terminated in file
+    
     // In file in this order
     u32 ids;             // all local programs, then all websites
     u32 records;
@@ -78,35 +80,47 @@ copy_to_string_block(String s, char *string_block, u32 *cur_offset)
 }
 
 u32
-write_memory_to_file(void *memory, size_t size, FILE *file)
+write_block_aligned(void *block, size_t size, FILE *file, bool *error)
 {
-    // Returns -1 on error
-    // Returns offset in file of start of memory, or 0 if memory size was 0.
+    if (size == 0) return 0;
+    
     long offset = ftell(file);
-    size_t num_written = fwrite(memory, size, 1, file);
-    if (num_written == 1)
+    Assert(offset % 8 == 0);
+    
+    if (fwrite(block, size, 1, file) == 1)
     {
-        return offset;
+        size_t align_amount = 8 - (size % 8);
+        if (align_amount > 0)
+        {
+            static u8 zero_bytes[7] = {};
+            if (fwrite(&zero_bytes, align_amount, 1, file) == 1)
+            {
+                Assert(ftell(file) % 8 == 0);
+                return offset;
+            }
+        }
     }
-    else
-    {
-        return 0;
-    }
+    
+    *error = true;
+    return 0;
 }
 
 bool
-write_to_MBF(App_List *apps, Day_List *days, Settings *settings, FILE *file)
+write_to_MBF(App_List *apps, Day_List *day_list, Settings *settings, char *filepath)
 {
-    // Could store string lengths or offsets into the block, not sure which better
+    FILE *file = fopen(filepath, "wb");
+    if (!file) return false;
     
-    // assumes no deleted ids
     u32 local_program_count = apps->local_program_ids.size();
     u32 website_count = apps->website_ids.size();
     u32 id_count = local_program_count + website_count;
+    u32 keyword_count = settings->keywords.count;
+    u32 string_count = (local_program_count * 2) + website_count + keyword_count;
+    u32 day_count = day_list->days.size();
     
-    App_Id *ids = (App_Id *)malloc(sizeof(App_Id) * id_count);
-    defer(free(ids));
-    if (!ids) return false;
+    App_Id *ids = (App_Id *)xalloc(sizeof(App_Id) * id_count);
+    u32 *string_lengths = (u32 *)xalloc(sizeof(u32) * string_count);
+    MBF_Day *days = (MBF_Day *)xalloc(sizeof(MBF_Day) * day_count);
     
     // Generate id's because they are not explicitly stored (except in hash table)
     u32 id_idx = 0;
@@ -120,13 +134,6 @@ write_to_MBF(App_List *apps, Day_List *days, Settings *settings, FILE *file)
         Assert(is_website(gen_id));
         ids[id_idx] = gen_id & (1 << 31);
     }
-    
-    u32 keyword_count = settings->keywords.count;
-    u32 string_count = (local_program_count * 2) + website_count + keyword_count;
-    
-    u32 *string_lengths = (u32 *)malloc(sizeof(u32) * string_count);
-    defer(free(string_lengths));
-    if (!string_lengths) return false;
     
     size_t all_strings_length = 0;
     
@@ -156,9 +163,7 @@ write_to_MBF(App_List *apps, Day_List *days, Settings *settings, FILE *file)
     }
     
     size_t string_block_size = all_strings_length;
-    char *string_block = (char *)malloc(string_block_size);
-    defer(free(string_block));
-    if (!string_block) return false;
+    char *string_block = (char *)xalloc(string_block_size);
     
     u32 string_block_cur_offset = 0;
     for (auto &info : apps->local_programs)
@@ -177,15 +182,10 @@ write_to_MBF(App_List *apps, Day_List *days, Settings *settings, FILE *file)
     
     Assert(string_block_cur_offset == string_block_size);
     
-    u32 day_count = database->day_list.days.size();
-    MBF_Day *days = (MBF_Day *)malloc(sizeof(MBF_Day) * day_count);
-    defer(free(days));
-    if (!days) return false;
-    
     u32 total_record_count = 0;
     for (u32 i = 0; i < day_count; ++i)
     {
-        Day *day = &database->day_list.days[i];
+        Day *day = &day_list->days[i];
         MBF_Day *dest_day = &days[i];
         
         dest_day->date = day->date;
@@ -194,51 +194,37 @@ write_to_MBF(App_List *apps, Day_List *days, Settings *settings, FILE *file)
         total_record_count += day->record_count;
     }
     
-    Record *records = (Record *)malloc(sizeof(Record) * total_record_count);
-    defer(free(records));
-    if (!records) return false;
+    Record *records = (Record *)xalloc(sizeof(Record) * total_record_count);
     
     u32 record_offset = 0;
     for (u32 i = 0; i < day_count; ++i)
     {
-        Day *day = &database->day_list.days[i];
+        Day *day = &day_list->days[i];
         memcpy(records + record_offset, day->records, day->record_count * sizeof(Record));
         record_offset += day->record_count;
     }
     
-    // seek past header at start of file
-    fseek(file, sizeof(MBF_Header), SEEK_SET);
-    
-    u32 id_offset = write_memory_to_file(ids, id_count * sizeof(App_Id), file);
-    u32 records_offset = write_memory_to_file(records, total_record_count * sizeof(Record), file);
-    u32 day_offset = write_memory_to_file(days, day_count * sizeof(MBF_Day), file);     
-    u32 string_block_offset = write_memory_to_file(string_block, string_block_size, file);
-    u32 string_lengths_offset = write_memory_to_file(string_lengths, string_count * sizeof(u32), file); 
-    
-    if (id_offset == -1 || day_offset == -1 || string_lengths_offset == -1 || records_offset == -1 || string_block_offset == -1)
-    {
-        // write failed
-        return false;
-    }
-    
-    
+    // Write empty header at start of file
+    bool write_error = false;
     MBF_Header header = {};
+    write_block_aligned(&header, sizeof(MBF_Header), file, &write_error);
+    
     header.magic_number = MAGIC_NUMBER;
     header.version = CURRENT_VERSION;
     header.next_program_id = apps->next_program_id;
     header.next_website_id = apps->next_website_id;
-    header.misc_options = settings->misc_options;      
+    header.misc_options = settings->misc;      
     
     // 0 if the corresponding count is also 0 (i.e. no elements are written to file)
-    header.ids = id_offset;
-    header.days = day_offset;
-    header.string_lengths = string_lengths_offset; 
-    header.records = records_offset;
-    header.strings = string_block_offset;
+    header.ids = write_block_aligned(ids, id_count * sizeof(App_Id), file, &write_error);
+    header.records = write_block_aligned(records, total_record_count * sizeof(Record), file, &write_error);
+    header.days = write_block_aligned(days, day_count * sizeof(MBF_Day), file, &write_error);     
+    header.strings = write_block_aligned(string_block, string_block_size, file, &write_error);
+    header.string_lengths = write_block_aligned(string_lengths, string_count * sizeof(u32), file, &write_error); 
     
     header.id_count = id_count;
     header.day_count = day_count;
-    header.record_count = total_record_count;
+    header.total_record_count = total_record_count;
     header.local_program_count = local_program_count;
     header.website_count = website_count;
     header.keyword_count = settings->keywords.count;
@@ -247,190 +233,31 @@ write_to_MBF(App_List *apps, Day_List *days, Settings *settings, FILE *file)
     
     // go back to start of file and write header
     fseek(file, 0, SEEK_SET);
-    size_t num_written = fwrite(&header, sizeof(MBF_Header), 1, file);
-    if (num_written != 1)
+    write_block_aligned(&header, sizeof(MBF_Header), file, &write_error);
+    if (write_error)
     {
+        fclose(file);
         return false;
     }
     
-    return true;
+    if (fclose(file) == 0)
+    {
+        return true;
+    }
+    else
+    {
+        return false;
+    }
 }
 
 String
 get_string_from_block(char *string_block, u32 string_length, u32 *string_block_offset)
 {
     String s = {};
-    s.str = string_block + string_block_offset;
+    s.str = string_block + *string_block_offset;
     s.length = string_length;
     *string_block_offset += s.length;
     return s;
-}
-
-bool
-read_from_MBF(Loaded_MBF *loaded_mbf, FILE *file)
-{
-    // NOTE: THis is not even using the section indexes in the header, i could do a read entire file then use those, but not sure what to do about unaligned memory accesses
-    // TODO: Check success of reads, i would much prefer a read entire file for easy check reads 
-    
-    BMF_Header header = {};
-    s64 file_size = get_file_size(file);
-    if (file_size < sizeof(BMF_Header)) return false;
-    
-    fread(&header, sizeof(BMF_Header), 1, file);
-    if (header.magic_number != MAGIC_NUMBER) return false;
-    if (header.version > CURRENT_VERSION) return false;
-    if (header.id_count != header.local_program_count + header.website_count) return false;
-    
-    App_Id *ids = nullptr;     
-    Day *days = nullptr;
-    Local_Program_Info *local_programs = nullptr;
-    Website_Info *websites = nullptr;
-    Record *records = nullptr; 
-    char *string_block = nullptr;
-    Array<String, MAX_KEYWORD_COUNT> keywords = {};
-    
-    if (header.id_count > 0)
-    {
-        ids = xalloc(sizeof(App_Id) * header.id_count);
-        fread(ids, sizeof(App_Id), header.id_count, file);
-    }
-    
-    if (header.total_record_count > 0)
-    {
-        records = xalloc(sizeof(Record) * header.total_record_count);
-        fread(records, sizeof(Record), header.total_record_count, file);
-    }
-    
-    if (header.day_count > 0)
-    {
-        days = xalloc(sizeof(Day) * header.day_count);
-        u32 record_offset = 0;
-        for (u32 i = 0; i < header.day_count; ++i)
-        {
-            MBF_Day d;
-            fread(&d, sizeof(MBF_Day), 1, file);
-            
-            days[i].date = d.date;
-            days[i].record_count = d.record_count;
-            days[i].records = (days[i].record_count > 0) ? records + record_offset : nullptr;
-            
-            record_offset += days[i].record_count;
-        }
-    }
-    
-    if (header.string_block_size > 0)
-    {
-        string_block = (char *)xalloc(header.string_block_size);
-        fread(string_block, 1, string_block_size, file);
-    }
-    if (header.total_string_count > 0)
-    {
-        Assert(header.string_block_size > 0);
-        
-        u32 *string_lengths = xalloc(sizeof(u32) * header.total_string_count);
-        fread(string_lengths, sizeof(u32), header.total_string_count, file);
-        
-        u32 current_string = 0;
-        u32 string_block_offset = 0;
-        if (header.local_program_count > 0)
-        {
-            local_programs = xalloc(sizeof(Local_Program_Info) * header.local_program_count);
-            for (u32 i = 0; i < header.local_program_count; ++i)
-            {
-                local_programs[i].short_name = get_string_from_block(string_block, string_lengths[current_string++], &string_block_offset);
-                local_programs[i].full_name = get_string_from_block(string_block, string_lengths[current_string++], &string_block_offset);
-            }
-        }
-        if (header.website_count > 0)
-        {
-            websites = xalloc(sizeof(Website_Info) * header.website_count);
-            for (u32 i = 0; i < header.website_count; ++i)
-            {
-                websites[i].short_name = get_string_from_block(string_block, string_lengths[current_string++], &string_block_offset);
-            }
-        }
-        if (header.keyword_count > 0)
-        {
-            for (u32 i = 0; i < header.keyword_count; ++i)
-            {
-                String keyword = get_string_from_block(string_block, string_lengths[current_string++], &string_block_offset);
-                keywords.push_back(keyword);
-            }
-        }
-    }
-    
-    loaded_mbf->next_website_id = header.next_website_id;
-    loaded_mbf->next_program_id = header.next_program_id;
-    loaded_mbf->keywords = keywords;
-    loaded_mbf->misc_options = header.misc_options;
-    loaded_mbf->ids = ids;
-    loaded_mbf->days = days;
-    loaded_mbf->local_programs = local_programs;
-    loaded_mbf->websites = websites;
-    loaded_mbf->records = records;
-    loaded_mbf->string_block = string_block;
-    
-    loaded_mbf->day_count = header.day_count;
-    loaded_mbf->id_count = header.id_count;
-    loaded_mbf->local_program_count = header.local_program_count;
-    loaded_mbf->website_count = header.website_count;
-    loaded_mbf->total_record_count = header.record_count;
-    loaded_mbf->string_block_size = header.string_block_size;
-    
-    return true;
-}
-
-void 
-free_loaded_MBF(Loaded_MBF *loaded_mbf)
-{
-    free_array(loaded_mbf->keywords);
-    free(loaded_mbf->ids);
-    free(loaded_mbf->days);
-    free(loaded_mbf->local_programs);
-    free(loaded_mbf->websites);
-    free(loaded_mbf->records);
-    free(loaded_mbf->string_block);
-    *loaded_mbf = {};
-}
-
-bool
-make_empty_savefile(char *filepath)
-{
-    // Called when opening program (so no state in memory) and there is no file
-    
-    bool ok = false;
-    FILE *file = fopen(filepath, "wb");
-    if (file)
-    {
-        MBF_Header header = {};
-        header.magic_number = MAGIC_NUMBER;
-        header.version = CURRENT_VERSION;
-        header.next_program_id = LOCAL_PROGRAM_ID_START;
-        header.next_website_id = WEBSITE_ID_START;
-        header.misc_options = Misc_Options.default_misc_options();      
-        
-        // 0 if the corresponding count is also 0 (i.e. no elements are written to file)
-        header.ids = 0;
-        header.days = 0;
-        header.string_lengths = 0;
-        header.records = 0;
-        header.strings = 0;
-        
-        header.id_count = 0;
-        header.day_count = 0;
-        header.record_count = 0;
-        header.local_program_count = 0;
-        header.website_count = 0;
-        header.keyword_count = 0;
-        header.total_string_count = 0;
-        header.string_block_size = 0;
-        
-        ok = (fwrite(&header, sizeof(header), 1, file) == 1);
-        
-        fclose(file);
-    }
-    
-    return ok;
 }
 
 bool file_exists(char *path)
@@ -454,4 +281,194 @@ get_file_size(FILE *file)
     long int size = ftell(file);
     fclose(file);
     return (s64) size;
+}
+
+struct Entire_File
+{
+    u8 *data;
+    size_t size;
+};
+
+Entire_File
+read_entire_file(char *file_name)
+{
+    Entire_File result = {};
+    
+    FILE *file = fopen(file_name, "rb");
+    if (file)
+    {
+        s64 file_size = get_file_size(file);
+        if (file_size > 0)
+        {
+            u8 *data = (u8 *)xalloc(file_size);
+            if (data)
+            {
+                if (fread(data, file_size, 1, file) == 1)
+                {
+                    result.data = data;
+                    result.size = file_size;
+                }
+                else
+                {
+                    free(data);
+                }
+            }
+        }
+        
+        // I don't think it matters if this fails as we already have the file data
+        fclose(file);
+    }
+    
+    return result;
+}
+
+
+bool
+read_from_MBF(App_List *apps, Day_List *day_list, Settings *settings, char *file_name)
+{
+    Entire_File entire_file = read_entire_file(file_name);
+    defer(free(entire_file.data));
+    
+    if (entire_file.size < sizeof(MBF_Header)) 
+    {
+        return false;
+    }
+    
+    MBF_Header *header = (MBF_Header *)entire_file.data;
+    
+    Assert(header->total_string_count == 
+           header->local_program_count*2 + header->website_count + header->keyword_count);
+    
+    if (header->magic_number != MAGIC_NUMBER) return false;
+    if (header->version > CURRENT_VERSION) return false;
+    if (header->id_count != header->local_program_count + header->website_count) return false;
+    
+    // last section of file
+    if (entire_file.size < header->string_lengths + (header->total_string_count * sizeof(u32)))
+    {
+        return false;
+    }
+    
+    u8 *start = entire_file.data;
+    
+    // Strings in string block are not null terminated, but we want to have null terminated strings
+    App_Id *ids           = (App_Id *)((header->ids) ? start + header->ids : nullptr);     
+    MBF_Day *days         = (MBF_Day *)((header->days) ? start + header->days : nullptr);
+    Record *records       = (Record *)((header->records) ? start + header->records : nullptr); 
+    char *string_block    = (char *)((header->strings) ? start + header->strings : nullptr);
+    char *string_lengths  = (char *)((header->string_lengths) ? start + header->string_lengths : nullptr);
+    
+    apps->local_program_ids = std::unordered_map<String, App_Id>(header->local_program_count + 50);
+    apps->website_ids       = std::unordered_map<String, App_Id>(header->website_count + 50);
+    apps->local_programs.reserve(header->local_program_count + 50);
+    apps->websites.reserve(header->website_count + 50);
+    
+    apps->next_program_id = header->next_program_id;
+    apps->next_website_id = header->next_website_id;
+    
+    settings->misc = header->misc_options;
+    
+    init_arena(&apps->names_arena, header->string_block_size + Kilobytes(10), Kilobytes(10));
+    init_arena(&settings->keyword_arena, KEYWORD_MEMORY_SIZE, 0);
+    init_arena(&day_list->arena, (header->total_record_count * sizeof(Record)) + MAX_DAILY_RECORDS_MEMORY_SIZE, MAX_DAILY_RECORDS_MEMORY_SIZE);
+    
+    Assert(header->id_count == header->local_program_count + header->website_count);
+    
+    u32 current_string = 0;
+    u32 string_block_offset = 0;
+    u32 id_offset = 0;
+    if (ids && string_lengths && string_block)
+    {
+        for (u32 i = 0; i < header->local_program_count; ++i)
+        {
+            String short_name = get_string_from_block(string_block, string_lengths[current_string++], &string_block_offset);
+            String full_name = get_string_from_block(string_block, string_lengths[current_string++], &string_block_offset);
+            
+            // Copies to arena
+            add_local_program(apps, ids[id_offset++], short_name, full_name);
+        }
+        if (header->website_count > 0)
+        {
+            for (u32 i = 0; i < header->website_count; ++i)
+            {
+                String short_name = get_string_from_block(string_block, string_lengths[current_string++], &string_block_offset);
+                add_website(apps, ids[id_offset++], short_name);
+            }
+        }
+    }
+    
+    for (u32 i = 0; i < header->keyword_count; ++i)
+    {
+        String keyword = get_string_from_block(string_block, string_lengths[current_string++], &string_block_offset);
+        add_keyword(settings, keyword);
+    }
+    
+    if (days)
+    {
+        // Just copy all records at once, then fix pointers into arena, rather than repeatedly copying each day
+        Record *new_records = (Record *)push_size(&day_list->arena, header->total_record_count * sizeof(Record));
+        memcpy(new_records, records, header->total_record_count * sizeof(Record));
+        u32 record_offset = 0;
+        for (u32 i = 0; i < header->day_count; ++i)
+        {
+            MBF_Day *src_day = days + i;
+            
+            Day new_day;
+            new_day.date = src_day->date;
+            new_day.record_count = src_day->record_count;
+            new_day.records = (new_day.record_count > 0) ? new_records + record_offset : nullptr;
+            
+            day_list->days.push_back(new_day);
+            
+            record_offset += new_day.record_count;
+        }
+    }
+    
+    date::sys_days current_date = get_local_time_day();
+    if (day_list->days.size() == 0 || current_date != day_list->days.back().date)
+    {
+        start_new_day(day_list, current_date);
+    }
+    
+    return true;
+}
+
+bool
+make_empty_savefile(char *filepath)
+{
+    // Called when opening program (so no state in memory) and there is no file
+    
+    bool ok = false;
+    FILE *file = fopen(filepath, "wb");
+    if (file)
+    {
+        MBF_Header header = {};
+        header.magic_number = MAGIC_NUMBER;
+        header.version = CURRENT_VERSION;
+        header.next_program_id = LOCAL_PROGRAM_ID_START;
+        header.next_website_id = WEBSITE_ID_START;
+        header.misc_options = Misc_Options::default_misc_options();      
+        
+        // 0 if the corresponding count is also 0 (i.e. no elements are written to file)
+        header.ids = 0;
+        header.days = 0;
+        header.string_lengths = 0;
+        header.records = 0;
+        header.strings = 0;
+        
+        header.id_count = 0;
+        header.day_count = 0;
+        header.total_record_count = 0;
+        header.local_program_count = 0;
+        header.website_count = 0;
+        header.keyword_count = 0;
+        header.total_string_count = 0;
+        header.string_block_size = 0;
+        
+        ok = (fwrite(&header, sizeof(header), 1, file) == 1);
+        
+        fclose(file);
+    }
+    
+    return ok;
 }

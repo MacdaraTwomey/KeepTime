@@ -16,8 +16,8 @@
 
 #include "helper.cpp"
 #include "bitmap.cpp"
-#include "file.cpp"
 #include "apps.cpp"
+#include "file.cpp"
 #include "date_picker.cpp"
 #include "icon.cpp" 
 #include "ui.cpp"
@@ -233,33 +233,6 @@ debug_add_records(App_List *apps, Day_List *day_list, date::sys_days cur_date)
     }
 }
 
-void 
-add_keyword(Settings *settings, char *str)
-{
-    Assert(strlen(str) < MAX_KEYWORD_SIZE);
-    
-    String keyword = push_string(&settings->keyword_arena, str);
-    settings->keywords.add_item(keyword);
-}
-
-bool
-string_matches_keyword(String string, Array<String, MAX_KEYWORD_COUNT> &keywords)
-{
-    for (i32 i = 0; i < keywords.count; ++i)
-    {
-        if (search_for_substr(string, 0, keywords[i]) != -1)
-        {
-            // TODO: Maybe cache last few keywords, if it doesn't match cache?
-            // maybe shuffle others down to avoid first and last being swapped and re-swapped repeatedly.
-            // However, don't really want to change order of keywords in the settings window. So maybe settings should be able to change it's order but also has a array on index values that it maintains so it can copy into edit_settings in original order.
-            
-            return true;
-        }
-    }
-    
-    return false;
-}
-
 size_t
 scheme_length(String url)
 {
@@ -462,128 +435,44 @@ update(Monitor_State *state, SDL_Window *window, s64 dt_microseconds, Window_Eve
         state->accumulated_time = 0;
         state->refresh_frame_time = (u32)(MILLISECS_PER_SEC / (float)platform_get_monitor_refresh_rate());
         
+        App_List *apps = &state->apps;
+        Settings *settings = &state->settings;
+        Day_List *day_list = &state->day_list;
+        
         bool init_from_file = true;
         if (init_from_file)
         {
+#if 0
             if (file_exists(global_savefile_path))
             {
-                Loaded_MBF loaded_mbf = {};
-                FILE *file = fopen(path, "rb");
-                if (file)
-                {
-                    if (read_from_MBF(&loaded_mbf, file))
-                    {
-                        App_List *apps = &state->apps;
-                        
-                        apps->local_program_ids = 
-                            std::unordered_map<String, App_Id>(loaded_mbf.local_program_count + 50);
-                        apps->website_ids = 
-                            std::unordered_map<String, App_Id>(loaded_mbf.website_count + 50);
-                        
-                        apps->local_programs.reserve(loaded_mbf.local_program_count + 50);
-                        apps->websites.reserve(loaded_mbf.website_count + 50);
-                        
-                        size_t size = loaded_mbf.string_block_size + Kilobytes(5);
-                        init_arena(&apps->names_arena, size);
-                        
-                        Assert(id_count == loaded_mbf.local_program_count + loaded_mbf.website_count);
-                        
-                        u32 id_index = 0;
-                        for (u32 i = 0; i < loaded_mbf.local_program_count; ++i)
-                        {
-                            add_local_program(apps, loaded_mbf.ids[id_index++], loaded_mbf.local_programs[i].short_name, loaded_mbf.local_programs[i].full_name);
-                        }
-                        for (u32 i = 0; i < loaded_mbf.website_count; ++i)
-                        {
-                            add_local_program(apps, loaded_mbf.ids[id_index++], loaded_mbf.local_programs[i].short_name);
-                        }
-                        
-                        apps->next_program_id = loaded_mbf.next_program_id;
-                        apps->next_website_id = loaded_mbf.next_website_id;
-                        
-                        Day_List *day_list = &state->day_list;
-                        
-                        // Is this right for MAX_DAILY_RECORDS extra room stuff?
-                        size_t file_records_size = loaded_mbf.total_record_count * sizeof(Record);
-                        size_t alloc_size = file_records_size + (MAX_DAILY_RECORDS) * sizeof(Record));
-                        init_arena(&day_list->record_arena, alloc_size);
-                        Record *records = push_size(&day_list->record_arena, file_records_size);
-                        
-                        memcpy(records, loaded_mbf.records, file_records_size);
-                        
-                        // TODO: Would be nice to just memcpy records directly into arena and then fix up pointers
-                        for (u32 i = 0; i < loaded_mbf.day_count; ++i)
-                        {
-                            Day &d = loaded_mbf.days[i];
-                            
-                            if (d.record_count > 0)
-                            {
-                                // Point to correct records in arena
-                                ptrdiff_t offset = d.records - loaded_mbf.records;
-                                d.records = records + offset;
-                            }
-                            
-                            day_list->days.push_back(d);
-                        }
-                        
-                        Settings *settings = &state->settings;
-                        settings.misc = loaded_mbf.misc_options;
-                        // minimum block size of this should be MAX_KEYWORD_COUNT * MAX_KEYWORD_SIZE, then should only need 1 block
-                        init_arena(&settings->keyword_arena, MAX_KEYWORD_COUNT * MAX_KEYWORD_SIZE);
-                        for (u32 i = 0; i < loaded_mbf.keyword_count; ++i)
-                        {
-                            String keyword = push_string(&settings->keyword_arena, loaded_mbf.keywords[i]);
-                            settings->keywords.add_item(keyword);
-                        }
-                        
-                        
-                        Assert(day_list->days.size() > 0); // should always have at least one day in a file
-                        if (current_date != day_list->days.back().date)
-                        {
-                            start_new_day(day_list, current_date);
-                        }
-                        
-                        free_loaded_MBF(loaded_mbf);
-                    }
-                    
-                    fclose(file);
-                }
             }
             else
             {
-                make_empty_savefile(global_savefile_path);
+                Assert(0);
             }
+            
+            bool success = read_from_MBF(apps, day_list, settings, global_savefile_path);
+#endif
         }
         else
         {
-            App_List *apps = &state->apps;
-            apps->local_program_ids = std::unordered_map<String, App_Id>(30);
-            apps->website_ids       = std::unordered_map<String, App_Id>(30);
-            apps->local_programs.reserve(30);
-            apps->websites.reserve(30);
+            apps->local_program_ids = std::unordered_map<String, App_Id>(50);
+            apps->website_ids       = std::unordered_map<String, App_Id>(50);
+            apps->local_programs.reserve(50);
+            apps->websites.reserve(50);
             apps->next_program_id = LOCAL_PROGRAM_ID_START;
             apps->next_website_id = WEBSITE_ID_START;
             
-            size_t size = Kilobytes(30);
-            init_arena(&apps->names_arena, size);
-            
-            Day_List *day_list = &state->day_list;
-            // not needed just does the allocation here rather than during firsts push_size
-            init_arena(&day_list->arena, Kilobytes(10));
+            // TODO: Want to make keywords a sub_arena?, would have to be careful not to free directly. However, does names arena or keyword arena  ever get freed?
+            init_arena(&apps->names_arena, Kilobytes(10), Kilobytes(10));
+            init_arena(&settings->keyword_arena, KEYWORD_MEMORY_SIZE, 0);
+            init_arena(&day_list->arena, MAX_DAILY_RECORDS_MEMORY_SIZE, MAX_DAILY_RECORDS_MEMORY_SIZE);
             
             // add fake days before current_date
             debug_add_records(apps, day_list, current_date);
             start_new_day(day_list, current_date);
             
-            Misc_Options misc = {};
-            misc.poll_frequency_milliseconds = 16;  // this is debug, want 17?
-            misc.keyword_status = Settings_Misc_Keyword_All;
-            
-            state->settings.misc = misc;
-            
-            Settings *settings = &state->settings;
-            // minimum block size of this should be MAX_KEYWORD_COUNT * MAX_KEYWORD_SIZE, then should only need 1 block
-            init_arena(&settings->keyword_arena, MAX_KEYWORD_COUNT * MAX_KEYWORD_SIZE);
+            state->settings.misc = Misc_Options::default_misc_options();
             
             // Keywords must be null terminated when given to platform gui
             add_keyword(settings, "CITS3003");

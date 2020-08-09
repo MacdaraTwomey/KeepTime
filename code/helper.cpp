@@ -101,25 +101,22 @@ make_filepath_with_dir(char *dir, const char *filename)
 // ---------------------------------------------- 
 // Arena
 
-// Not necessary to call this is arena is 0 initialised then can just start allocating from it
 void
-init_arena(Arena *arena, size_t size)
+init_arena(Arena *arena, size_t size, u64 minimum_extra_size)
 {
-    u64 real_size = size + Kilobytes(10);
-    
-    Assert(real_size > size);
-    
     // TODO: Just abort if malloc fails, not to much we can do, and can restore from savefile
-    Block *block = (Block *)calloc(1, real_size + sizeof(Block));
+    // Doesn't use grow_size for the first block
+    Block *block = (Block *)calloc(1, size + sizeof(Block));
     Assert(block);
     
     u8 *buffer = (u8 *)(block + 1); // buffer starts after block
     block->buffer = buffer;
-    block->size = real_size;
+    block->size = size;
     block->used = 0;
     block->prev = nullptr;
     
     arena->block = block;
+    arena->minimum_extra_size = minimum_extra_size;
 }
 
 void *
@@ -131,17 +128,15 @@ push_size(Arena *arena, size_t size)
         arena->block->used + size > arena->block->size)
     {
         // Make arena point to a new block in list of blocks
-        u64 real_size = size + Kilobytes(10);
-        
-        Assert(real_size > size);
+        u64 alloc_size = size + arena->minimum_extra_size;
         
         // TODO: Just abort if malloc fails, not to much we can do, and can restore from savefile
-        Block *block = (Block *)calloc(1, real_size + sizeof(Block));
+        Block *block = (Block *)calloc(1, alloc_size + sizeof(Block));
         Assert(block);
         
         u8 *buffer = (u8 *)(block + 1); // buffer starts after block
         block->buffer = buffer;
-        block->size = real_size;
+        block->size = alloc_size;
         block->used = 0;
         block->prev = arena->block; // null if this is the first block
         
@@ -163,7 +158,8 @@ push_string(Arena *arena, String string)
     // Passed string doesn't need to be null terminated
     // Returns null terminated string
     // Only full_name (path given to OS) needs to be null terminated, short_name would rather not be null terminated
-    // NOTE: Also relied upon by keyword code to be null terminated
+    
+    // NOTE: Important: I rely on the the string in the arena being null terminated in multiple places
     
     char *mem = (char *)push_size(arena, string.length+1);
     memcpy(mem, string.str, string.length);
@@ -191,6 +187,32 @@ push_string(Arena *arena, char *string)
     s.length = len;
     s.capacity = len;
     return s;
+}
+
+
+Arena
+get_fixed_size_sub_arena(Arena *arena, size_t size)
+{
+    // Don't want this to be freed, not sure of a good way to enforce this
+    Assert(arena->block);
+    Assert(arena->block->buffer);
+    Assert(size > 0);
+    
+    size_t sub_arena_alloc_size = size + sizeof(Block);
+    
+    Assert(arena->block->used == 0); // I want it to be at the start of arena for specific instance this is used
+    
+    Block *block = (Block *)push_size(arena, sub_arena_alloc_size);
+    block->buffer = (u8 *)(block + 1);
+    block->size = size;
+    block->used = 0;
+    block->prev = nullptr;
+    
+    Arena sub_arena = {};
+    sub_arena.block = block;
+    sub_arena.minimum_extra_size = 0;
+    
+    return sub_arena;
 }
 
 void

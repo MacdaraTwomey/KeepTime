@@ -252,7 +252,7 @@ remove_duplicate_and_empty_keyword_strings(char(*keywords)[MAX_KEYWORD_SIZE])
     // TODO: I don't love this probably better to just copy to a new array
     
     Arena scratch = {};
-    init_arena(&scratch, MAX_KEYWORD_COUNT * MAX_KEYWORD_SIZE);
+    init_arena(&scratch, MAX_KEYWORD_COUNT * MAX_KEYWORD_SIZE, 0);
     Array<String, MAX_KEYWORD_COUNT> pending_keywords;
     for (int i = 0; i < MAX_KEYWORD_COUNT; ++i)
     {

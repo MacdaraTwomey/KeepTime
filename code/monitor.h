@@ -14,6 +14,7 @@ constexpr u32 ICON_SIZE = 32;
 // TODO: Make sure that having null terminators in allocation doesn't make these sizes mess up, ui input of keyword must limit length to MAX_KEYWORD_SIZE - 1
 constexpr s32 MAX_KEYWORD_COUNT = 100;
 constexpr s32 MAX_KEYWORD_SIZE = 101;
+constexpr u32 KEYWORD_MEMORY_SIZE = MAX_KEYWORD_SIZE * MAX_KEYWORD_COUNT;
 
 constexpr s32 MICROSECS_PER_MILLISEC = 1000;
 constexpr s32 MILLISECS_PER_SEC = 1000;
@@ -97,7 +98,7 @@ struct Record
 };
 // might want to set with attention paid to arena size, and extra size that is added etc
 constexpr u32 MAX_DAILY_RECORDS = 1000;
-constexpr u32 DEFAULT_DAILY_RECORDS_ARENA_SIZE = MAX_DAILY_RECORDS * sizeof(Record); 
+constexpr u32 MAX_DAILY_RECORDS_MEMORY_SIZE = MAX_DAILY_RECORDS * sizeof(Record); 
 
 struct Day
 {
@@ -186,7 +187,7 @@ struct Misc_Options
     //u32 poll_end_time;   // Default 0 (12:00AM)
     //b32 run_at_system_startup;   
     
-    Misc_Options default_misc_options()
+    static Misc_Options default_misc_options()
     {
         Misc_Options misc;
         misc.poll_frequency_milliseconds = DEFAULT_POLL_FREQUENCY_MILLISECONDS;

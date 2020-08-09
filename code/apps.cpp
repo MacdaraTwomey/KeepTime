@@ -113,7 +113,7 @@ add_local_program(App_List *apps, App_Id id, String short_name, String full_name
 {
     Local_Program_Info info;
     info.full_name = push_string(&apps->names_arena, full_name); 
-    info.short_name = push_string(&apps->names_arena, short_name); // string intern this from fullname
+    info.short_name = push_string(&apps->names_arena, short_name); // string intern this from fullname maybe, but would have to make non-null terminated (which it currently is)
     
     apps->local_programs.push_back(info);
     
@@ -123,7 +123,7 @@ add_local_program(App_List *apps, App_Id id, String short_name, String full_name
 }
 
 void
-add_website(App_List *apps, App_Id id, String short_name, String full_name)
+add_website(App_List *apps, App_Id id, String short_name)
 {
     Website_Info info;
     info.short_name = push_string(&apps->names_arena, short_name); 
@@ -201,6 +201,7 @@ get_app_name(App_List *apps, App_Id id)
     return result;
 }
 
+#if 0
 s32 
 get_app_count(App_List *apps)
 {
@@ -208,4 +209,40 @@ get_app_count(App_List *apps)
     Assert(count == (index_from_id(apps->next_website_id) + index_from_id(apps->next_program_id)));
     
     return count;
+}
+#endif
+
+void 
+add_keyword(Settings *settings, char *str)
+{
+    Assert(strlen(str) < MAX_KEYWORD_SIZE);
+    
+    String keyword = push_string(&settings->keyword_arena, str);
+    settings->keywords.add_item(keyword);
+}
+void 
+add_keyword(Settings *settings, String s)
+{
+    Assert(s.length < MAX_KEYWORD_SIZE);
+    
+    String keyword = push_string(&settings->keyword_arena, s);
+    settings->keywords.add_item(keyword);
+}
+
+bool
+string_matches_keyword(String string, Array<String, MAX_KEYWORD_COUNT> &keywords)
+{
+    for (i32 i = 0; i < keywords.count; ++i)
+    {
+        if (search_for_substr(string, 0, keywords[i]) != -1)
+        {
+            // TODO: Maybe cache last few keywords, if it doesn't match cache?
+            // maybe shuffle others down to avoid first and last being swapped and re-swapped repeatedly.
+            // However, don't really want to change order of keywords in the settings window. So maybe settings should be able to change it's order but also has a array on index values that it maintains so it can copy into edit_settings in original order.
+            
+            return true;
+        }
+    }
+    
+    return false;
 }
