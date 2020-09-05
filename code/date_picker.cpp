@@ -313,7 +313,8 @@ date_picker_update_label(Date_Picker *date_picker, date::sys_days oldest_date, d
                      "%u %s %i", unsigned(d1.day()), month_string(unsigned(d1.month())), int(d1.year()));
         }
     }
-    else if (date_picker->range_type == Range_Type_Weekly || Range_Type_Custom)
+    else if (date_picker->range_type == Range_Type_Weekly || 
+             date_picker->range_type == Range_Type_Custom)
     {
         auto d1 = date::year_month_day{date_picker->start};
         auto d2 = date::year_month_day{date_picker->end};

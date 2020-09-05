@@ -20,6 +20,8 @@ struct Platform_Window
 
 u32 platform_get_monitor_refresh_rate(); // using SDL functions
 
+void platform_get_base_directory(char *directory, s32 capacity);
+
 Platform_Window platform_get_active_window();
 
 bool platform_get_program_from_window(Platform_Window window, char *buf, size_t *length);

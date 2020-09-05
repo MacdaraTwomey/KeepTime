@@ -413,6 +413,8 @@ poll_windows(App_List *apps, Settings *settings)
     return get_local_program_app_id(apps, program_name, full_path);
 }
 
+
+
 void
 update(Monitor_State *state, SDL_Window *window, s64 dt_microseconds, Window_Event window_event)
 {
@@ -422,14 +424,21 @@ update(Monitor_State *state, SDL_Window *window, s64 dt_microseconds, Window_Eve
     
     if (!state->is_initialised)
     {
-        //remove(global_savefile_path);
-        //remove(global_debug_savefile_path);
-        //create_world_icon_source_file("c:\\dev\\projects\\monitor\\build\\world.png",  "c:\\dev\\projects\\monitor\\code\\world_icon.cpp", ICON_SIZE);
+        //create_world_icon_source_file("c:\\dev\\projects\\monitor\\build\\world.png", "c:\\dev\\projects\\monitor\\code\\world_icon.cpp", ICON_SIZE);
+        
         
         // Do i need this to construct all vectors etc, as opposed to just zeroed memory?
         *state = {};
         
-        // ui is uninitialised until window shown
+        // TODO: how to handle clipped path, because path was too long
+        // TODO: Pretty sure strncpy does not guarantee null termination, FIX this
+        platform_get_base_directory(state->savefile_path, array_count(state->savefile_path));
+        size_t remaining_space = array_count(state->savefile_path) - strlen(state->savefile_path);
+        strncat(state->savefile_path, "savefile.mbf", remaining_space);
+        strncat(state->temp_savefile_path, "temp_savefile.mbf", remaining_space);
+        
+        //remove(state->savefile_path);
+        //exit(3);
         
         // will be 16ms for 60fps monitor
         state->accumulated_time = 0;
@@ -439,22 +448,20 @@ update(Monitor_State *state, SDL_Window *window, s64 dt_microseconds, Window_Eve
         Settings *settings = &state->settings;
         Day_List *day_list = &state->day_list;
         
-        bool init_from_file = true;
-        if (init_from_file)
+        bool init_state_from_defaults = true;
+        if (file_exists(state->savefile_path))
         {
-#if 0
-            if (file_exists(global_savefile_path))
+            if (read_from_MBF(apps, day_list, settings, state->savefile_path))
             {
+                init_state_from_defaults = false;
             }
-            else
+            else 
             {
                 Assert(0);
             }
-            
-            bool success = read_from_MBF(apps, day_list, settings, global_savefile_path);
-#endif
         }
-        else
+        
+        if (init_state_from_defaults)
         {
             apps->local_program_ids = std::unordered_map<String, App_Id>(50);
             apps->website_ids       = std::unordered_map<String, App_Id>(50);
@@ -463,16 +470,15 @@ update(Monitor_State *state, SDL_Window *window, s64 dt_microseconds, Window_Eve
             apps->next_program_id = LOCAL_PROGRAM_ID_START;
             apps->next_website_id = WEBSITE_ID_START;
             
-            // TODO: Want to make keywords a sub_arena?, would have to be careful not to free directly. However, does names arena or keyword arena  ever get freed?
-            init_arena(&apps->names_arena, Kilobytes(10), Kilobytes(10));
-            init_arena(&settings->keyword_arena, KEYWORD_MEMORY_SIZE, 0);
-            init_arena(&day_list->arena, MAX_DAILY_RECORDS_MEMORY_SIZE, MAX_DAILY_RECORDS_MEMORY_SIZE);
+            init_arena(&apps->name_arena, Kilobytes(10), Kilobytes(10));
+            init_arena(&day_list->record_arena, MAX_DAILY_RECORDS_MEMORY_SIZE, MAX_DAILY_RECORDS_MEMORY_SIZE);
+            init_arena(&settings->keyword_arena, MAX_KEYWORD_COUNT * MAX_KEYWORD_SIZE);
             
             // add fake days before current_date
-            debug_add_records(apps, day_list, current_date);
+            //debug_add_records(apps, day_list, current_date);
             start_new_day(day_list, current_date);
             
-            state->settings.misc = Misc_Options::default_misc_options();
+            settings->misc = Misc_Options::default_misc_options();
             
             // Keywords must be null terminated when given to platform gui
             add_keyword(settings, "CITS3003");
@@ -490,11 +496,17 @@ update(Monitor_State *state, SDL_Window *window, s64 dt_microseconds, Window_Eve
     
     App_List *apps = &state->apps;
     UI_State *ui = &state->ui;
+    Day_List *day_list = &state->day_list;
     
     if (window_event == Window_Closed)
     {
-        // save file
         // no need to free stuff or delete textures (as glcontext is deleted)
+        
+        // Creates or overwrites old file
+        if (!write_to_MBF(apps, day_list, &state->settings, state->savefile_path))
+        {
+            Assert(0);
+        }
     }
     
     if (window_event == Window_Hidden)
@@ -511,17 +523,17 @@ update(Monitor_State *state, SDL_Window *window, s64 dt_microseconds, Window_Eve
         if (!ui->open)
         {
             // These dates used to determine selected and limits to date navigation in picker and calendars
-            date::sys_days oldest_date = state->day_list.days.front().date;
-            date::sys_days newest_date = state->day_list.days.back().date;
+            date::sys_days oldest_date = day_list->days.front().date;
+            date::sys_days newest_date = day_list->days.back().date;
             
             load_ui(ui, apps->local_programs.size(), current_date, oldest_date, newest_date);
             //platform_set_sleep_time(state->refresh_frame_time);
         }
     }
     
-    if (current_date != state->day_list.days.back().date)
+    if (current_date != day_list->days.back().date)
     {
-        start_new_day(&state->day_list, current_date);
+        start_new_day(day_list, current_date);
         // Don't really need to unload and reload all icons from GPU as it can easily hold many thousands
     }
     
@@ -532,12 +544,12 @@ update(Monitor_State *state, SDL_Window *window, s64 dt_microseconds, Window_Eve
         if (state->accumulated_time >= DEFAULT_POLL_FREQUENCY_MILLISECONDS)
         {
             App_Id id = poll_windows(apps, &state->settings);
-            if (id) add_or_update_record(&state->day_list, id, state->accumulated_time);
-            
+            if (id) 
+                add_or_update_record(&state->day_list, id, state->accumulated_time);
             state->accumulated_time = 0;
         }
         
-        ui->day_view = get_day_view(&state->day_list); // debug
+        ui->day_view = get_day_view(day_list); // debug
         draw_ui_and_update(window, ui, &state->settings, apps, state); // state is just for debug
         free_day_view(&ui->day_view);
     }
@@ -547,8 +559,8 @@ update(Monitor_State *state, SDL_Window *window, s64 dt_microseconds, Window_Eve
         // This avoids the degenerate case where we repeatedly exit sleep just before our poll frequency mark, and have to do another sleep cycle before polling - effectively halving the experienced poll frequency.
         
         App_Id id = poll_windows(apps, &state->settings);
-        if (id) add_or_update_record(&state->day_list, id, state->accumulated_time);
-        
+        if (id) 
+            add_or_update_record(&state->day_list, id, state->accumulated_time);
         state->accumulated_time = 0;
     }
     

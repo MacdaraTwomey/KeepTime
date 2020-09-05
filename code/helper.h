@@ -25,7 +25,7 @@ struct Array
     T data[N];
     size_t count;
     
-    Array() { count = 0; }
+    Array() { count = 0; memset(data, 0, sizeof(T) * N); }
     
     void add_item(T item) {
         //Assert(count < N);
@@ -33,7 +33,7 @@ struct Array
         count += 1;
     }
     
-    void clear() { count = 0; }
+    void clear() { count = 0; memset(data, 0, sizeof(T) * N); }
     
     T &operator[](size_t index)
     {

@@ -102,7 +102,7 @@ make_filepath_with_dir(char *dir, const char *filename)
 // Arena
 
 void
-init_arena(Arena *arena, size_t size, u64 minimum_extra_size)
+init_arena(Arena *arena, size_t size, u64 minimum_extra_size = 0)
 {
     // TODO: Just abort if malloc fails, not to much we can do, and can restore from savefile
     // Doesn't use grow_size for the first block
@@ -189,7 +189,7 @@ push_string(Arena *arena, char *string)
     return s;
 }
 
-
+#if 0
 Arena
 get_fixed_size_sub_arena(Arena *arena, size_t size)
 {
@@ -214,6 +214,7 @@ get_fixed_size_sub_arena(Arena *arena, size_t size)
     
     return sub_arena;
 }
+#endif
 
 void
 reset_arena(Arena *arena)

@@ -140,6 +140,8 @@ load_ui(UI_State *ui, u32 app_count,
 void
 unload_ui(UI_State *ui)
 {
+    // safer to clear to zero for debugging though
+    *ui = {};
     ui->date_picker = {}; // TODO: Don't reset this so it is on same range when user opens ui again
     
     ui->record_count = 0;
@@ -247,7 +249,7 @@ struct FreeTypeTest
 
 
 s32
-remove_duplicate_and_empty_keyword_strings(char(*keywords)[MAX_KEYWORD_SIZE])
+remove_duplicate_and_empty_keyword_strings(Keyword_Array keywords)
 {
     // TODO: I don't love this probably better to just copy to a new array
     
@@ -261,35 +263,6 @@ remove_duplicate_and_empty_keyword_strings(char(*keywords)[MAX_KEYWORD_SIZE])
             pending_keywords.add_item(push_string(&scratch, keywords[i]));
         }
     }
-    
-    
-#if 0    
-	// NOTE: This assumes that keywords that are 'empty' should have no garbage data (dear imgu needs to set
-	// empty array slots to '\0';
-	s32 total_count = 0;
-	for (s32 l = 0, r = MAX_KEYWORD_COUNT; l < r;)
-	{
-		if (keywords[l][0] == '\0') // is empty string
-		{
-			if (keywords[r][0] == '\0')
-			{
-				r--;
-			}
-			else
-			{
-				strcpy(keywords[l], keywords[r]);
-				total_count += 1;
-				l++;
-				r--;
-			}
-		}
-		else
-		{
-			l++;
-			total_count += 1;
-		}
-	}
-#endif
     
 	// Try to add words from pending keywords into keywords array (not adding duplicates)
     memset(keywords, 0, MAX_KEYWORD_COUNT*MAX_KEYWORD_SIZE);
@@ -612,16 +585,8 @@ do_settings_popup(Settings *settings, Edit_Settings *edit_settings, ImFont *smal
     if (update_settings)
     {
         // Empty input boxes are just zeroed arrays
-        i32 pending_count = remove_duplicate_and_empty_keyword_strings(edit_settings->pending);
-        
-        settings->keywords.clear();
-        reset_arena(&settings->keyword_arena);
-        for (int i = 0; i < pending_count; ++i)
-        {
-            add_keyword(settings, edit_settings->pending[i]);
-        }
-        
-        settings->misc = edit_settings->misc;
+        s32 pending_count = remove_duplicate_and_empty_keyword_strings(edit_settings->pending);
+        apply_new_settings(settings, edit_settings, pending_count);
     }
     
     return !open;
@@ -632,17 +597,7 @@ FreeTypeTest freetype_test;
 void
 draw_record_time_text(s64 duration)
 {
-#if MONITOR_DEBUG
-    float real_seconds = (float)duration / MICROSECS_PER_SEC;
-    char time_text[32];
-    snprintf(time_text, array_count(time_text), "%.2fs  -", real_seconds);
-    ImVec2 text_size = ImGui::CalcTextSize(time_text);
-    
-    //ImGui::SameLine(ImGui::GetWindowWidth() - (text_size.x + 30));
-    
-    ImGui::Text(time_text); 
-#else
-    u32 seconds = record.duration / MICROSECS_PER_SEC;
+    u32 seconds = duration / MICROSECS_PER_SEC;
     if (seconds < 60)
     {
         ImGui::Text("%us", seconds); 
@@ -657,6 +612,17 @@ draw_record_time_text(s64 duration)
         u32 minutes_remainder = (seconds % 3600) / 60;
         ImGui::Text("%uh %um", hours, minutes_remainder); 
     }
+    
+#if MONITOR_DEBUG
+    ImGui::SameLine();
+    float real_seconds = (float)duration / MICROSECS_PER_SEC;
+    char time_text[32];
+    snprintf(time_text, array_count(time_text), "(%.2fs)  -", real_seconds);
+    ImVec2 text_size = ImGui::CalcTextSize(time_text);
+    
+    //ImGui::SameLine(ImGui::GetWindowWidth() - (text_size.x + 30));
+    
+    ImGui::Text(time_text); 
 #endif
 }
 
@@ -772,7 +738,17 @@ draw_ui_and_update(SDL_Window *window, UI_State *ui, Settings *settings, App_Lis
 #endif
     
     void debug_ui_options(Monitor_State *state);
-    debug_ui_options(state);
+    
+    
+    {
+        ImGuiIO& io = ImGui::GetIO();
+        // SDL_SCANCODE_D == 7
+        if (io.KeysDown[7] && io.KeyCtrl)
+        {
+            ImGui::SetNextWindowFocus();
+        }
+        debug_ui_options(state);
+    }
     
     ImGuiWindowFlags flags =
         ImGuiWindowFlags_NoTitleBar
@@ -1014,6 +990,7 @@ debug_ui_options(Monitor_State *state)
     void do_debug_window_button(Monitor_State *state);
     void draw_debug_date_text(Monitor_State *state);
     
+    ImGui::Text("Ctrl D to show this window");
     do_debug_window_button(state);
     draw_debug_date_text(state);
     ImGui::End();
@@ -1076,6 +1053,7 @@ do_debug_window_button(Monitor_State *state)
         ImGui::SetNextWindowPos(ImVec2(90, 0), true);
     }
     
+    
     if (debug_menu_open)
     {
         ImGuiWindowFlags flags =
@@ -1090,11 +1068,11 @@ do_debug_window_button(Monitor_State *state)
             memcpy(buf, s.str, s.length);
             buf[s.length] = 0;
         };
-        
+        ImGui::PushFont(state->ui.small_font);
         {
             
             ImGui::Text("short_name : ids in local_program_ids and website_ids");
-            ImGui::BeginChildFrame(26, ImVec2(ImGui::GetWindowWidth() * 0.4, 600));
+            ImGui::BeginChildFrame(26, ImVec2(ImGui::GetWindowWidth()*0.8, 600));
             for (auto &pair : apps->local_program_ids)
             {
                 // not sure if definately null terminated
@@ -1112,12 +1090,12 @@ do_debug_window_button(Monitor_State *state)
         ImGui::SameLine();
         {
             ImGui::Text("full names in local_programs");
-            ImGui::BeginChildFrame(27, ImVec2(ImGui::GetWindowWidth() * 0.6, 600));
+            ImGui::BeginChildFrame(27, ImVec2(ImGui::GetWindowWidth()*0.95, 600));
             for (auto &info : apps->local_programs)
             {
                 // not sure if definately null terminated
                 copy_and_add_null(buf, info.full_name);
-                ImGui::BulletText("%s", buf);
+                ImGui::TextWrapped("- %s", buf);
             }
             ImGui::EndChildFrame();
         }
@@ -1211,43 +1189,9 @@ do_debug_window_button(Monitor_State *state)
         }
         ImGui::EndChildFrame();
 #endif
-        
+        ImGui::PopFont();
         
         ImGui::End();
     } // if debug_menu_open
 }
 
-
-#if 0
-float red[] = {255.0f, 0, 0};
-float black[] = {0, 0, 0};
-
-//double total_runtime_seconds = (double)state->total_runtime / 1000000;
-//double sum_duration_seconds = (double)sum_duration / 1000000;
-
-auto now = platform_get_time();
-//auto start_time = win32_get_microseconds_elapsed(state->startup_time, now);
-
-//double time_since_startup_seconds = (double)start_time / 1000000;
-
-//double diff_seconds2 = (double)(start_time - sum_duration) / 1000000;
-
-
-//ImGui::Text("Total runtime:        %.5fs", total_runtime_seconds);
-//ImGui::Text("Sum duration:        %.5fs", sum_duration_seconds);
-
-
-ImGuiStyle& style = ImGui::GetStyle();
-
-//ImGui::SameLine();
-memcpy((void *)style.Colors, red, 3 * sizeof(float));
-//ImGui::Text("diff: %llu", state->total_runtime - sum_duration);
-memcpy((void *)style.Colors, black, 3 * sizeof(float));
-
-
-//ImGui::Text("time since startup: %.5fs", time_since_startup_seconds);
-
-memcpy((void *)style.Colors, red, 3 * sizeof(float));
-//ImGui::Text("diff between time since startup and sum duration: %.5fs", diff_seconds2);
-memcpy((void *)style.Colors, black, 3 * sizeof(float));
-#endif

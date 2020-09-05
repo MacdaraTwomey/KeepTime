@@ -3,17 +3,18 @@
 
 
   -- Minimum viable product --
-* Read/write from savefile
 * Safer writing to database file, (maybe copy and delete old file)
 * Popup on unrecoverable errors
 * Add own licence and licences of used open source code (and maybe fonts)
 * Get memory allocation sizes right
+
 
 * Replace vector with custom thing
 * replace hash table with custom thing (no deleting so don't need tombstones)
 * ensure memory arenas actually work past 1 block
 
   -- Finished product --
+* Better loading of textures for the first time (its currently slow with approx >50 textures)
 * Low framerate UI (not that needed, and adds lots of complexity)
 * Event driven (not polling) for window switches and tab switch
 * Website icons (maybe using duckduck go or google service)

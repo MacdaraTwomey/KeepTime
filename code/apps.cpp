@@ -21,7 +21,7 @@ start_new_day(Day_List *day_list, date::sys_days date)
     Day new_day = {};
     new_day.record_count = 0;
     new_day.date = date;
-    new_day.records = (Record *)push_size(&day_list->arena, MAX_DAILY_RECORDS * sizeof(Record));
+    new_day.records = (Record *)push_size(&day_list->record_arena, MAX_DAILY_RECORDS * sizeof(Record));
     
     day_list->days.push_back(new_day);
 }
@@ -54,6 +54,39 @@ add_or_update_record(Day_List *day_list, App_Id id, s64 dt)
         // TODO: in release we will just not add record if above daily limit (which is extremely high)
         Assert(0);
     }
+}
+
+void 
+add_keyword(Settings *settings, char *str)
+{
+    Assert(strlen(str) < MAX_KEYWORD_SIZE);
+    Assert(settings->keywords.count < MAX_KEYWORD_COUNT);
+    
+    String keyword = push_string(&settings->keyword_arena, str);
+    settings->keywords.add_item(keyword);
+}
+void 
+add_keyword(Settings *settings, String str)
+{
+    Assert(str.length < MAX_KEYWORD_SIZE);
+    Assert(settings->keywords.count < MAX_KEYWORD_COUNT);
+    
+    
+    String keyword = push_string(&settings->keyword_arena, str);
+    settings->keywords.add_item(keyword);
+}
+
+void
+apply_new_settings(Settings *settings, Edit_Settings *edit_settings, s32 pending_keyword_count)
+{
+    settings->keywords.clear();
+    reset_arena(&settings->keyword_arena);
+    for (int i = 0; i < pending_keyword_count; ++i)
+    {
+        add_keyword(settings, edit_settings->pending[i]);
+    }
+    
+    settings->misc = edit_settings->misc;
 }
 
 Day_View
@@ -112,13 +145,13 @@ void
 add_local_program(App_List *apps, App_Id id, String short_name, String full_name)
 {
     Local_Program_Info info;
-    info.full_name = push_string(&apps->names_arena, full_name); 
-    info.short_name = push_string(&apps->names_arena, short_name); // string intern this from fullname maybe, but would have to make non-null terminated (which it currently is)
+    info.full_name = push_string(&apps->name_arena, full_name); 
+    info.short_name = push_string(&apps->name_arena, short_name); // string intern this from fullname maybe, but would have to make non-null terminated (which it currently is)
     
     apps->local_programs.push_back(info);
     
     // TODO: Make this share short_name given to above functions
-    String key_copy = push_string(&apps->names_arena, short_name);
+    String key_copy = push_string(&apps->name_arena, short_name);
     apps->local_program_ids.insert({key_copy, id});
 }
 
@@ -126,11 +159,11 @@ void
 add_website(App_List *apps, App_Id id, String short_name)
 {
     Website_Info info;
-    info.short_name = push_string(&apps->names_arena, short_name); 
+    info.short_name = push_string(&apps->name_arena, short_name); 
     
     apps->websites.push_back(info);
     
-    String key_copy = push_string(&apps->names_arena, short_name);
+    String key_copy = push_string(&apps->name_arena, short_name);
     apps->website_ids.insert({key_copy, id});
 }
 
@@ -211,23 +244,6 @@ get_app_count(App_List *apps)
     return count;
 }
 #endif
-
-void 
-add_keyword(Settings *settings, char *str)
-{
-    Assert(strlen(str) < MAX_KEYWORD_SIZE);
-    
-    String keyword = push_string(&settings->keyword_arena, str);
-    settings->keywords.add_item(keyword);
-}
-void 
-add_keyword(Settings *settings, String s)
-{
-    Assert(s.length < MAX_KEYWORD_SIZE);
-    
-    String keyword = push_string(&settings->keyword_arena, s);
-    settings->keywords.add_item(keyword);
-}
 
 bool
 string_matches_keyword(String string, Array<String, MAX_KEYWORD_COUNT> &keywords)

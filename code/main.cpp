@@ -23,8 +23,6 @@
 #include "win32_monitor.cpp"
 #include "monitor.cpp"
 
-static char *global_savefile_path;
-
 #define WINDOW_WIDTH 1240
 #define WINDOW_HEIGHT 720
 
@@ -41,6 +39,17 @@ platform_get_monitor_refresh_rate()
     else
     {
         return 16; // 60fps default
+    }
+}
+
+void
+platform_get_base_directory(char *directory, s32 capacity)
+{
+    char *exe_dir_path = SDL_GetBasePath();
+    if (exe_dir_path) 
+    {
+        strncpy(directory, exe_dir_path, capacity);
+        SDL_free(exe_dir_path);
     }
 }
 
@@ -108,13 +117,6 @@ int main(int argc, char* argv[])
     {
         Assert(0);
         return 1;
-    }
-    
-    {
-        char *exe_dir_path = SDL_GetBasePath();
-        global_savefile_path = make_filepath_with_dir(exe_dir_path, "savefile.mpt");
-        if (!global_savefile_path) return 1;
-        SDL_free(exe_dir_path);
     }
     
     // This may just be temporary.

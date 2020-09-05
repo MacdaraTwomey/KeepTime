@@ -83,26 +83,40 @@ u32
 write_block_aligned(void *block, size_t size, FILE *file, bool *error)
 {
     if (size == 0) return 0;
+    if (*error) return 0;
     
     long offset = ftell(file);
     Assert(offset % 8 == 0);
     
     if (fwrite(block, size, 1, file) == 1)
     {
-        size_t align_amount = 8 - (size % 8);
+        size_t align_amount = (8 - (size & 7)) & 7; // get number of bytes needed to align to 8 byte boundary
         if (align_amount > 0)
         {
-            static u8 zero_bytes[7] = {};
+            static u8 zero_bytes[8] = {};
             if (fwrite(&zero_bytes, align_amount, 1, file) == 1)
             {
                 Assert(ftell(file) % 8 == 0);
                 return offset;
             }
         }
+        else
+        {
+            return offset;
+        }
     }
     
     *error = true;
     return 0;
+}
+
+void
+populate_array(u32 *arr, u32 n, u32 start)
+{
+    for (u32 i = 0; i < n; ++i)
+    {
+        arr[i] = start++;
+    }
 }
 
 bool
@@ -123,17 +137,8 @@ write_to_MBF(App_List *apps, Day_List *day_list, Settings *settings, char *filep
     MBF_Day *days = (MBF_Day *)xalloc(sizeof(MBF_Day) * day_count);
     
     // Generate id's because they are not explicitly stored (except in hash table)
-    u32 id_idx = 0;
-    for (App_Id gen_id = 1; id_idx < apps->local_program_ids.size(); ++id_idx, ++gen_id)
-    {
-        Assert(is_local_program(gen_id));
-        ids[id_idx] = gen_id; // starts at 1
-    }
-    for (App_Id gen_id = 0; id_idx < apps->website_ids.size(); ++id_idx, ++gen_id)
-    {
-        Assert(is_website(gen_id));
-        ids[id_idx] = gen_id & (1 << 31);
-    }
+    populate_array(ids, local_program_count, LOCAL_PROGRAM_ID_START);
+    populate_array(ids + local_program_count, website_count, WEBSITE_ID_START);
     
     size_t all_strings_length = 0;
     
@@ -256,7 +261,7 @@ get_string_from_block(char *string_block, u32 string_length, u32 *string_block_o
     String s = {};
     s.str = string_block + *string_block_offset;
     s.length = string_length;
-    *string_block_offset += s.length;
+    *string_block_offset += string_length;
     return s;
 }
 
@@ -276,10 +281,11 @@ bool file_exists(char *path)
 s64 
 get_file_size(FILE *file)
 {
+    // Bad because messes with seek position
     // TODO: Pretty sure it is bad to seek to end of file
     fseek(file, 0, SEEK_END); // Not portable. TODO: Use os specific calls
     long int size = ftell(file);
-    fclose(file);
+    fseek(file, 0, SEEK_SET); // Not portable. TODO: Use os specific calls
     return (s64) size;
 }
 
@@ -303,7 +309,7 @@ read_entire_file(char *file_name)
             u8 *data = (u8 *)xalloc(file_size);
             if (data)
             {
-                if (fread(data, file_size, 1, file) == 1)
+                if (fread(data, 1, file_size, file) == file_size)
                 {
                     result.data = data;
                     result.size = file_size;
@@ -356,7 +362,7 @@ read_from_MBF(App_List *apps, Day_List *day_list, Settings *settings, char *file
     MBF_Day *days         = (MBF_Day *)((header->days) ? start + header->days : nullptr);
     Record *records       = (Record *)((header->records) ? start + header->records : nullptr); 
     char *string_block    = (char *)((header->strings) ? start + header->strings : nullptr);
-    char *string_lengths  = (char *)((header->string_lengths) ? start + header->string_lengths : nullptr);
+    u32 *string_lengths  = (u32 *)((header->string_lengths) ? start + header->string_lengths : nullptr);
     
     apps->local_program_ids = std::unordered_map<String, App_Id>(header->local_program_count + 50);
     apps->website_ids       = std::unordered_map<String, App_Id>(header->website_count + 50);
@@ -368,9 +374,9 @@ read_from_MBF(App_List *apps, Day_List *day_list, Settings *settings, char *file
     
     settings->misc = header->misc_options;
     
-    init_arena(&apps->names_arena, header->string_block_size + Kilobytes(10), Kilobytes(10));
-    init_arena(&settings->keyword_arena, KEYWORD_MEMORY_SIZE, 0);
-    init_arena(&day_list->arena, (header->total_record_count * sizeof(Record)) + MAX_DAILY_RECORDS_MEMORY_SIZE, MAX_DAILY_RECORDS_MEMORY_SIZE);
+    init_arena(&apps->name_arena, header->string_block_size + Kilobytes(10), Kilobytes(10));
+    init_arena(&day_list->record_arena, (header->total_record_count * sizeof(Record)) + MAX_DAILY_RECORDS_MEMORY_SIZE, MAX_DAILY_RECORDS_MEMORY_SIZE);
+    init_arena(&settings->keyword_arena, MAX_KEYWORD_COUNT * MAX_KEYWORD_SIZE);
     
     Assert(header->id_count == header->local_program_count + header->website_count);
     
@@ -406,7 +412,7 @@ read_from_MBF(App_List *apps, Day_List *day_list, Settings *settings, char *file
     if (days)
     {
         // Just copy all records at once, then fix pointers into arena, rather than repeatedly copying each day
-        Record *new_records = (Record *)push_size(&day_list->arena, header->total_record_count * sizeof(Record));
+        Record *new_records = (Record *)push_size(&day_list->record_arena, header->total_record_count * sizeof(Record));
         memcpy(new_records, records, header->total_record_count * sizeof(Record));
         u32 record_offset = 0;
         for (u32 i = 0; i < header->day_count; ++i)
