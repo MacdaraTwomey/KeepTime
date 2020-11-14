@@ -1,0 +1,1557 @@
+c:\$Recycle.Bin\S-1-5-21-2675462905-1200906782-2545019705-1001\$R3NHRJN.exe
+c:\$Recycle.Bin\S-1-5-21-2675462905-1200906782-2545019705-1001\$R4FOYQ6.exe
+c:\$Recycle.Bin\S-1-5-21-2675462905-1200906782-2545019705-1001\$R8R6WID.exe
+c:\$Recycle.Bin\S-1-5-21-2675462905-1200906782-2545019705-1001\$R8XHXS1.exe
+c:\$Recycle.Bin\S-1-5-21-2675462905-1200906782-2545019705-1001\$RFID8CR.exe
+c:\$Recycle.Bin\S-1-5-21-2675462905-1200906782-2545019705-1001\$RGFGKZR.exe
+c:\$Recycle.Bin\S-1-5-21-2675462905-1200906782-2545019705-1001\$RJ3M156.exe
+c:\$Recycle.Bin\S-1-5-21-2675462905-1200906782-2545019705-1001\$RL064TC.exe
+c:\$Recycle.Bin\S-1-5-21-2675462905-1200906782-2545019705-1001\$RN35ZEV.exe
+c:\$Recycle.Bin\S-1-5-21-2675462905-1200906782-2545019705-1001\$RNZ1LL1.exe
+c:\$Recycle.Bin\S-1-5-21-2675462905-1200906782-2545019705-1001\$ROU0S6A.exe
+c:\$Recycle.Bin\S-1-5-21-2675462905-1200906782-2545019705-1001\$RT249A8.exe
+c:\$Recycle.Bin\S-1-5-21-2675462905-1200906782-2545019705-1001\$RTNEKZ1.exe
+c:\$Recycle.Bin\S-1-5-21-2675462905-1200906782-2545019705-1001\$RZKKSOV.exe
+c:\$Recycle.Bin\S-1-5-21-2675462905-1200906782-2545019705-1001\$R4G7F9B\lite.exe
+c:\$Recycle.Bin\S-1-5-21-2675462905-1200906782-2545019705-1001\$R4IUHBY.12-win32\speedcrunch.exe
+c:\$Recycle.Bin\S-1-5-21-2675462905-1200906782-2545019705-1001\$R6PUNNQ\monitor.exe
+c:\$Recycle.Bin\S-1-5-21-2675462905-1200906782-2545019705-1001\$R91X04D\sublime_text.exe
+c:\$Recycle.Bin\S-1-5-21-2675462905-1200906782-2545019705-1001\$RB4DTQB\LISTVIEW.EXE
+c:\$Recycle.Bin\S-1-5-21-2675462905-1200906782-2545019705-1001\$RE5ONSY.1-win-binaries\bin32\assimp.exe
+c:\$Recycle.Bin\S-1-5-21-2675462905-1200906782-2545019705-1001\$RE5ONSY.1-win-binaries\bin32\assimp_viewer.exe
+c:\$Recycle.Bin\S-1-5-21-2675462905-1200906782-2545019705-1001\$RE5ONSY.1-win-binaries\bin64\assimp.exe
+c:\$Recycle.Bin\S-1-5-21-2675462905-1200906782-2545019705-1001\$RE5ONSY.1-win-binaries\bin64\assimp_viewer.exe
+c:\$Recycle.Bin\S-1-5-21-2675462905-1200906782-2545019705-1001\$RESHX8C.2\orbit.exe
+c:\$Recycle.Bin\S-1-5-21-2675462905-1200906782-2545019705-1001\$RF711R5\Tracy.exe
+c:\$Recycle.Bin\S-1-5-21-2675462905-1200906782-2545019705-1001\$RM63294\4ed.exe
+c:\$Recycle.Bin\S-1-5-21-2675462905-1200906782-2545019705-1001\$RPHVFW2\Optick.exe
+c:\dev\projects\monitor\build\monitor.exe
+c:\files\applications\cloc.exe
+c:\files\applications\4coder\4ed.exe
+c:\files\applications\4coder\4.1.4\4ed.exe
+c:\files\applications\Aseprite\aseprite.exe
+c:\files\applications\autohotkey\AutoHotkeyA32.exe
+c:\files\applications\autohotkey\AutoHotkeyU32.exe
+c:\files\applications\autohotkey\AutoHotkeyU64.exe
+c:\files\applications\autohotkey\Compiler\Ahk2Exe.exe
+c:\files\applications\cmder\Cmder.exe
+c:\files\applications\cmder\vendor\conemu-maximus5\ConEmu.exe
+c:\files\applications\cmder\vendor\conemu-maximus5\ConEmu64.exe
+c:\files\applications\cmder\vendor\conemu-maximus5\ConEmu\ConEmuC.exe
+c:\files\applications\cmder\vendor\conemu-maximus5\ConEmu\ConEmuC64.exe
+c:\files\applications\depends\depends.exe
+c:\files\applications\Emacs\bin\emacs-26.1.exe
+c:\files\applications\Emacs\bin\emacs.exe
+c:\files\applications\Emacs\bin\emacsclientw.exe
+c:\files\applications\Emacs\bin\runemacs.exe
+c:\files\applications\Emacs\bin\tclsh.exe
+c:\files\applications\Emacs\bin\tclsh86.exe
+c:\files\applications\Emacs\bin\wish.exe
+c:\files\applications\Emacs\bin\wish86.exe
+c:\files\applications\Everything\Everything.exe
+c:\files\applications\terminus\Terminus.exe
+c:\files\applications\tracy\Tracy.exe
+c:\files\applications\vscode\Code.exe
+c:\files\applications\vscode\resources\app\out\vs\platform\files\node\watcher\win32\CodeHelper.exe
+c:\files\applications\vscode\tools\inno_updater.exe
+c:\files\applications\XnView\xnview.exe
+c:\files\applications\XnView\Plugins\slide.exe
+c:\files\UWA\Years\CompSCi\CITS1001 - Software Engineering with Java\proj\BlueJ-windows-421\bluej.exe
+c:\files\UWA\Years\CompSCi\CITS1001 - Software Engineering with Java\proj\BlueJ-windows-421\bluej\BlueJ.exe
+c:\files\UWA\Years\CompSCi\CITS1001 - Software Engineering with Java\proj\BlueJ-windows-421\bluej\jdk\bin\java.exe
+c:\files\UWA\Years\CompSCi\CITS1001 - Software Engineering with Java\proj\BlueJ-windows-421\bluej\jdk\bin\javaw.exe
+c:\Program Files\7-Zip\7zFM.exe
+c:\Program Files\7-Zip\7zG.exe
+c:\Program Files\7-Zip\Uninstall.exe
+c:\Program Files\AMD\CIM\Bin64\AMDCleanupUtility.exe
+c:\Program Files\AMD\CIM\Bin64\amdprw.exe
+c:\Program Files\AMD\CIM\Bin64\ATISetup.exe
+c:\Program Files\AMD\CIM\Bin64\PRWlayer.exe
+c:\Program Files\AMD\CIM\Bin64\RadeonInstaller.exe
+c:\Program Files\AMD\CIM\Bin64\Setup.exe
+c:\Program Files\CMake\bin\cmake-gui.exe
+c:\Program Files\Common Files\microsoft shared\ClickToRun\IntegratedOffice.exe
+c:\Program Files\Common Files\microsoft shared\ClickToRun\OfficeC2RClient.exe
+c:\Program Files\Common Files\microsoft shared\ClickToRun\OfficeClickToRun.exe
+c:\Program Files\Common Files\microsoft shared\ink\mip.exe
+c:\Program Files\Common Files\microsoft shared\ink\ShapeCollector.exe
+c:\Program Files\Common Files\microsoft shared\ink\TabTip.exe
+c:\Program Files\Common Files\microsoft shared\MSInfo\msinfo32.exe
+c:\Program Files\dotnet\sdk\NuGetFallbackFolder\microsoft.build.runtime\15.3.409\contentFiles\any\net46\MSBuild.exe
+c:\Program Files\Git\git-bash.exe
+c:\Program Files\Git\git-cmd.exe
+c:\Program Files\Git\unins000.exe
+c:\Program Files\Git\cmd\git-gui.exe
+c:\Program Files\Git\cmd\gitk.exe
+c:\Program Files\Git\mingw64\bin\git-lfs.exe
+c:\Program Files\Git\mingw64\bin\tclsh.exe
+c:\Program Files\Git\mingw64\bin\tclsh86.exe
+c:\Program Files\Git\mingw64\bin\wish.exe
+c:\Program Files\Git\mingw64\bin\wish86.exe
+c:\Program Files\Git\usr\bin\mintty.exe
+c:\Program Files\IIS Express\iisexpress.exe
+c:\Program Files\IIS Express\iisexpresstray.exe
+c:\Program Files\internet explorer\iediagcmd.exe
+c:\Program Files\internet explorer\ieinstal.exe
+c:\Program Files\internet explorer\ielowutil.exe
+c:\Program Files\internet explorer\iexplore.exe
+c:\Program Files\Java\jdk-11.0.2\bin\java.exe
+c:\Program Files\Java\jdk-11.0.2\bin\javaw.exe
+c:\Program Files\Krita (x64)\uninstall.exe
+c:\Program Files\Krita (x64)\bin\krita.exe
+c:\Program Files\Malwarebytes\Anti-Malware\assistant.exe
+c:\Program Files\Malwarebytes\Anti-Malware\malwarebytes_assistant.exe
+c:\Program Files\Malwarebytes\Anti-Malware\mbam.exe
+c:\Program Files\Malwarebytes\Anti-Malware\mbamtray.exe
+c:\Program Files\Malwarebytes\Anti-Malware\mbamwow.exe
+c:\Program Files\Malwarebytes\Anti-Malware\MBAMWsc.exe
+c:\Program Files\Malwarebytes\Anti-Malware\unins000.exe
+c:\Program Files\Microsoft Office 15\ClientX64\IntegratedOffice.exe
+c:\Program Files\Microsoft Office 15\ClientX64\OfficeClickToRun.exe
+c:\Program Files\Mozilla Firefox\crashreporter.exe
+c:\Program Files\Mozilla Firefox\firefox.exe
+c:\Program Files\Mozilla Firefox\maintenanceservice_installer.exe
+c:\Program Files\Mozilla Firefox\updater.exe
+c:\Program Files\Mozilla Firefox\uninstall\helper.exe
+c:\Program Files\NVIDIA Corporation\Ansel\Tools\NvCameraConfiguration.exe
+c:\Program Files\NVIDIA Corporation\Control Panel Client\nvcplui.exe
+c:\Program Files\NVIDIA Corporation\Control Panel Client\NvGpuUtilization.exe
+c:\Program Files\NVIDIA Corporation\Display\nvsmartmaxapp.exe
+c:\Program Files\NVIDIA Corporation\Display\nvsmartmaxapp64.exe
+c:\Program Files\NVIDIA Corporation\Display.NvContainer\NVDisplay.Container.exe
+c:\Program Files\NVIDIA Corporation\Installer2\Display.Driver.{2AC4E605-9605-483A-99AF-49D6E824EA07}\NvContainerSetup.exe
+c:\Program Files\NVIDIA Corporation\Installer2\Display.Driver.{2AC4E605-9605-483A-99AF-49D6E824EA07}\NvCplSetupInt.exe
+c:\Program Files\NVIDIA Corporation\Installer2\Display.Driver.{9EED1D7B-EE7D-42D2-9E2C-C04474D1FEC3}\NvContainerSetup.exe
+c:\Program Files\NVIDIA Corporation\Installer2\Display.Driver.{9EED1D7B-EE7D-42D2-9E2C-C04474D1FEC3}\NvCplSetupInt.exe
+c:\Program Files\NVIDIA Corporation\Installer2\Display.Driver.{9EED1D7B-EE7D-42D2-9E2C-C04474D1FEC3}\VulkanRT-Installer.exe
+c:\Program Files\NVIDIA Corporation\Installer2\installer.{0BC1DF2C-A3C6-4E5B-9B2F-1ED596D4FC6E}\NVNetworkService.exe
+c:\Program Files\NVIDIA Corporation\Installer2\installer.{AE66588B-6524-4A4B-A937-6E059BD59CB7}\NVNetworkService.exe
+c:\Program Files\NVIDIA Corporation\Installer2\InstallerCore\SETUP.EXE
+c:\Program Files\NVIDIA Corporation\Update Core\NvProfileUpdater64.exe
+c:\Program Files\Realtek\Audio\HDA\CXAPOAgent64.exe
+c:\Program Files\Realtek\Audio\HDA\RAVBg64.exe
+c:\Program Files\Realtek\Audio\HDA\RAVCpl64.exe
+c:\Program Files\Realtek\Audio\HDA\RtkNGUI64.exe
+c:\Program Files\Realtek\Audio\HDA\RtlUpd64.exe
+c:\Program Files\Realtek\Audio\HDA\vncutil64.exe
+c:\Program Files\Sublime Text 3\sublime_text.exe
+c:\Program Files\Sublime Text 3\unins000.exe
+c:\Program Files\SumatraPDF\SumatraPDF.exe
+c:\Program Files\SumatraPDF\uninstall.exe
+c:\Program Files\Typora\Typora.exe
+c:\Program Files\Typora\unins000.exe
+c:\Program Files\Typora\bin\typora.exe
+c:\Program Files\VideoLAN\VLC\uninstall.exe
+c:\Program Files\VideoLAN\VLC\vlc-cache-gen.exe
+c:\Program Files\VideoLAN\VLC\vlc.exe
+c:\Program Files\Windows Defender\MpCmdRun.exe
+c:\Program Files\Windows Defender\Offline\OfflineScannerShell.exe
+c:\Program Files\Windows Mail\wab.exe
+c:\Program Files\Windows Mail\wabmig.exe
+c:\Program Files\Windows Media Player\setup_wm.exe
+c:\Program Files\Windows Media Player\wmpconfig.exe
+c:\Program Files\Windows Media Player\wmplayer.exe
+c:\Program Files\Windows Media Player\wmpnscfg.exe
+c:\Program Files\Windows Media Player\wmpshare.exe
+c:\Program Files\windows nt\accessories\wordpad.exe
+c:\Program Files\Windows Photo Viewer\ImagingDevices.exe
+c:\Program Files (x86)\Common Files\Adobe\AdobeGCClient\Adobe Genuine Helper.exe
+c:\Program Files (x86)\Common Files\Adobe\AdobeGCClient\AdobeGCClient.exe
+c:\Program Files (x86)\Common Files\Adobe\AdobeGCClient\HDHelper.exe
+c:\Program Files (x86)\Common Files\microsoft shared\MSEnv\VSLauncher.exe
+c:\Program Files (x86)\Common Files\microsoft shared\MSInfo\msinfo32.exe
+c:\Program Files (x86)\Common Files\microsoft shared\OFFICE16\LICLUA.EXE
+c:\Program Files (x86)\Common Files\Steam\SteamService.exe
+c:\Program Files (x86)\Common Files\Steam\SteamServiceTmp.exe
+c:\Program Files (x86)\IIS Express\iisexpress.exe
+c:\Program Files (x86)\IIS Express\iisexpresstray.exe
+c:\Program Files (x86)\Internet Explorer\ieinstal.exe
+c:\Program Files (x86)\Internet Explorer\ielowutil.exe
+c:\Program Files (x86)\Internet Explorer\iexplore.exe
+c:\Program Files (x86)\Meld\Meld.exe
+c:\Program Files (x86)\Microsoft Office\root\Integration\OneDriveSetup.exe
+c:\Program Files (x86)\Microsoft Office\root\Office16\ACCICONS.EXE
+c:\Program Files (x86)\Microsoft Office\root\Office16\CLVIEW.EXE
+c:\Program Files (x86)\Microsoft Office\root\Office16\EXCEL.EXE
+c:\Program Files (x86)\Microsoft Office\root\Office16\excelcnv.exe
+c:\Program Files (x86)\Microsoft Office\root\Office16\GRAPH.EXE
+c:\Program Files (x86)\Microsoft Office\root\Office16\lync.exe
+c:\Program Files (x86)\Microsoft Office\root\Office16\lync99.exe
+c:\Program Files (x86)\Microsoft Office\root\Office16\lynchtmlconv.exe
+c:\Program Files (x86)\Microsoft Office\root\Office16\misc.exe
+c:\Program Files (x86)\Microsoft Office\root\Office16\MSACCESS.EXE
+c:\Program Files (x86)\Microsoft Office\root\Office16\msoev.exe
+c:\Program Files (x86)\Microsoft Office\root\Office16\MSOSYNC.EXE
+c:\Program Files (x86)\Microsoft Office\root\Office16\msotd.exe
+c:\Program Files (x86)\Microsoft Office\root\Office16\MSOUC.EXE
+c:\Program Files (x86)\Microsoft Office\root\Office16\MSPUB.EXE
+c:\Program Files (x86)\Microsoft Office\root\Office16\MSQRY32.EXE
+c:\Program Files (x86)\Microsoft Office\root\Office16\NAMECONTROLSERVER.EXE
+c:\Program Files (x86)\Microsoft Office\root\Office16\OcPubMgr.exe
+c:\Program Files (x86)\Microsoft Office\root\Office16\OLCFG.EXE
+c:\Program Files (x86)\Microsoft Office\root\Office16\ONENOTE.EXE
+c:\Program Files (x86)\Microsoft Office\root\Office16\ONENOTEM.EXE
+c:\Program Files (x86)\Microsoft Office\root\Office16\ORGCHART.EXE
+c:\Program Files (x86)\Microsoft Office\root\Office16\OUTLOOK.EXE
+c:\Program Files (x86)\Microsoft Office\root\Office16\POWERPNT.EXE
+c:\Program Files (x86)\Microsoft Office\root\Office16\PPTICO.EXE
+c:\Program Files (x86)\Microsoft Office\root\Office16\protocolhandler.exe
+c:\Program Files (x86)\Microsoft Office\root\Office16\SCANPST.EXE
+c:\Program Files (x86)\Microsoft Office\root\Office16\SELFCERT.EXE
+c:\Program Files (x86)\Microsoft Office\root\Office16\SETLANG.EXE
+c:\Program Files (x86)\Microsoft Office\root\Office16\UcMapi.exe
+c:\Program Files (x86)\Microsoft Office\root\Office16\WINWORD.EXE
+c:\Program Files (x86)\Microsoft Office\root\Office16\WORDICON.EXE
+c:\Program Files (x86)\Microsoft Office\root\Office16\XLICONS.EXE
+c:\Program Files (x86)\Microsoft Office\root\Office16\DCF\DATABASECOMPARE.EXE
+c:\Program Files (x86)\Microsoft Office\root\Office16\DCF\filecompare.exe
+c:\Program Files (x86)\Microsoft Office\root\Office16\DCF\SPREADSHEETCOMPARE.EXE
+c:\Program Files (x86)\Microsoft Office\root\vfs\ProgramFilesCommonX64\Microsoft Shared\OFFICE16\MSOXMLED.EXE
+c:\Program Files (x86)\Microsoft Office\root\vfs\ProgramFilesCommonX86\Microsoft Shared\DW\DW20.EXE
+c:\Program Files (x86)\Microsoft Office\root\vfs\ProgramFilesCommonX86\Microsoft Shared\OFFICE16\MSOICONS.EXE
+c:\Program Files (x86)\Microsoft Office\root\vfs\ProgramFilesCommonX86\Microsoft Shared\OFFICE16\MSOXMLED.EXE
+c:\Program Files (x86)\Microsoft Office\root\vfs\Windows\Installer\{90160000-000F-0000-0000-0000000FF1CE}\accicons.exe
+c:\Program Files (x86)\Microsoft Office\root\vfs\Windows\Installer\{90160000-000F-0000-0000-0000000FF1CE}\dbcicons.exe
+c:\Program Files (x86)\Microsoft Office\root\vfs\Windows\Installer\{90160000-000F-0000-0000-0000000FF1CE}\grv_icons.exe
+c:\Program Files (x86)\Microsoft Office\root\vfs\Windows\Installer\{90160000-000F-0000-0000-0000000FF1CE}\joticon.exe
+c:\Program Files (x86)\Microsoft Office\root\vfs\Windows\Installer\{90160000-000F-0000-0000-0000000FF1CE}\lyncicon.exe
+c:\Program Files (x86)\Microsoft Office\root\vfs\Windows\Installer\{90160000-000F-0000-0000-0000000FF1CE}\misc.exe
+c:\Program Files (x86)\Microsoft Office\root\vfs\Windows\Installer\{90160000-000F-0000-0000-0000000FF1CE}\msouc.exe
+c:\Program Files (x86)\Microsoft Office\root\vfs\Windows\Installer\{90160000-000F-0000-0000-0000000FF1CE}\ohub32.exe
+c:\Program Files (x86)\Microsoft Office\root\vfs\Windows\Installer\{90160000-000F-0000-0000-0000000FF1CE}\osmadminicon.exe
+c:\Program Files (x86)\Microsoft Office\root\vfs\Windows\Installer\{90160000-000F-0000-0000-0000000FF1CE}\osmclienticon.exe
+c:\Program Files (x86)\Microsoft Office\root\vfs\Windows\Installer\{90160000-000F-0000-0000-0000000FF1CE}\outicon.exe
+c:\Program Files (x86)\Microsoft Office\root\vfs\Windows\Installer\{90160000-000F-0000-0000-0000000FF1CE}\pj11icon.exe
+c:\Program Files (x86)\Microsoft Office\root\vfs\Windows\Installer\{90160000-000F-0000-0000-0000000FF1CE}\pptico.exe
+c:\Program Files (x86)\Microsoft Office\root\vfs\Windows\Installer\{90160000-000F-0000-0000-0000000FF1CE}\pubs.exe
+c:\Program Files (x86)\Microsoft Office\root\vfs\Windows\Installer\{90160000-000F-0000-0000-0000000FF1CE}\sscicons.exe
+c:\Program Files (x86)\Microsoft Office\root\vfs\Windows\Installer\{90160000-000F-0000-0000-0000000FF1CE}\visicon.exe
+c:\Program Files (x86)\Microsoft Office\root\vfs\Windows\Installer\{90160000-000F-0000-0000-0000000FF1CE}\wordicon.exe
+c:\Program Files (x86)\Microsoft Office\root\vfs\Windows\Installer\{90160000-000F-0000-0000-0000000FF1CE}\xlicons.exe
+c:\Program Files (x86)\Microsoft Office\root\vfs\Windows\Installer\{90160000-001F-0409-0000-0000000FF1CE}\misc.exe
+c:\Program Files (x86)\Microsoft Office\root\vfs\Windows\Installer\{90160000-001F-040C-0000-0000000FF1CE}\misc.exe
+c:\Program Files (x86)\Microsoft Office\root\vfs\Windows\Installer\{90160000-001F-0C0A-0000-0000000FF1CE}\misc.exe
+c:\Program Files (x86)\Microsoft Office\root\vfs\Windows\Installer\{90160000-006E-0409-0000-0000000FF1CE}\misc.exe
+c:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.6.1 Tools\disco.exe
+c:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.6.1 Tools\ildasm.exe
+c:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.6.1 Tools\mage.exe
+c:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.6.1 Tools\mageui.exe
+c:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.6.1 Tools\sgen.exe
+c:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.6.1 Tools\SvcConfigEditor.exe
+c:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.6.1 Tools\SvcTraceViewer.exe
+c:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.6.1 Tools\WinRes.exe
+c:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.6.1 Tools\wsdl.exe
+c:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.6.1 Tools\xsd.exe
+c:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.6.1 Tools\x64\disco.exe
+c:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.6.1 Tools\x64\ildasm.exe
+c:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.6.1 Tools\x64\sgen.exe
+c:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.6.1 Tools\x64\wsdl.exe
+c:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.6.1 Tools\x64\xsd.exe
+c:\Program Files (x86)\Microsoft Visual Studio\2017\Community\Common7\IDE\devenv.exe
+c:\Program Files (x86)\Microsoft Visual Studio\2017\Community\Common7\IDE\FeedbackCollector.exe
+c:\Program Files (x86)\Microsoft Visual Studio\2017\Community\Common7\IDE\VsGa.exe
+c:\Program Files (x86)\Microsoft Visual Studio\2017\Community\Common7\IDE\VSIXInstaller.exe
+c:\Program Files (x86)\Microsoft Visual Studio\2017\Community\Common7\IDE\VSWebHandler.exe
+c:\Program Files (x86)\Microsoft Visual Studio\2017\Community\Common7\IDE\VSWebLauncher.exe
+c:\Program Files (x86)\Microsoft Visual Studio\2017\Community\Common7\IDE\CommonExtensions\Microsoft\TeamFoundation\Team Explorer\BuildNotificationApp.exe
+c:\Program Files (x86)\Microsoft Visual Studio\2017\Community\Common7\IDE\CommonExtensions\Microsoft\TeamFoundation\Team Explorer\TF.exe
+c:\Program Files (x86)\Microsoft Visual Studio\2017\Community\Common7\IDE\CommonExtensions\Microsoft\TeamFoundation\Team Explorer\TFSBuild.exe
+c:\Program Files (x86)\Microsoft Visual Studio\2017\Community\Common7\IDE\CommonExtensions\Microsoft\TeamFoundation\Team Explorer\witadmin.exe
+c:\Program Files (x86)\Microsoft Visual Studio\2017\Community\Common7\IDE\Extensions\Microsoft\Graphics\Debugger\VsGraphicsDesktopEngine.exe
+c:\Program Files (x86)\Microsoft Visual Studio\2017\Community\Common7\IDE\Extensions\Microsoft\VsGraphics\vsgraphics.exe
+c:\Program Files (x86)\Microsoft Visual Studio\2017\Community\Common7\IDE\Remote Debugger\x64\msvsmon.exe
+c:\Program Files (x86)\Microsoft Visual Studio\2017\Community\Common7\IDE\Remote Debugger\x64\VsGraphicsRemoteEngine.exe
+c:\Program Files (x86)\Microsoft Visual Studio\2017\Community\Common7\IDE\Remote Debugger\x86\msvsmon.exe
+c:\Program Files (x86)\Microsoft Visual Studio\2017\Community\Common7\IDE\Remote Debugger\x86\VsGraphicsRemoteEngine.exe
+c:\Program Files (x86)\Microsoft Visual Studio\2017\Community\Common7\ServiceHub\Hosts\ServiceHub.Host.Node.x86\ServiceHub.Host.Node.x86.exe
+c:\Program Files (x86)\Microsoft Visual Studio\2017\Community\Common7\Tools\errlook.exe
+c:\Program Files (x86)\Microsoft Visual Studio\2017\Community\Common7\Tools\guidgen.exe
+c:\Program Files (x86)\Microsoft Visual Studio\2017\Community\Common7\Tools\spyxx.exe
+c:\Program Files (x86)\Microsoft Visual Studio\2017\Community\Common7\Tools\spyxx_amd64.exe
+c:\Program Files (x86)\Microsoft Visual Studio\2017\Community\MSBuild\15.0\Bin\MSBuild.exe
+c:\Program Files (x86)\Microsoft Visual Studio\2017\Community\MSBuild\15.0\Bin\MSBuildTaskHost.exe
+c:\Program Files (x86)\Microsoft Visual Studio\2017\Community\MSBuild\15.0\Bin\amd64\MSBuild.exe
+c:\Program Files (x86)\Microsoft Visual Studio\2017\Community\MSBuild\15.0\Bin\amd64\MSBuildTaskHost.exe
+c:\Program Files (x86)\Microsoft Visual Studio\2017\Community\Team Tools\Performance Tools\Setups\vs_profiler_x64_enu.exe
+c:\Program Files (x86)\Microsoft Visual Studio\2017\Community\Team Tools\Performance Tools\Setups\vs_profiler_x86_enu.exe
+c:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Redist\MSVC\14.13.26020\vcredist_x64.exe
+c:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Redist\MSVC\14.13.26020\vcredist_x86.exe
+c:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Redist\MSVC\14.13.26020\vc_redist.x64.exe
+c:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Redist\MSVC\14.13.26020\vc_redist.x86.exe
+c:\Program Files (x86)\Microsoft Visual Studio\2017\Community\Web\External\Node.exe
+c:\Program Files (x86)\Microsoft Visual Studio\2017\Community\Web\External\x86\Node.exe
+c:\Program Files (x86)\Microsoft Visual Studio\Installer\vs_installer.exe
+c:\Program Files (x86)\Microsoft Visual Studio\Installer\vs_installershell.exe
+c:\Program Files (x86)\Microsoft Visual Studio\Installer\resources\app\layout\Setup.exe
+c:\Program Files (x86)\Microsoft Visual Studio\Installer\resources\app\ServiceHub\Services\Microsoft.VisualStudio.Setup.Service\VSIXInstaller.exe
+c:\Program Files (x86)\Mozilla Maintenance Service\Uninstall.exe
+c:\Program Files (x86)\MSI Afterburner\MSIAfterburner.exe
+c:\Program Files (x86)\MSI Afterburner\Uninstall.exe
+c:\Program Files (x86)\MSI Afterburner\Redist\RTSSSetup.exe
+c:\Program Files (x86)\MSI Afterburner\Redist\vcredist_x86.exe
+c:\Program Files (x86)\MSI Afterburner\SDK\Samples\SharedMemory\MACMSharedMemorySample\Release\MACMSharedMemorySample.exe
+c:\Program Files (x86)\MSI Afterburner\SDK\Samples\SharedMemory\MAHMSharedMemorySample\Release\MAHMSharedMemorySample.exe
+c:\Program Files (x86)\MusicBee\lossyWAV.exe
+c:\Program Files (x86)\MusicBee\MusicBee.exe
+c:\Program Files (x86)\MusicBee\RemoveDrive.exe
+c:\Program Files (x86)\MusicBee\Uninstall.exe
+c:\Program Files (x86)\MusicBee\Codec\Takc.exe
+c:\Program Files (x86)\NVIDIA Corporation\Display.NvContainer\NVDisplay.Container.exe
+c:\Program Files (x86)\NVIDIA Corporation\NvTelemetry\NvTelemetryContainer.exe
+c:\Program Files (x86)\NVIDIA Corporation\Update Core\NvSHIM.exe
+c:\Program Files (x86)\NVIDIA Corporation\Update Core\NvTmMon.exe
+c:\Program Files (x86)\NVIDIA Corporation\Update Core\NvTmRep.exe
+c:\Program Files (x86)\ProcrastiTracker\procrastitracker.exe
+c:\Program Files (x86)\ProcrastiTracker\uninstall.exe
+c:\Program Files (x86)\Realtek\Audio\Drivers\HDADrv\AsusSetup.exe
+c:\Program Files (x86)\Realtek\Audio\Drivers\HDADrv\Setup.exe
+c:\Program Files (x86)\Realtek\Audio\Drivers\HDADrv\ACPIPatch\AsusSetup.exe
+c:\Program Files (x86)\Realtek\Audio\Drivers\HDADrv\ACPIPatch\AtkSetup.exe
+c:\Program Files (x86)\Realtek\Audio\Drivers\HDADrv\ACPIPatch\AXSP\atkexComSvc.exe
+c:\Program Files (x86)\Realtek\Audio\Drivers\HDADrv\ACPIPatch\AXSP\axIns.exe
+c:\Program Files (x86)\Realtek\Audio\Drivers\HDADrv\ACPIPatch\Io\AsIoIns.exe
+c:\Program Files (x86)\Realtek\Audio\Drivers\HDADrv\ACPIPatch\Io\AsIoUnins.exe
+c:\Program Files (x86)\Realtek\Audio\Drivers\HDADrv\ASIO\Install.exe
+c:\Program Files (x86)\Realtek\Audio\Drivers\HDADrv\DTS\DTS_APO_GUI_Win32-64_Installer.exe
+c:\Program Files (x86)\Realtek\Audio\Drivers\HDADrv\SonicRadar\SetupSonicPlugins_R1.exe
+c:\Program Files (x86)\Realtek\Audio\Drivers\HDADrv\SonicRadar\SetupSonicPlugins_R2.exe
+c:\Program Files (x86)\Realtek\Audio\Drivers\HDADrv\SonicSuite\SetupSonicSuite_R2.exe
+c:\Program Files (x86)\Realtek\Audio\Drivers\HDADrv\SonicSuite\Setup_SonicRadar3.exe
+c:\Program Files (x86)\Realtek\Audio\Drivers\HDADrv\SonicSuite\Setup_SonicStudio3.exe
+c:\Program Files (x86)\Realtek\Audio\Drivers\HDADrv\WIN32\ATKEX_cmd.exe
+c:\Program Files (x86)\Realtek\Audio\Drivers\HDADrv\WIN32\RtHDVBg.exe
+c:\Program Files (x86)\Realtek\Audio\Drivers\HDADrv\WIN32\RtHDVCpl.exe
+c:\Program Files (x86)\Realtek\Audio\Drivers\HDADrv\WIN32\RtkNGUI.exe
+c:\Program Files (x86)\Realtek\Audio\Drivers\HDADrv\WIN32\RtlUpd.exe
+c:\Program Files (x86)\Realtek\Audio\Drivers\HDADrv\WIN32\vncutil.exe
+c:\Program Files (x86)\Realtek\Audio\Drivers\HDADrv\WIN64\ATKEX_cmd.exe
+c:\Program Files (x86)\Realtek\Audio\Drivers\HDADrv\WIN64\RAVBg64.exe
+c:\Program Files (x86)\Realtek\Audio\Drivers\HDADrv\WIN64\RAVCpl64.exe
+c:\Program Files (x86)\Realtek\Audio\Drivers\HDADrv\WIN64\RtkNGUI64.exe
+c:\Program Files (x86)\Realtek\Audio\Drivers\HDADrv\WIN64\RtlUpd64.exe
+c:\Program Files (x86)\Realtek\Audio\Drivers\HDADrv\WIN64\vncutil64.exe
+c:\Program Files (x86)\Sony\ReaderDesktop\Reader.exe
+c:\Program Files (x86)\Sony\ReaderDesktop\appHelper\ReaderAppHelper.exe
+c:\Program Files (x86)\Sony\ReaderDesktop\deviceHelper\ReaderDeviceHelper.exe
+c:\Program Files (x86)\Sony\ReaderDesktop\UpdateChecker\UwcHelperApp.exe
+c:\Program Files (x86)\Vim\vim80\gvim.exe
+c:\Program Files (x86)\Vim\vim80\uninstall-gui.exe
+c:\Program Files (x86)\Vim\vim80\vim.exe
+c:\Program Files (x86)\WinDirStat\Uninstall.exe
+c:\Program Files (x86)\WinDirStat\windirstat.exe
+c:\Program Files (x86)\Windows Kits\10\App Certification Kit\appcertui.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\arm\accevent.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\arm\dxcapsviewer.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\arm\filetypeverifier.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\arm\inspect.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\arm\MsiDb.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\arm\topoedit.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\arm\WiLogUtl.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\arm64\accevent.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\arm64\certmgr.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\arm64\dxcapsviewer.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\arm64\filetypeverifier.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\arm64\fxc.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\arm64\inspect.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\arm64\oleview.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\arm64\TB3x.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\arm64\topoedit.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\arm64\tracefmt.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\x64\accevent.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\x64\bulkmetadatapackagingwizard.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\x64\certmgr.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\x64\DeviceMetadataWizard.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\x64\dxcapsviewer.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\x64\filetypeverifier.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\x64\fxc.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\x64\graphedt.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\x64\inspect.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\x64\oleview.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\x64\TB3x.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\x64\topoedit.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\x64\tracefmt.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\x86\accevent.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\x86\bulkmetadatapackagingwizard.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\x86\certmgr.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\x86\DeviceMetadataWizard.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\x86\dxcapsviewer.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\x86\filetypeverifier.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\x86\fxc.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\x86\GDFMaker.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\x86\graphedt.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\x86\inspect.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\x86\MsiDb.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\x86\oleview.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\x86\TB3x.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\x86\topoedit.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\x86\tracefmt.exe
+c:\Program Files (x86)\Windows Kits\10\bin\10.0.16299.0\x86\WiLogUtl.exe
+c:\Program Files (x86)\Windows Mail\wab.exe
+c:\Program Files (x86)\Windows Mail\wabmig.exe
+c:\Program Files (x86)\Windows Media Player\setup_wm.exe
+c:\Program Files (x86)\Windows Media Player\wmpconfig.exe
+c:\Program Files (x86)\Windows Media Player\wmplayer.exe
+c:\Program Files (x86)\Windows Media Player\wmpshare.exe
+c:\Program Files (x86)\windows nt\accessories\wordpad.exe
+c:\Program Files (x86)\Windows Photo Viewer\ImagingDevices.exe
+c:\Program Files (x86)\Workrave\unins000.exe
+c:\Program Files (x86)\Workrave\lib\Workrave.exe
+c:\ProgramData\Malwarebytes\MBAMService\instlrupdate\MBSetup.exe
+c:\ProgramData\Microsoft\VisualStudio\Packages\_bootstrapper\vs_bootstrapper.exe
+c:\ProgramData\Microsoft\Windows Defender\Platform\4.18.2005.5-0\MpCmdRun.exe
+c:\ProgramData\Microsoft\Windows Defender\Platform\4.18.2005.5-0\MpDlpCmd.exe
+c:\ProgramData\Microsoft\Windows Defender\Platform\4.18.2005.5-0\X86\MpCmdRun.exe
+c:\ProgramData\Microsoft\Windows Defender\Platform\4.18.2006.10-0\MpCmdRun.exe
+c:\ProgramData\Microsoft\Windows Defender\Platform\4.18.2006.10-0\MpDlpCmd.exe
+c:\ProgramData\Microsoft\Windows Defender\Platform\4.18.2006.10-0\X86\MpCmdRun.exe
+c:\ProgramData\Package Cache\{050d4fc8-5d48-4b8f-8972-47c82c46020f}\vcredist_x64.exe
+c:\ProgramData\Package Cache\{33d1fd90-4274-48a1-9bc1-97e33d9c2d6f}\vcredist_x86.exe
+c:\ProgramData\Package Cache\{56e11d69-7cc9-40a5-a4f9-8f6190c4d84d}\VC_redist.x86.exe
+c:\ProgramData\Package Cache\{6195c203-b53c-4bb7-983a-6070a902e704}\winsdksetup.exe
+c:\ProgramData\Package Cache\{759f58bf-356b-4499-882f-086f6ea9d3f2}\dotnet-sdk-2.1.103-win-x64.exe
+c:\ProgramData\Package Cache\{c6c5a357-c7ca-4a5f-9789-3bb1af579253}\LauncherPrereqSetup_x64.exe
+c:\ProgramData\Package Cache\{ca67548a-5ebe-413a-b50c-4b9ceb6d66c6}\vcredist_x64.exe
+c:\ProgramData\Package Cache\{e2ee15e2-a480-4bc5-bfb7-e9803d1d9823}\VC_redist.x64.exe
+c:\ProgramData\Package Cache\{f65db027-aff3-4070-886a-0d87064aabb1}\vcredist_x86.exe
+c:\ProgramData\StarUML\installer.exe
+c:\Users\All Users\Malwarebytes\MBAMService\instlrupdate\MBSetup.exe
+c:\Users\All Users\Microsoft\VisualStudio\Packages\_bootstrapper\vs_bootstrapper.exe
+c:\Users\All Users\Microsoft\Windows Defender\Platform\4.18.2005.5-0\MpCmdRun.exe
+c:\Users\All Users\Microsoft\Windows Defender\Platform\4.18.2005.5-0\MpDlpCmd.exe
+c:\Users\All Users\Microsoft\Windows Defender\Platform\4.18.2005.5-0\X86\MpCmdRun.exe
+c:\Users\All Users\Microsoft\Windows Defender\Platform\4.18.2006.10-0\MpCmdRun.exe
+c:\Users\All Users\Microsoft\Windows Defender\Platform\4.18.2006.10-0\MpDlpCmd.exe
+c:\Users\All Users\Microsoft\Windows Defender\Platform\4.18.2006.10-0\X86\MpCmdRun.exe
+c:\Users\All Users\Package Cache\{050d4fc8-5d48-4b8f-8972-47c82c46020f}\vcredist_x64.exe
+c:\Users\All Users\Package Cache\{33d1fd90-4274-48a1-9bc1-97e33d9c2d6f}\vcredist_x86.exe
+c:\Users\All Users\Package Cache\{56e11d69-7cc9-40a5-a4f9-8f6190c4d84d}\VC_redist.x86.exe
+c:\Users\All Users\Package Cache\{6195c203-b53c-4bb7-983a-6070a902e704}\winsdksetup.exe
+c:\Users\All Users\Package Cache\{759f58bf-356b-4499-882f-086f6ea9d3f2}\dotnet-sdk-2.1.103-win-x64.exe
+c:\Users\All Users\Package Cache\{c6c5a357-c7ca-4a5f-9789-3bb1af579253}\LauncherPrereqSetup_x64.exe
+c:\Users\All Users\Package Cache\{ca67548a-5ebe-413a-b50c-4b9ceb6d66c6}\vcredist_x64.exe
+c:\Users\All Users\Package Cache\{e2ee15e2-a480-4bc5-bfb7-e9803d1d9823}\VC_redist.x64.exe
+c:\Users\All Users\Package Cache\{f65db027-aff3-4070-886a-0d87064aabb1}\vcredist_x86.exe
+c:\Users\All Users\StarUML\installer.exe
+c:\Users\Macs Pc\.vscode\extensions\ms-vscode.cpptools-0.28.3\debugAdapters\vsdbg\bin\Remote Debugger\x64\msvsmon.exe
+c:\Users\Macs Pc\AppData\Local\Atlassian\SourceTree\hg_extras\mercurial-credential-manager.exe
+c:\Users\Macs Pc\AppData\Local\FluxSoftware\Flux\flux.exe
+c:\Users\Macs Pc\AppData\Local\FluxSoftware\Flux\uninstall.exe
+c:\Users\Macs Pc\AppData\Local\FluxSoftware\Flux\update\setup.exe
+c:\Users\Macs Pc\AppData\Local\Microsoft\OneDrive\17.3.6966.0824\OneDrive.exe
+c:\Users\Macs Pc\AppData\Local\Package Cache\{9218130b-5ad0-4cf7-82be-6993cfd6cb84}\python-3.6.4.exe
+c:\Users\Macs Pc\AppData\Local\Programs\ActivityWatch\aw-qt.exe
+c:\Users\Macs Pc\AppData\Local\Programs\ActivityWatch\unins000.exe
+c:\Users\Macs Pc\AppData\Local\Programs\ActivityWatch\aw-server\aw-server.exe
+c:\Users\Macs Pc\AppData\Local\Programs\ActivityWatch\aw-watcher-afk\aw-watcher-afk.exe
+c:\Users\Macs Pc\AppData\Local\Programs\ActivityWatch\aw-watcher-window\aw-watcher-window.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\bin\gimp-2.10.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\bin\gimp-console-2.10.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\align-layers\align-layers.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\animation-optimize\animation-optimize.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\animation-play\animation-play.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\blinds\blinds.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\blur\blur.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\border-average\border-average.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\busy-dialog\busy-dialog.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\cartoon\cartoon.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\checkerboard\checkerboard.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\cml-explorer\cml-explorer.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\color-cube-analyze\color-cube-analyze.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\color-enhance\color-enhance.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\colorify\colorify.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\colormap-remap\colormap-remap.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\compose\compose.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\contrast-normalize\contrast-normalize.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\contrast-retinex\contrast-retinex.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\crop-zealous\crop-zealous.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\curve-bend\curve-bend.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\decompose\decompose.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\depth-merge\depth-merge.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\despeckle\despeckle.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\destripe\destripe.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\edge-dog\edge-dog.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\edge-neon\edge-neon.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\emboss\emboss.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\file-bmp\file-bmp.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\file-cel\file-cel.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\file-compressor\file-compressor.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\file-csource\file-csource.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\file-dds\file-dds.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\file-desktop-link\file-desktop-link.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\file-dicom\file-dicom.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\file-faxg3\file-faxg3.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\file-fits\file-fits.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\file-fli\file-fli.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\file-gbr\file-gbr.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\file-gegl\file-gegl.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\file-gif-load\file-gif-load.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\file-gif-save\file-gif-save.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\file-gih\file-gih.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\file-glob\file-glob.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\file-header\file-header.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\file-heif\file-heif.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\file-html-table\file-html-table.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\file-ico\file-ico.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\file-jp2-load\file-jp2-load.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\file-jpeg\file-jpeg.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\file-mng\file-mng.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\file-pat\file-pat.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\file-pcx\file-pcx.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\file-pdf-load\file-pdf-load.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\file-pdf-save\file-pdf-save.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\file-pix\file-pix.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\file-png\file-png.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\file-pnm\file-pnm.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\file-ps\file-ps.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\file-psd\file-psd.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\file-psp\file-psp.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\file-raw-data\file-raw-data.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\file-sgi\file-sgi.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\file-sunras\file-sunras.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\file-svg\file-svg.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\file-tga\file-tga.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\file-tiff\file-tiff.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\file-webp\file-webp.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\file-wmf\file-wmf.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\file-xbm\file-xbm.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\file-xpm\file-xpm.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\file-xwd\file-xwd.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\film\film.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\filter-pack\filter-pack.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\flame\flame.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\fractal-explorer\fractal-explorer.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\fractal-trace\fractal-trace.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\gfig\gfig.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\gimpressionist\gimpressionist.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\gradient-flare\gradient-flare.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\gradient-map\gradient-map.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\grid\grid.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\guillotine\guillotine.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\help\help.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\help-browser\help-browser.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\hot\hot.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\ifs-compose\ifs-compose.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\jigsaw\jigsaw.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\lighting\lighting.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\map-object\map-object.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\max-rgb\max-rgb.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\metadata-editor\metadata-editor.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\metadata-viewer\metadata-viewer.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\newsprint\newsprint.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\nl-filter\nl-filter.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\oilify\oilify.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\pagecurl\pagecurl.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\photocopy\photocopy.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\plugin-browser\plugin-browser.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\print\print.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\procedure-browser\procedure-browser.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\qbist\qbist.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\sample-colorize\sample-colorize.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\screenshot\screenshot.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\script-fu\script-fu.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\selection-to-path\selection-to-path.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\sharpen\sharpen.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\smooth-palette\smooth-palette.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\softglow\softglow.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\sparkle\sparkle.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\sphere-designer\sphere-designer.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\tile\tile.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\tile-small\tile-small.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\twain\twain.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\unit-editor\unit-editor.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\van-gogh-lic\van-gogh-lic.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\warp\warp.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\wavelet-decompose\wavelet-decompose.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\web-browser\web-browser.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\gimp\2.0\plug-ins\web-page\web-page.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\python2.7\site-packages\distlib\t32.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\python2.7\site-packages\distlib\t64.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\python2.7\site-packages\distlib\w32.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\lib\python2.7\site-packages\distlib\w64.exe
+c:\Users\Macs Pc\AppData\Local\Programs\GIMP 2\uninst\unins000.exe
+c:\Users\Macs Pc\AppData\Local\Programs\MiKTeX 2.9\biber\bin\windows-x64\biber.exe
+c:\Users\Macs Pc\AppData\Local\Programs\MiKTeX 2.9\miktex\bin\x64\asy.exe
+c:\Users\Macs Pc\AppData\Local\Programs\MiKTeX 2.9\miktex\bin\x64\inimf.exe
+c:\Users\Macs Pc\AppData\Local\Programs\MiKTeX 2.9\miktex\bin\x64\mf.exe
+c:\Users\Macs Pc\AppData\Local\Programs\MiKTeX 2.9\miktex\bin\x64\mgs.exe
+c:\Users\Macs Pc\AppData\Local\Programs\MiKTeX 2.9\miktex\bin\x64\miktex-asy.exe
+c:\Users\Macs Pc\AppData\Local\Programs\MiKTeX 2.9\miktex\bin\x64\miktex-console.exe
+c:\Users\Macs Pc\AppData\Local\Programs\MiKTeX 2.9\miktex\bin\x64\miktex-console_admin.exe
+c:\Users\Macs Pc\AppData\Local\Programs\MiKTeX 2.9\miktex\bin\x64\miktex-mf.exe
+c:\Users\Macs Pc\AppData\Local\Programs\MiKTeX 2.9\miktex\bin\x64\miktex-taskbar-icon.exe
+c:\Users\Macs Pc\AppData\Local\Programs\MiKTeX 2.9\miktex\bin\x64\miktex-texworks.exe
+c:\Users\Macs Pc\AppData\Local\Programs\MiKTeX 2.9\miktex\bin\x64\miktex-update.exe
+c:\Users\Macs Pc\AppData\Local\Programs\MiKTeX 2.9\miktex\bin\x64\miktex-update_admin.exe
+c:\Users\Macs Pc\AppData\Local\Programs\MiKTeX 2.9\miktex\bin\x64\texworks.exe
+c:\Users\Macs Pc\AppData\Local\Programs\MiKTeX 2.9\miktex\bin\x64\virmf.exe
+c:\Users\Macs Pc\AppData\Local\Programs\MiKTeX 2.9\miktex\bin\x64\yap.exe
+c:\Users\Macs Pc\AppData\Local\Programs\Python\Python36-32\python.exe
+c:\Users\Macs Pc\AppData\Local\Programs\Python\Python36-32\pythonw.exe
+c:\Users\Macs Pc\AppData\Local\Programs\Python\Python36-32\Lib\site-packages\pip\_vendor\distlib\t32.exe
+c:\Users\Macs Pc\AppData\Local\Programs\Python\Python36-32\Lib\site-packages\pip\_vendor\distlib\t64.exe
+c:\Users\Macs Pc\AppData\Local\Programs\Python\Python36-32\Lib\site-packages\pip\_vendor\distlib\w32.exe
+c:\Users\Macs Pc\AppData\Local\Programs\Python\Python36-32\Lib\site-packages\pip\_vendor\distlib\w64.exe
+c:\Users\Macs Pc\AppData\Local\Programs\Python\Python36-32\Scripts\chardetect.exe
+c:\Users\Macs Pc\AppData\Local\Programs\Python\Python36-32\Scripts\easy_install-3.6.exe
+c:\Users\Macs Pc\AppData\Local\Programs\Python\Python36-32\Scripts\easy_install.exe
+c:\Users\Macs Pc\AppData\Local\Programs\Python\Python36-32\Scripts\flake8.exe
+c:\Users\Macs Pc\AppData\Local\Programs\Python\Python36-32\Scripts\pip.exe
+c:\Users\Macs Pc\AppData\Local\Programs\Python\Python36-32\Scripts\pip3.6.exe
+c:\Users\Macs Pc\AppData\Local\Programs\Python\Python36-32\Scripts\pip3.exe
+c:\Users\Macs Pc\AppData\Local\Programs\Python\Python36-32\Scripts\pycodestyle.exe
+c:\Users\Macs Pc\AppData\Local\Programs\Python\Python36-32\Scripts\pyflakes.exe
+c:\Users\Macs Pc\AppData\Local\SourceTree\SourceTree.exe
+c:\Users\Macs Pc\AppData\Local\SourceTree\app-3.0.12\SourceTree.exe
+c:\Users\Macs Pc\AppData\Local\SourceTree\app-3.0.12\tools\BsSndRpt.exe
+c:\Users\Macs Pc\AppData\Local\SourceTree\app-3.0.12\tools\getopt.exe
+c:\Users\Macs Pc\AppData\Local\SourceTree\app-3.0.12\tools\putty\pageant.exe
+c:\Users\Macs Pc\AppData\Local\SourceTree\app-3.0.12\tools\putty\plink.exe
+c:\Users\Macs Pc\AppData\Local\SourceTree\app-3.0.12\tools\putty\puttygen.exe
+c:\Users\Macs Pc\AppData\Roaming\Microsoft\Installer\{20888FA1-8127-42E3-969F-9BF93245AC83}\idle.exe
+c:\Users\Macs Pc\AppData\Roaming\Microsoft\Installer\{7F5DCD33-1039-C3B2-9538-B645B65BBA63}\ARPPRODUCTICON.exe
+c:\Windows\explorer.exe
+c:\Windows\HelpPane.exe
+c:\Windows\hh.exe
+c:\Windows\notepad.exe
+c:\Windows\py.exe
+c:\Windows\pyw.exe
+c:\Windows\regedit.exe
+c:\Windows\splwow64.exe
+c:\Windows\winhlp32.exe
+c:\Windows\write.exe
+c:\Windows\assembly\GAC_32\MSBuild\3.5.0.0__b03f5f7f11d50a3a\MSBuild.exe
+c:\Windows\assembly\GAC_64\MSBuild\3.5.0.0__b03f5f7f11d50a3a\MSBuild.exe
+c:\Windows\ImmersiveControlPanel\SystemSettings.exe
+c:\Windows\Installer\{1ED7F328-5789-44D8-A9BA-C352B8E4018D}\MSDeployIcon.exe
+c:\Windows\Installer\{36730CEF-BA88-DBC1-90AD-8168995424D4}\ARPPRODUCTICON.exe
+c:\Windows\Installer\{D279DFB7-97A3-439D-8BE9-95D8AFA68562}\ARPPRODUCTICON.exe
+c:\Windows\Installer\{EEB605FD-C5F5-4946-90F3-D65C604A9187}\NewShortcut2_F1AD8C9A37F84A18ADCD99FB67588A13.exe
+c:\Windows\Microsoft.NET\assembly\GAC_32\MSBuild\v4.0_4.0.0.0__b03f5f7f11d50a3a\MSBuild.exe
+c:\Windows\Microsoft.NET\assembly\GAC_64\MSBuild\v4.0_4.0.0.0__b03f5f7f11d50a3a\MSBuild.exe
+c:\Windows\Microsoft.NET\Framework\v2.0.50727\MSBuild.exe
+c:\Windows\Microsoft.NET\Framework\v3.5\MSBuild.exe
+c:\Windows\Microsoft.NET\Framework\v4.0.30319\MSBuild.exe
+c:\Windows\Microsoft.NET\Framework64\v2.0.50727\MSBuild.exe
+c:\Windows\Microsoft.NET\Framework64\v3.5\MSBuild.exe
+c:\Windows\Microsoft.NET\Framework64\v4.0.30319\MSBuild.exe
+c:\Windows\PrintDialog\PrintDialog.exe
+c:\Windows\System32\ApproveChildRequest.exe
+c:\Windows\System32\AxInstUI.exe
+c:\Windows\System32\baaupdate.exe
+c:\Windows\System32\bdechangepin.exe
+c:\Windows\System32\BdeHdCfg.exe
+c:\Windows\System32\bdeunlock.exe
+c:\Windows\System32\BitLockerWizard.exe
+c:\Windows\System32\BitLockerWizardElev.exe
+c:\Windows\System32\bthudtask.exe
+c:\Windows\System32\calc.exe
+c:\Windows\System32\certreq.exe
+c:\Windows\System32\certutil.exe
+c:\Windows\System32\changepk.exe
+c:\Windows\System32\charmap.exe
+c:\Windows\System32\cleanmgr.exe
+c:\Windows\System32\cliconfg.exe
+c:\Windows\System32\cmd.exe
+c:\Windows\System32\cmdl32.exe
+c:\Windows\System32\cmmon32.exe
+c:\Windows\System32\cmstp.exe
+c:\Windows\System32\colorcpl.exe
+c:\Windows\System32\CompMgmtLauncher.exe
+c:\Windows\System32\ComputerDefaults.exe
+c:\Windows\System32\conhost.exe
+c:\Windows\System32\consent.exe
+c:\Windows\System32\control.exe
+c:\Windows\System32\credwiz.exe
+c:\Windows\System32\cscript.exe
+c:\Windows\System32\ctfmon.exe
+c:\Windows\System32\cttune.exe
+c:\Windows\System32\dccw.exe
+c:\Windows\System32\Defrag.exe
+c:\Windows\System32\DeviceEject.exe
+c:\Windows\System32\DevicePairingWizard.exe
+c:\Windows\System32\DeviceProperties.exe
+c:\Windows\System32\DFDWiz.exe
+c:\Windows\System32\dfrgui.exe
+c:\Windows\System32\dialer.exe
+c:\Windows\System32\DisplaySwitch.exe
+c:\Windows\System32\dpapimig.exe
+c:\Windows\System32\DpiScaling.exe
+c:\Windows\System32\dvdplay.exe
+c:\Windows\System32\DXCpl.exe
+c:\Windows\System32\dxdiag.exe
+c:\Windows\System32\Dxpserver.exe
+c:\Windows\System32\EaseOfAccessDialog.exe
+c:\Windows\System32\EhStorAuthn.exe
+c:\Windows\System32\eudcedit.exe
+c:\Windows\System32\eventvwr.exe
+c:\Windows\System32\fhmanagew.exe
+c:\Windows\System32\FileHistory.exe
+c:\Windows\System32\Fondue.exe
+c:\Windows\System32\fontview.exe
+c:\Windows\System32\fsquirt.exe
+c:\Windows\System32\fvenotify.exe
+c:\Windows\System32\fveprompt.exe
+c:\Windows\System32\FXSCOVER.exe
+c:\Windows\System32\FXSSVC.exe
+c:\Windows\System32\GamePanel.exe
+c:\Windows\System32\grpconv.exe
+c:\Windows\System32\hdwwiz.exe
+c:\Windows\System32\iexpress.exe
+c:\Windows\System32\irftp.exe
+c:\Windows\System32\iscsicli.exe
+c:\Windows\System32\iscsicpl.exe
+c:\Windows\System32\isoburn.exe
+c:\Windows\System32\LaunchTM.exe
+c:\Windows\System32\LicenseManagerShellext.exe
+c:\Windows\System32\lpksetup.exe
+c:\Windows\System32\Magnify.exe
+c:\Windows\System32\manage-bde.exe
+c:\Windows\System32\mblctr.exe
+c:\Windows\System32\MdRes.exe
+c:\Windows\System32\MdSched.exe
+c:\Windows\System32\Microsoft.Uev.SyncController.exe
+c:\Windows\System32\MicrosoftEdgeBCHost.exe
+c:\Windows\System32\MicrosoftEdgeCP.exe
+c:\Windows\System32\MicrosoftEdgeDevTools.exe
+c:\Windows\System32\mmc.exe
+c:\Windows\System32\mobsync.exe
+c:\Windows\System32\MRT-KB890830.exe
+c:\Windows\System32\MRT.exe
+c:\Windows\System32\MSchedExe.exe
+c:\Windows\System32\msconfig.exe
+c:\Windows\System32\msdt.exe
+c:\Windows\System32\msdtc.exe
+c:\Windows\System32\mshta.exe
+c:\Windows\System32\msinfo32.exe
+c:\Windows\System32\mspaint.exe
+c:\Windows\System32\msra.exe
+c:\Windows\System32\mstsc.exe
+c:\Windows\System32\MultiDigiMon.exe
+c:\Windows\System32\MusNotifyIcon.exe
+c:\Windows\System32\Narrator.exe
+c:\Windows\System32\ndadmin.exe
+c:\Windows\System32\Netplwiz.exe
+c:\Windows\System32\newdev.exe
+c:\Windows\System32\notepad.exe
+c:\Windows\System32\nslookup.exe
+c:\Windows\System32\ntprint.exe
+c:\Windows\System32\odbcad32.exe
+c:\Windows\System32\OpenWith.exe
+c:\Windows\System32\OptionalFeatures.exe
+c:\Windows\System32\osk.exe
+c:\Windows\System32\perfmon.exe
+c:\Windows\System32\PresentationHost.exe
+c:\Windows\System32\PresentationSettings.exe
+c:\Windows\System32\PrintBrmUi.exe
+c:\Windows\System32\PrintIsolationHost.exe
+c:\Windows\System32\printui.exe
+c:\Windows\System32\proquota.exe
+c:\Windows\System32\psr.exe
+c:\Windows\System32\pwcreator.exe
+c:\Windows\System32\quickassist.exe
+c:\Windows\System32\recdisc.exe
+c:\Windows\System32\RecoveryDrive.exe
+c:\Windows\System32\regedt32.exe
+c:\Windows\System32\rekeywiz.exe
+c:\Windows\System32\RelPost.exe
+c:\Windows\System32\repair-bde.exe
+c:\Windows\System32\resmon.exe
+c:\Windows\System32\rstrui.exe
+c:\Windows\System32\rundll32.exe
+c:\Windows\System32\RunLegacyCPLElevated.exe
+c:\Windows\System32\runonce.exe
+c:\Windows\System32\sdclt.exe
+c:\Windows\System32\SearchFilterHost.exe
+c:\Windows\System32\SearchProtocolHost.exe
+c:\Windows\System32\SecEdit.exe
+c:\Windows\System32\SecurityHealthSystray.exe
+c:\Windows\System32\sethc.exe
+c:\Windows\System32\setupugc.exe
+c:\Windows\System32\shrpubw.exe
+c:\Windows\System32\sigverif.exe
+c:\Windows\System32\slui.exe
+c:\Windows\System32\SndVol.exe
+c:\Windows\System32\SnippingTool.exe
+c:\Windows\System32\SpaceAgent.exe
+c:\Windows\System32\spoolsv.exe
+c:\Windows\System32\SystemPropertiesAdvanced.exe
+c:\Windows\System32\SystemPropertiesComputerName.exe
+c:\Windows\System32\SystemPropertiesDataExecutionPrevention.exe
+c:\Windows\System32\SystemPropertiesHardware.exe
+c:\Windows\System32\SystemPropertiesPerformance.exe
+c:\Windows\System32\SystemPropertiesProtection.exe
+c:\Windows\System32\SystemPropertiesRemote.exe
+c:\Windows\System32\SystemSettingsAdminFlows.exe
+c:\Windows\System32\SystemSettingsBroker.exe
+c:\Windows\System32\tabcal.exe
+c:\Windows\System32\Taskmgr.exe
+c:\Windows\System32\TpmInit.exe
+c:\Windows\System32\UevAppMonitor.exe
+c:\Windows\System32\unregmp2.exe
+c:\Windows\System32\UserAccountControlSettings.exe
+c:\Windows\System32\verifiergui.exe
+c:\Windows\System32\VsGraphicsDesktopEngine.exe
+c:\Windows\System32\VsGraphicsRemoteEngine.exe
+c:\Windows\System32\vsjitdebugger.exe
+c:\Windows\System32\WerFault.exe
+c:\Windows\System32\WerFaultSecure.exe
+c:\Windows\System32\wermgr.exe
+c:\Windows\System32\wextract.exe
+c:\Windows\System32\WFS.exe
+c:\Windows\System32\wiaacmgr.exe
+c:\Windows\System32\winlogon.exe
+c:\Windows\System32\winver.exe
+c:\Windows\System32\wksprt.exe
+c:\Windows\System32\wlrmdr.exe
+c:\Windows\System32\WMPDMC.exe
+c:\Windows\System32\WorkFolders.exe
+c:\Windows\System32\WpcMon.exe
+c:\Windows\System32\wpr.exe
+c:\Windows\System32\write.exe
+c:\Windows\System32\WSCollect.exe
+c:\Windows\System32\wscript.exe
+c:\Windows\System32\wsqmcons.exe
+c:\Windows\System32\WSReset.exe
+c:\Windows\System32\wusa.exe
+c:\Windows\System32\xpsrchvw.exe
+c:\Windows\System32\xwizard.exe
+c:\Windows\System32\AppV\AppVStreamingUX.exe
+c:\Windows\System32\DriverStore\FileRepository\hdxrt4.inf_amd64_c7efd94b4c5f41e8\CXAPOAgent64.exe
+c:\Windows\System32\DriverStore\FileRepository\hdxrt4.inf_amd64_c7efd94b4c5f41e8\RAVBg64.exe
+c:\Windows\System32\DriverStore\FileRepository\hdxrt4.inf_amd64_c7efd94b4c5f41e8\RAVCpl64.exe
+c:\Windows\System32\DriverStore\FileRepository\hdxrt4.inf_amd64_c7efd94b4c5f41e8\RtkNGUI64.exe
+c:\Windows\System32\DriverStore\FileRepository\hdxrt4.inf_amd64_c7efd94b4c5f41e8\RtlUpd64.exe
+c:\Windows\System32\DriverStore\FileRepository\hdxrt4.inf_amd64_c7efd94b4c5f41e8\vncutil64.exe
+c:\Windows\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_ce1961376673184c\NvContainerSetup.exe
+c:\Windows\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_ce1961376673184c\NvCplSetupInt.exe
+c:\Windows\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_ce1961376673184c\VulkanRT-Installer.exe
+c:\Windows\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_db678424d2641c3d\NvContainerSetup.exe
+c:\Windows\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_db678424d2641c3d\NvCplSetupInt.exe
+c:\Windows\System32\DriverStore\FileRepository\nv_ref_pubwu.inf_amd64_2e7fa54192fe16d0\NvContainerSetup.exe
+c:\Windows\System32\DriverStore\FileRepository\nv_ref_pubwu.inf_amd64_2e7fa54192fe16d0\NvCplSetupInt.exe
+c:\Windows\System32\DriverStore\FileRepository\nv_ref_pubwu.inf_amd64_2e7fa54192fe16d0\VulkanRT-Installer.exe
+c:\Windows\System32\F12\IEChooser.exe
+c:\Windows\System32\IME\IMEJP\IMJPDCT.EXE
+c:\Windows\System32\IME\IMEJP\IMJPSET.EXE
+c:\Windows\System32\IME\IMEJP\IMJPUEX.EXE
+c:\Windows\System32\IME\IMETC\IMTCLNWZ.EXE
+c:\Windows\System32\IME\IMETC\IMTCPROP.exe
+c:\Windows\System32\IME\shared\IMCCPHR.exe
+c:\Windows\System32\IME\shared\imecfmui.exe
+c:\Windows\System32\IME\shared\IMEPADSV.EXE
+c:\Windows\System32\IME\shared\IMESEARCH.EXE
+c:\Windows\System32\IME\shared\IMEWDBLD.EXE
+c:\Windows\System32\InputMethod\CHS\ChsIME.exe
+c:\Windows\System32\Macromed\Flash\FlashUtil64_32_0_0_403_Plugin.exe
+c:\Windows\System32\Macromed\Flash\FlashUtil_ActiveX.exe
+c:\Windows\System32\migwiz\mighost.exe
+c:\Windows\System32\oobe\Setup.exe
+c:\Windows\System32\Speech\SpeechUX\SpeechUXWiz.exe
+c:\Windows\System32\Sysprep\sysprep.exe
+c:\Windows\System32\UNP\UNPUXHost.exe
+c:\Windows\System32\UNP\UNPUXLauncher.exe
+c:\Windows\System32\wbem\wbemtest.exe
+c:\Windows\System32\wbem\WinMgmt.exe
+c:\Windows\System32\wbem\WMIC.exe
+c:\Windows\System32\wbem\WmiPrvSE.exe
+c:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
+c:\Windows\System32\WindowsPowerShell\v1.0\powershell_ise.exe
+c:\Windows\SystemApps\Microsoft.MicrosoftEdge_8wekyb3d8bbwe\MicrosoftEdge.exe
+c:\Windows\SystemApps\Windows.CBSPreview_cw5n1h2txyewy\CameraBarcodeScannerPreview.exe
+c:\Windows\SysWOW64\bthudtask.exe
+c:\Windows\SysWOW64\calc.exe
+c:\Windows\SysWOW64\certreq.exe
+c:\Windows\SysWOW64\certutil.exe
+c:\Windows\SysWOW64\charmap.exe
+c:\Windows\SysWOW64\cleanmgr.exe
+c:\Windows\SysWOW64\cliconfg.exe
+c:\Windows\SysWOW64\cmd.exe
+c:\Windows\SysWOW64\cmdl32.exe
+c:\Windows\SysWOW64\cmmon32.exe
+c:\Windows\SysWOW64\cmstp.exe
+c:\Windows\SysWOW64\colorcpl.exe
+c:\Windows\SysWOW64\ComputerDefaults.exe
+c:\Windows\SysWOW64\control.exe
+c:\Windows\SysWOW64\credwiz.exe
+c:\Windows\SysWOW64\cscript.exe
+c:\Windows\SysWOW64\ctfmon.exe
+c:\Windows\SysWOW64\cttune.exe
+c:\Windows\SysWOW64\dccw.exe
+c:\Windows\SysWOW64\DevicePairingWizard.exe
+c:\Windows\SysWOW64\dfrgui.exe
+c:\Windows\SysWOW64\dialer.exe
+c:\Windows\SysWOW64\dpapimig.exe
+c:\Windows\SysWOW64\DpiScaling.exe
+c:\Windows\SysWOW64\dvdplay.exe
+c:\Windows\SysWOW64\DXCpl.exe
+c:\Windows\SysWOW64\dxdiag.exe
+c:\Windows\SysWOW64\EaseOfAccessDialog.exe
+c:\Windows\SysWOW64\EhStorAuthn.exe
+c:\Windows\SysWOW64\eudcedit.exe
+c:\Windows\SysWOW64\eventvwr.exe
+c:\Windows\SysWOW64\explorer.exe
+c:\Windows\SysWOW64\FlashPlayerApp.exe
+c:\Windows\SysWOW64\FlashPlayerInstaller.exe
+c:\Windows\SysWOW64\Fondue.exe
+c:\Windows\SysWOW64\fontview.exe
+c:\Windows\SysWOW64\fsquirt.exe
+c:\Windows\SysWOW64\GamePanel.exe
+c:\Windows\SysWOW64\grpconv.exe
+c:\Windows\SysWOW64\hdwwiz.exe
+c:\Windows\SysWOW64\hh.exe
+c:\Windows\SysWOW64\iexpress.exe
+c:\Windows\SysWOW64\iscsicli.exe
+c:\Windows\SysWOW64\iscsicpl.exe
+c:\Windows\SysWOW64\isoburn.exe
+c:\Windows\SysWOW64\LaunchTM.exe
+c:\Windows\SysWOW64\Magnify.exe
+c:\Windows\SysWOW64\mmc.exe
+c:\Windows\SysWOW64\mobsync.exe
+c:\Windows\SysWOW64\msdt.exe
+c:\Windows\SysWOW64\mshta.exe
+c:\Windows\SysWOW64\msinfo32.exe
+c:\Windows\SysWOW64\mspaint.exe
+c:\Windows\SysWOW64\msra.exe
+c:\Windows\SysWOW64\mstsc.exe
+c:\Windows\SysWOW64\ndadmin.exe
+c:\Windows\SysWOW64\Netplwiz.exe
+c:\Windows\SysWOW64\newdev.exe
+c:\Windows\SysWOW64\notepad.exe
+c:\Windows\SysWOW64\nslookup.exe
+c:\Windows\SysWOW64\ntprint.exe
+c:\Windows\SysWOW64\odbcad32.exe
+c:\Windows\SysWOW64\OneDriveSetup.exe
+c:\Windows\SysWOW64\OpenWith.exe
+c:\Windows\SysWOW64\perfmon.exe
+c:\Windows\SysWOW64\PresentationHost.exe
+c:\Windows\SysWOW64\printui.exe
+c:\Windows\SysWOW64\proquota.exe
+c:\Windows\SysWOW64\psr.exe
+c:\Windows\SysWOW64\quickassist.exe
+c:\Windows\SysWOW64\regedit.exe
+c:\Windows\SysWOW64\regedt32.exe
+c:\Windows\SysWOW64\rekeywiz.exe
+c:\Windows\SysWOW64\resmon.exe
+c:\Windows\SysWOW64\rundll32.exe
+c:\Windows\SysWOW64\RunLegacyCPLElevated.exe
+c:\Windows\SysWOW64\runonce.exe
+c:\Windows\SysWOW64\SearchFilterHost.exe
+c:\Windows\SysWOW64\SearchProtocolHost.exe
+c:\Windows\SysWOW64\SecEdit.exe
+c:\Windows\SysWOW64\sethc.exe
+c:\Windows\SysWOW64\setup16.exe
+c:\Windows\SysWOW64\setupugc.exe
+c:\Windows\SysWOW64\shrpubw.exe
+c:\Windows\SysWOW64\SndVol.exe
+c:\Windows\SysWOW64\SystemPropertiesAdvanced.exe
+c:\Windows\SysWOW64\SystemPropertiesComputerName.exe
+c:\Windows\SysWOW64\SystemPropertiesDataExecutionPrevention.exe
+c:\Windows\SysWOW64\SystemPropertiesHardware.exe
+c:\Windows\SysWOW64\SystemPropertiesPerformance.exe
+c:\Windows\SysWOW64\SystemPropertiesProtection.exe
+c:\Windows\SysWOW64\SystemPropertiesRemote.exe
+c:\Windows\SysWOW64\Taskmgr.exe
+c:\Windows\SysWOW64\TpmInit.exe
+c:\Windows\SysWOW64\unregmp2.exe
+c:\Windows\SysWOW64\UserAccountControlSettings.exe
+c:\Windows\SysWOW64\verifiergui.exe
+c:\Windows\SysWOW64\VsGraphicsDesktopEngine.exe
+c:\Windows\SysWOW64\VsGraphicsRemoteEngine.exe
+c:\Windows\SysWOW64\vsjitdebugger.exe
+c:\Windows\SysWOW64\WerFault.exe
+c:\Windows\SysWOW64\WerFaultSecure.exe
+c:\Windows\SysWOW64\wermgr.exe
+c:\Windows\SysWOW64\wextract.exe
+c:\Windows\SysWOW64\wiaacmgr.exe
+c:\Windows\SysWOW64\winver.exe
+c:\Windows\SysWOW64\write.exe
+c:\Windows\SysWOW64\wscript.exe
+c:\Windows\SysWOW64\wusa.exe
+c:\Windows\SysWOW64\xpsrchvw.exe
+c:\Windows\SysWOW64\xwizard.exe
+c:\Windows\SysWOW64\F12\IEChooser.exe
+c:\Windows\SysWOW64\IME\IMEJP\IMJPDCT.EXE
+c:\Windows\SysWOW64\IME\IMEJP\IMJPSET.EXE
+c:\Windows\SysWOW64\IME\IMEJP\IMJPUEX.EXE
+c:\Windows\SysWOW64\IME\IMETC\IMTCLNWZ.EXE
+c:\Windows\SysWOW64\IME\IMETC\IMTCPROP.exe
+c:\Windows\SysWOW64\IME\shared\IMCCPHR.exe
+c:\Windows\SysWOW64\IME\shared\imecfmui.exe
+c:\Windows\SysWOW64\IME\shared\IMEPADSV.EXE
+c:\Windows\SysWOW64\IME\shared\IMESEARCH.EXE
+c:\Windows\SysWOW64\IME\shared\IMEWDBLD.EXE
+c:\Windows\SysWOW64\InstallShield\setup.exe
+c:\Windows\SysWOW64\Macromed\Flash\FlashPlayerPlugin_32_0_0_403.exe
+c:\Windows\SysWOW64\Macromed\Flash\FlashUtil32_32_0_0_403_Plugin.exe
+c:\Windows\SysWOW64\Macromed\Flash\FlashUtil_ActiveX.exe
+c:\Windows\SysWOW64\wbem\WinMgmt.exe
+c:\Windows\SysWOW64\wbem\WMIC.exe
+c:\Windows\SysWOW64\wbem\WmiPrvSE.exe
+c:\Windows\SysWOW64\WindowsPowerShell\v1.0\powershell.exe
+c:\Windows\SysWOW64\WindowsPowerShell\v1.0\powershell_ise.exe
+c:\Windows\WinSxS\amd64_adobe-flash-for-windows_31bf3856ad364e35_10.0.17763.1283_none_793f75773b506f1a\FlashUtil_ActiveX.exe
+c:\Windows\WinSxS\amd64_adobe-flash-for-windows_31bf3856ad364e35_10.0.17763.1_none_1c65cdebc1b8ffc5\FlashUtil_ActiveX.exe
+c:\Windows\WinSxS\amd64_eventviewersettings_31bf3856ad364e35_10.0.17763.1_none_e5bdc1ec5bdc8ffe\eventvwr.exe
+c:\Windows\WinSxS\amd64_microsoft-onecore-console-host-core_31bf3856ad364e35_10.0.17763.1075_none_bb4a46def5e6ceee\conhost.exe
+c:\Windows\WinSxS\amd64_microsoft-onecore-console-host-core_31bf3856ad364e35_10.0.17763.1_none_5e5c2d557c5e7d90\conhost.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-a..nagement-appvclient_31bf3856ad364e35_10.0.17763.1192_none_1a1def8999debb2d\AppVStreamingUX.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-a..nagement-appvclient_31bf3856ad364e35_10.0.17763.1_none_bd38610020506813\AppVStreamingUX.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-a..roblemstepsrecorder_31bf3856ad364e35_10.0.17763.1282_none_289139651cba849e\psr.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-a..roblemstepsrecorder_31bf3856ad364e35_10.0.17763.1_none_cbb77b11a3232eea\psr.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-advancedtaskmanager_31bf3856ad364e35_10.0.17763.1075_none_fc9ade4ebd310ea0\LaunchTM.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-advancedtaskmanager_31bf3856ad364e35_10.0.17763.1075_none_fc9ade4ebd310ea0\Taskmgr.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-advancedtaskmanager_31bf3856ad364e35_10.0.17763.1_none_9facc4c543a8bd42\LaunchTM.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-advancedtaskmanager_31bf3856ad364e35_10.0.17763.1_none_9facc4c543a8bd42\Taskmgr.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-appmanagement-uevagent_31bf3856ad364e35_10.0.17763.1007_none_4a587948b6b2ec77\Microsoft.Uev.SyncController.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-appmanagement-uevagent_31bf3856ad364e35_10.0.17763.1007_none_4a587948b6b2ec77\UevAppMonitor.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-appmanagement-uevagent_31bf3856ad364e35_10.0.17763.1_none_ed718f553d241938\Microsoft.Uev.SyncController.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-appmanagement-uevagent_31bf3856ad364e35_10.0.17763.1_none_ed718f553d241938\UevAppMonitor.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-audio-volumecontrol_31bf3856ad364e35_10.0.17763.1075_none_13dc74d5d92bbcfe\SndVol.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-audio-volumecontrol_31bf3856ad364e35_10.0.17763.1_none_b6ee5b4c5fa36ba0\SndVol.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-axinstallservice_31bf3856ad364e35_10.0.17763.1098_none_24bb0e90429d8742\AxInstUI.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-axinstallservice_31bf3856ad364e35_10.0.17763.1339_none_2494864842bb5cac\AxInstUI.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-axinstallservice_31bf3856ad364e35_10.0.17763.1_none_c7cb38cac916b653\AxInstUI.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-bth-user_31bf3856ad364e35_10.0.17763.1_none_55df29d12d577f76\bthudtask.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-bth-user_31bf3856ad364e35_10.0.17763.1_none_55df29d12d577f76\fsquirt.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-c..utermanagerlauncher_31bf3856ad364e35_10.0.17763.1_none_7edb5c794c7b916e\CompMgmtLauncher.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-c..utermanagerlauncher_31bf3856ad364e35_10.0.17763.592_none_02a4f2c87a274aa3\CompMgmtLauncher.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-calc_31bf3856ad364e35_10.0.17763.1_none_9a83eb2072e563f9\calc.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-certificaterequesttool_31bf3856ad364e35_10.0.17763.1_none_58d67d696f91b060\certreq.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-certutil_31bf3856ad364e35_10.0.17763.1_none_a64af1d28b85fec8\certutil.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-charmap_31bf3856ad364e35_10.0.17763.1_none_e31fa743fc8492e4\charmap.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-cleanmgr_31bf3856ad364e35_10.0.17763.1_none_5e0a2046b5b53d2f\cleanmgr.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-com-dtc-runtime_31bf3856ad364e35_10.0.17763.1_none_0a18eccab82c677e\msdtc.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-commandprompt_31bf3856ad364e35_10.0.17763.1_none_7bd2b0a27285f56b\cmd.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-commandprompt_31bf3856ad364e35_10.0.17763.592_none_ff9c46f1a031aea0\cmd.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-computerdefaults_31bf3856ad364e35_10.0.17763.1075_none_542aa51a94fb280f\ComputerDefaults.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-computerdefaults_31bf3856ad364e35_10.0.17763.1_none_f73c8b911b72d6b1\ComputerDefaults.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-control_31bf3856ad364e35_10.0.17763.1_none_8a31e32302a74069\control.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-coresystem-wpr_31bf3856ad364e35_10.0.17763.1282_none_afcf166169b23514\wpr.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-coresystem-wpr_31bf3856ad364e35_10.0.17763.1_none_52f5580df01adf60\wpr.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-credwiz_31bf3856ad364e35_10.0.17763.1_none_90a09a90c3fe8a84\credwiz.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-cttune_31bf3856ad364e35_10.0.17763.1_none_a44a765716ae8447\cttune.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-d..-externaldictionary_31bf3856ad364e35_10.0.17763.1075_none_8a4f8d1e8a50f3e7\IMEWDBLD.EXE
+c:\Windows\WinSxS\amd64_microsoft-windows-d..-externaldictionary_31bf3856ad364e35_10.0.17763.1_none_2d61739510c8a289\IMEWDBLD.EXE
+c:\Windows\WinSxS\amd64_microsoft-windows-d..-japanese-utilities_31bf3856ad364e35_10.0.17763.1075_none_3ae5425443cc6716\IMJPDCT.EXE
+c:\Windows\WinSxS\amd64_microsoft-windows-d..-japanese-utilities_31bf3856ad364e35_10.0.17763.1075_none_3ae5425443cc6716\IMJPUEX.EXE
+c:\Windows\WinSxS\amd64_microsoft-windows-d..-japanese-utilities_31bf3856ad364e35_10.0.17763.1_none_ddf728caca4415b8\IMJPDCT.EXE
+c:\Windows\WinSxS\amd64_microsoft-windows-d..-japanese-utilities_31bf3856ad364e35_10.0.17763.1_none_ddf728caca4415b8\IMJPUEX.EXE
+c:\Windows\WinSxS\amd64_microsoft-windows-d..d-searchintegration_31bf3856ad364e35_10.0.17763.1075_none_d36bb50b61136b60\IMESEARCH.EXE
+c:\Windows\WinSxS\amd64_microsoft-windows-d..d-searchintegration_31bf3856ad364e35_10.0.17763.1_none_767d9b81e78b1a02\IMESEARCH.EXE
+c:\Windows\WinSxS\amd64_microsoft-windows-d..ime-eashared-imepad_31bf3856ad364e35_10.0.17763.1075_none_8840459970e2bf1e\IMEPADSV.EXE
+c:\Windows\WinSxS\amd64_microsoft-windows-d..ime-eashared-imepad_31bf3856ad364e35_10.0.17763.1_none_2b522c0ff75a6dc0\IMEPADSV.EXE
+c:\Windows\WinSxS\amd64_microsoft-windows-d..ls-adschemaanalyzer_31bf3856ad364e35_10.0.17763.1_none_c4bece808efc1d77\ADSchemaAnalyzer.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-d..me-japanese-setting_31bf3856ad364e35_10.0.17763.1075_none_ffe3fb8f4e90b14a\IMJPSET.EXE
+c:\Windows\WinSxS\amd64_microsoft-windows-d..me-japanese-setting_31bf3856ad364e35_10.0.17763.1_none_a2f5e205d5085fec\IMJPSET.EXE
+c:\Windows\WinSxS\amd64_microsoft-windows-d..n-tools-command-ldp_31bf3856ad364e35_10.0.17763.1_none_40073a91586a508b\ldp.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-d..n-tools-command-ldp_31bf3856ad364e35_10.0.17763.503_none_c433207685cc279e\ldp.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-d..omerfeedbackmanager_31bf3856ad364e35_10.0.17763.1075_none_29e7bf065fe32436\imecfmui.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-d..omerfeedbackmanager_31bf3856ad364e35_10.0.17763.1_none_ccf9a57ce65ad2d8\imecfmui.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-d..ostic-user-resolver_31bf3856ad364e35_10.0.17763.1_none_b5faeefb5dd86803\DFDWiz.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-d..phics-tools-desktop_31bf3856ad364e35_10.0.17763.1_none_42c6b6d5e67a72ac\VsGraphicsDesktopEngine.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-d..phics-tools-desktop_31bf3856ad364e35_10.0.17763.253_none_c6bc876d1404ddff\VsGraphicsDesktopEngine.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-d..rvices-adam-install_31bf3856ad364e35_10.0.17763.1_none_0d9a44132b458ed1\adaminstall.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-d..rvices-adam-install_31bf3856ad364e35_10.0.17763.1_none_0d9a44132b458ed1\adamuninstall.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-d..scannerpreview-host_31bf3856ad364e35_10.0.17763.1_none_83233e4b273591f1\CameraBarcodeScannerPreview.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-d..services-core-files_31bf3856ad364e35_10.0.17763.1_none_80b11c947f2593fd\dsamain.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-d..services-core-files_31bf3856ad364e35_10.0.17763.771_none_048f563dacc1f647\dsamain.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-d..x-directxdiagnostic_31bf3856ad364e35_10.0.17763.1_none_14898217b5ed64cc\dxdiag.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-d..x-directxdiagnostic_31bf3856ad364e35_10.0.17763.475_none_986bb736e38634fd\dxdiag.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-defrag-adminui_31bf3856ad364e35_10.0.17763.1039_none_e6c5b5e561fab1eb\dfrgui.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-defrag-adminui_31bf3856ad364e35_10.0.17763.1_none_89dbf8a3e86e5f65\dfrgui.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-defrag-cmdline_31bf3856ad364e35_10.0.17763.1039_none_152b76e2980b389e\Defrag.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-defrag-cmdline_31bf3856ad364e35_10.0.17763.1_none_b841b9a11e7ee618\Defrag.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-deployment_31bf3856ad364e35_10.0.17763.1_none_ecb4e0b045776e1f\setupugc.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-devicepairingapp_31bf3856ad364e35_10.0.17763.1_none_60644b935a35f42d\DevicePairingWizard.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-deviceproperties_31bf3856ad364e35_10.0.17763.1_none_db104ce8921270b7\DeviceProperties.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-directshow-dvdplay_31bf3856ad364e35_10.0.17763.1_none_f2740d1072338bcb\dvdplay.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-directx-control-panel_31bf3856ad364e35_10.0.17763.1_none_e26f283aa7e978ea\DXCpl.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-directx-graphics-tools_31bf3856ad364e35_10.0.17763.1039_none_7d6ec5fb2de693ad\VsGraphicsRemoteEngine.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-directx-graphics-tools_31bf3856ad364e35_10.0.17763.1_none_208508b9b45a4127\VsGraphicsRemoteEngine.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-displayswitch_31bf3856ad364e35_10.0.17763.1_none_dd879ade7ca4e076\DisplaySwitch.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-displayswitch_31bf3856ad364e35_10.0.17763.771_none_6165d487aa4142c0\DisplaySwitch.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-dpapi-keys_31bf3856ad364e35_10.0.17763.1_none_6e98bce1259a3fd3\dpapimig.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-dpiscaling_31bf3856ad364e35_10.0.17763.1_none_6b0dbd1bb3198260\DpiScaling.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-driververifier_31bf3856ad364e35_10.0.17763.1_none_ab31c4fcf4e4d246\verifiergui.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-dxp-deviceexperience_31bf3856ad364e35_10.0.17763.1_none_37eb15a951f0aa9d\Dxpserver.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-e..crosoftedgedevtools_31bf3856ad364e35_10.0.17763.1_none_a07a40d03d0fb679\MicrosoftEdgeDevTools.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-e..microsoftedgebchost_31bf3856ad364e35_10.0.17763.1_none_4f86b55bfa7a367c\MicrosoftEdgeBCHost.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-e..riseclientsync-host_31bf3856ad364e35_10.0.17763.1282_none_1bb32324485579a2\WorkFolders.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-e..riseclientsync-host_31bf3856ad364e35_10.0.17763.1_none_bed964d0cebe23ee\WorkFolders.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-edge-microsoftedgecp_31bf3856ad364e35_10.0.17763.1_none_b1fc29456945be76\MicrosoftEdgeCP.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-efs-rekeywiz_31bf3856ad364e35_10.0.17763.1_none_f8b0946264014b51\rekeywiz.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-errorreportingcore_31bf3856ad364e35_10.0.17763.1282_none_6e165a4ed7a4fd99\wermgr.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-errorreportingcore_31bf3856ad364e35_10.0.17763.1339_none_6e05e978d7b24e3e\wermgr.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-errorreportingcore_31bf3856ad364e35_10.0.17763.1_none_113c9bfb5e0da7e5\wermgr.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-errorreportingfaults_31bf3856ad364e35_10.0.17763.1282_none_bda6c4db0e8a12e9\WerFault.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-errorreportingfaults_31bf3856ad364e35_10.0.17763.1282_none_bda6c4db0e8a12e9\WerFaultSecure.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-errorreportingfaults_31bf3856ad364e35_10.0.17763.1339_none_bd9654050e97638e\WerFault.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-errorreportingfaults_31bf3856ad364e35_10.0.17763.1339_none_bd9654050e97638e\WerFaultSecure.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-errorreportingfaults_31bf3856ad364e35_10.0.17763.1_none_60cd068794f2bd35\WerFault.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-errorreportingfaults_31bf3856ad364e35_10.0.17763.1_none_60cd068794f2bd35\WerFaultSecure.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-es-authentication_31bf3856ad364e35_10.0.17763.1_none_3282a6866ec246b5\EhStorAuthn.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-eudcedit_31bf3856ad364e35_10.0.17763.1_none_4a5e6e8b17a79335\eudcedit.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-explorer_31bf3856ad364e35_10.0.17763.1217_none_9f4cdb5d4b83ff33\explorer.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-explorer_31bf3856ad364e35_10.0.17763.1339_none_9f43de754b8a8114\explorer.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-explorer_31bf3856ad364e35_10.0.17763.1_none_427a90f7d1e5dabb\explorer.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-f..client-applications_31bf3856ad364e35_10.0.17763.1_none_69bf964c808fd0dd\FXSCOVER.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-f..client-applications_31bf3856ad364e35_10.0.17763.1_none_69bf964c808fd0dd\WFS.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-fax-service_31bf3856ad364e35_10.0.17763.1_none_9de983a2d872d86d\FXSSVC.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-filehistory-core_31bf3856ad364e35_10.0.17763.1217_none_02a4f60f4897f9c8\fhmanagew.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-filehistory-core_31bf3856ad364e35_10.0.17763.1339_none_029bf927489e7ba9\fhmanagew.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-filehistory-core_31bf3856ad364e35_10.0.17763.1_none_a5d2aba9cef9d550\fhmanagew.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-filehistory-ui_31bf3856ad364e35_10.0.17763.1282_none_9bd22ad45cc5e347\FileHistory.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-filehistory-ui_31bf3856ad364e35_10.0.17763.1_none_3ef86c80e32e8d93\FileHistory.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-fontview_31bf3856ad364e35_10.0.17763.1_none_3529f7250ea07200\fontview.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-grpconv_31bf3856ad364e35_10.0.17763.1_none_934e0ec395d744fb\grpconv.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-help-client_31bf3856ad364e35_10.0.17763.1075_none_b9cc9390ffc86e47\HelpPane.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-help-client_31bf3856ad364e35_10.0.17763.1_none_5cde7a0786401ce9\HelpPane.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-htmlhelp_31bf3856ad364e35_10.0.17763.1_none_b91be097dce5e710\hh.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-htmlhelp_31bf3856ad364e35_10.0.17763.475_none_3cfe15b70a7eb741\hh.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-hvsi-manager_31bf3856ad364e35_10.0.17763.1282_none_55ba4e34441ada72\hvsimgr.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-hvsi-manager_31bf3856ad364e35_10.0.17763.1282_none_55ba4e34441ada72\hvsirdpclient.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-hvsi-manager_31bf3856ad364e35_10.0.17763.1282_none_55ba4e34441ada72\hvsirpcd.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-hvsi-manager_31bf3856ad364e35_10.0.17763.1_none_f8e08fe0ca8384be\hvsimgr.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-hvsi-manager_31bf3856ad364e35_10.0.17763.1_none_f8e08fe0ca8384be\hvsirdpclient.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-hvsi-manager_31bf3856ad364e35_10.0.17763.1_none_f8e08fe0ca8384be\hvsirpcd.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-i..devicescontrolpanel_31bf3856ad364e35_10.0.17763.1_none_1565b5b9a14b198a\ImagingDevices.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-i..etexplorer-optional_31bf3856ad364e35_11.0.17763.1_none_bd6dc11770c911a7\iexplore.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-i..etexplorer-optional_31bf3856ad364e35_11.0.17763.771_none_511293db5d002e03\iexplore.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-i..i_initiator_service_31bf3856ad364e35_10.0.17763.1131_none_281938b8e6d4fdb0\iscsicli.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-i..i_initiator_service_31bf3856ad364e35_10.0.17763.1_none_cb3995236d415c41\iscsicli.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-i..ntrolpanel.appxmain_31bf3856ad364e35_10.0.17763.1075_none_68720dd768b97fd2\SystemSettings.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-i..ntrolpanel.appxmain_31bf3856ad364e35_10.0.17763.1_none_0b83f44def312e74\SystemSettings.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-i..tional-chinese-core_31bf3856ad364e35_10.0.17763.1075_none_a73800fbd2a9ca65\IMTCLNWZ.EXE
+c:\Windows\WinSxS\amd64_microsoft-windows-i..tional-chinese-core_31bf3856ad364e35_10.0.17763.1075_none_a73800fbd2a9ca65\IMTCPROP.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-i..tional-chinese-core_31bf3856ad364e35_10.0.17763.1_none_4a49e77259217907\IMTCLNWZ.EXE
+c:\Windows\WinSxS\amd64_microsoft-windows-i..tional-chinese-core_31bf3856ad364e35_10.0.17763.1_none_4a49e77259217907\IMTCPROP.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-icm-dccw_31bf3856ad364e35_10.0.17763.1_none_0bb495c5e6acb9b3\dccw.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-icm-ui_31bf3856ad364e35_10.0.17763.1_none_2b1ea14ff8f8d29a\colorcpl.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-ie-htmlapplication_31bf3856ad364e35_11.0.17763.1_none_7e1153fecc60d8b3\mshta.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-ie-iechooser_31bf3856ad364e35_11.0.17763.1282_none_81d0d235f5716505\IEChooser.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-ie-iechooser_31bf3856ad364e35_11.0.17763.1_none_15307ac7bd3f553f\IEChooser.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-ie-iediag_31bf3856ad364e35_11.0.17763.1007_none_a84514c88c7e3d4a\iediagcmd.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-ie-iediag_31bf3856ad364e35_11.0.17763.1_none_3b9791ba5454aff9\iediagcmd.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-ie-ielowutil_31bf3856ad364e35_11.0.17763.1_none_2b2d70e4343e03fe\ielowutil.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-ie-iexpress_31bf3856ad364e35_11.0.17763.1_none_8933419f01b53bb3\iexpress.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-ie-iexpress_31bf3856ad364e35_11.0.17763.1_none_8933419f01b53bb3\wextract.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-ieinstal_31bf3856ad364e35_11.0.17763.1_none_0d533ddc54a5a754\ieinstal.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-iis-legacysnapin_31bf3856ad364e35_10.0.17763.1_none_71e6bded0a2f69c6\InetMgr6.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-iis-managementconsole_31bf3856ad364e35_10.0.17763.1_none_789987461340e7be\InetMgr.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-ime-eashared-ccshared_31bf3856ad364e35_10.0.17763.1075_none_23ce08574be4064f\IMCCPHR.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-ime-eashared-ccshared_31bf3856ad364e35_10.0.17763.1_none_c6dfeecdd25bb4f1\IMCCPHR.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-irftp_31bf3856ad364e35_10.0.17763.1_none_47802ad1d66b04b5\irftp.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-iscsi_initiator_ui_31bf3856ad364e35_10.0.17763.1_none_c8b11496b43b4b20\iscsicpl.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-isoburn_31bf3856ad364e35_10.0.17763.1_none_d6f89104f164ad98\isoburn.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-legacyhwui_31bf3856ad364e35_10.0.17763.1_none_d33a0c48a06a554a\hdwwiz.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-lpksetup_31bf3856ad364e35_10.0.17763.1098_none_6f0f20b43e28b407\lpksetup.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-lpksetup_31bf3856ad364e35_10.0.17763.1_none_121f4aeec4a1e318\lpksetup.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-lua_31bf3856ad364e35_10.0.17763.1_none_97104717b4f4d774\consent.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-lua_31bf3856ad364e35_10.0.17763.404_none_1b3d2b60e255cab7\consent.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-m..-diagnostic-results_31bf3856ad364e35_10.0.17763.1_none_19ac1cb13ed4b720\MdRes.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-m..-management-console_31bf3856ad364e35_10.0.17763.1282_none_5d12f3494763006a\mmc.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-m..-management-console_31bf3856ad364e35_10.0.17763.1_none_003934f5cdcbaab6\mmc.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-m..-odbc-administrator_31bf3856ad364e35_10.0.17763.1_none_3515d14395e07829\odbcad32.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-m..diagnostic-schedule_31bf3856ad364e35_10.0.17763.1_none_849c8621d1e0f045\MdSched.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-m..essagingcoreservice_31bf3856ad364e35_10.0.17763.1_none_d3cfb1a14057a5cd\mqsvc.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-m..lepc-mobilitycenter_31bf3856ad364e35_10.0.17763.1_none_4b5fdebf636c85f0\mblctr.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-m..resentationsettings_31bf3856ad364e35_10.0.17763.1_none_5ded448f5b93896b\PresentationSettings.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-magnify_31bf3856ad364e35_10.0.17763.1_none_5ef3c151f0d94bbf\Magnify.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-mediaplayer-core_31bf3856ad364e35_10.0.17763.1282_none_59096b5820da7b45\wmpconfig.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-mediaplayer-core_31bf3856ad364e35_10.0.17763.1282_none_59096b5820da7b45\wmplayer.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-mediaplayer-core_31bf3856ad364e35_10.0.17763.1282_none_59096b5820da7b45\wmpshare.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-mediaplayer-core_31bf3856ad364e35_10.0.17763.1_none_fc2fad04a7432591\wmpconfig.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-mediaplayer-core_31bf3856ad364e35_10.0.17763.1_none_fc2fad04a7432591\wmplayer.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-mediaplayer-core_31bf3856ad364e35_10.0.17763.1_none_fc2fad04a7432591\wmpshare.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-mediaplayer-setup_31bf3856ad364e35_10.0.17763.194_none_228542b25c5e3d30\setup_wm.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-mediaplayer-setup_31bf3856ad364e35_10.0.17763.194_none_228542b25c5e3d30\unregmp2.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-mediaplayer-setup_31bf3856ad364e35_10.0.17763.1_none_9eb9b3672eb445e9\setup_wm.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-mediaplayer-setup_31bf3856ad364e35_10.0.17763.1_none_9eb9b3672eb445e9\unregmp2.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-microsoftedge_31bf3856ad364e35_10.0.17763.1282_none_5ed766acc1e03bd3\MicrosoftEdge.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-microsoftedge_31bf3856ad364e35_10.0.17763.1339_none_5ec6f5d6c1ed8c78\MicrosoftEdge.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-microsoftedge_31bf3856ad364e35_10.0.17763.1_none_01fda8594848e61f\MicrosoftEdge.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-migrationengine_31bf3856ad364e35_10.0.17763.1_none_496dc198336968d0\mighost.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-migrationengine_31bf3856ad364e35_10.0.17763.557_none_cd67990960f030f4\mighost.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-msdt_31bf3856ad364e35_10.0.17763.1_none_96484bd875afe57a\msdt.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-mspaint_31bf3856ad364e35_10.0.17763.1_none_7ee3708a46bb2516\mspaint.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-narrator_31bf3856ad364e35_10.0.17763.1_none_aee3c2d5fbe26435\Narrator.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-narrator_31bf3856ad364e35_10.0.17763.771_none_32c1fc7f297ec67f\Narrator.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-newdev_31bf3856ad364e35_10.0.17763.1_none_023c3539a8d283af\ndadmin.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-newdev_31bf3856ad364e35_10.0.17763.1_none_023c3539a8d283af\newdev.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-newdev_31bf3856ad364e35_10.0.17763.771_none_861a6ee2d66ee5f9\ndadmin.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-newdev_31bf3856ad364e35_10.0.17763.771_none_861a6ee2d66ee5f9\newdev.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-notepad_31bf3856ad364e35_10.0.17763.1_none_5fe07760c829276f\notepad.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-notepad_31bf3856ad364e35_10.0.17763.475_none_e3c2ac7ff5c1f7a0\notepad.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-nslookup_31bf3856ad364e35_10.0.17763.1_none_bc465dd5be9bfa81\nslookup.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-nslookup_31bf3856ad364e35_10.0.17763.292_none_400fee72ec47bc41\nslookup.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-o..onalfeatures-fondue_31bf3856ad364e35_10.0.17763.1_none_3a7af719e44ed24b\Fondue.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-openwith_31bf3856ad364e35_10.0.17763.1075_none_bad4d21b4465a2f4\OpenWith.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-openwith_31bf3856ad364e35_10.0.17763.1_none_5de6b891cadd5196\OpenWith.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-optionalfeatures_31bf3856ad364e35_10.0.17763.1_none_572ce42f45d85bff\OptionalFeatures.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-osk_31bf3856ad364e35_10.0.17763.1_none_9b82bd51b2181d7d\osk.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-p..installerandprintui_31bf3856ad364e35_10.0.17763.1282_none_23f3e7d8c7ad0c9c\printui.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-p..installerandprintui_31bf3856ad364e35_10.0.17763.1_none_c71a29854e15b6e8\printui.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-p..ng-server-isolation_31bf3856ad364e35_10.0.17763.1_none_8d74fcd3b6cb99fe\PrintIsolationHost.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-p..ntalcontrolsmonitor_31bf3856ad364e35_10.0.17763.1_none_3bb5478d95cddf33\WpcMon.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-p..ntalcontrolsmonitor_31bf3856ad364e35_10.0.17763.771_none_bf938136c36a417d\WpcMon.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-p..randprintui-ntprint_31bf3856ad364e35_10.0.17763.1_none_e0c96421d595a2a0\ntprint.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-p..spaces-creator-tool_31bf3856ad364e35_10.0.17763.1_none_601954926fdfc541\pwcreator.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-p..ting-tools-printbrm_31bf3856ad364e35_10.0.17763.1282_none_cf59d0ad1715557a\PrintBrmUi.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-p..ting-tools-printbrm_31bf3856ad364e35_10.0.17763.1_none_728012599d7dffc6\PrintBrmUi.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-parentalcontrols-ots_31bf3856ad364e35_10.0.17763.1_none_832945d2d01e6576\ApproveChildRequest.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-performancetoolsgui_31bf3856ad364e35_10.0.17763.1282_none_e9a9666472b4b1c0\perfmon.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-performancetoolsgui_31bf3856ad364e35_10.0.17763.1282_none_e9a9666472b4b1c0\resmon.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-performancetoolsgui_31bf3856ad364e35_10.0.17763.1_none_8ccfa810f91d5c0c\perfmon.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-performancetoolsgui_31bf3856ad364e35_10.0.17763.1_none_8ccfa810f91d5c0c\resmon.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-pnphotplugui_31bf3856ad364e35_10.0.17763.1_none_d9a71b6ea2e7dacf\DeviceEject.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-printdialog.appxmain_31bf3856ad364e35_10.0.17763.1_none_75d88eee31523b47\PrintDialog.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-printing-spooler-core_31bf3856ad364e35_10.0.17763.1282_none_23eb4b5a934986c6\splwow64.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-printing-spooler-core_31bf3856ad364e35_10.0.17763.1282_none_23eb4b5a934986c6\spoolsv.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-printing-spooler-core_31bf3856ad364e35_10.0.17763.1339_none_23dada849356d76b\splwow64.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-printing-spooler-core_31bf3856ad364e35_10.0.17763.1339_none_23dada849356d76b\spoolsv.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-printing-spooler-core_31bf3856ad364e35_10.0.17763.1_none_c7118d0719b23112\splwow64.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-printing-spooler-core_31bf3856ad364e35_10.0.17763.1_none_c7118d0719b23112\spoolsv.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-proquota_31bf3856ad364e35_10.0.17763.1_none_188ce1bcea8e93e5\proquota.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-quickassist_31bf3856ad364e35_10.0.17763.1_none_eec6b660c6ec521a\quickassist.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-r..pdate-oob-component_31bf3856ad364e35_10.0.17763.1075_none_3b4a921a7613bb07\rdvgm.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-r..pdate-oob-component_31bf3856ad364e35_10.0.17763.1_none_de5c7890fc8b69a9\rdvgm.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-rasconnectionmanager_31bf3856ad364e35_10.0.17763.1_none_4fe62956b8aef8eb\cmdl32.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-rasconnectionmanager_31bf3856ad364e35_10.0.17763.1_none_4fe62956b8aef8eb\cmmon32.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-rasconnectionmanager_31bf3856ad364e35_10.0.17763.1_none_4fe62956b8aef8eb\cmstp.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-recdisc-main_31bf3856ad364e35_10.0.17763.1039_none_d22ba19885570433\recdisc.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-recdisc-main_31bf3856ad364e35_10.0.17763.1_none_7541e4570bcab1ad\recdisc.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-recoverydrive_31bf3856ad364e35_10.0.17763.1_none_19589af6e3d6e0eb\RecoveryDrive.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-registry-editor_31bf3856ad364e35_10.0.17763.168_none_68e49f8161901b63\regedit.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-registry-editor_31bf3856ad364e35_10.0.17763.168_none_68e49f8161901b63\regedt32.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-registry-editor_31bf3856ad364e35_10.0.17763.1_none_e4f49f4a34021293\regedit.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-registry-editor_31bf3856ad364e35_10.0.17763.1_none_e4f49f4a34021293\regedt32.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-reliability-postboot_31bf3856ad364e35_10.0.17763.1_none_3e86ba175d7c4609\RelPost.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-rundll32_31bf3856ad364e35_10.0.17763.1_none_c8cb3b750313fee0\rundll32.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-runlegacycplelevated_31bf3856ad364e35_10.0.17763.1_none_01d1f9034d764191\RunLegacyCPLElevated.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-runonce_31bf3856ad364e35_10.0.17763.1_none_0680be8217315dfc\runonce.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-s..ces-backgroundagent_31bf3856ad364e35_10.0.17763.1_none_eb5c489032d71fe0\SpaceAgent.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-s..ces-backgroundagent_31bf3856ad364e35_10.0.17763.592_none_6f25dedf6082d915\SpaceAgent.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-s..client-ui-wscollect_31bf3856ad364e35_10.0.17763.1_none_fa79517289af03a9\WSCollect.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-s..e-client-ui-wsreset_31bf3856ad364e35_10.0.17763.1_none_b73de3dd5e2b7bac\WSReset.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-s..e-client-ui-wsreset_31bf3856ad364e35_10.0.17763.592_none_3b077a2c8bd734e1\WSReset.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-s..estartup-change-pin_31bf3856ad364e35_10.0.17763.1_none_e262a14bac92ab87\bdechangepin.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-s..estartup-change-pin_31bf3856ad364e35_10.0.17763.404_none_668f8594d9f39eca\bdechangepin.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-s..hreshold-adminflows_31bf3856ad364e35_10.0.17763.1075_none_6e602210ef94b166\SystemSettingsAdminFlows.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-s..hreshold-adminflows_31bf3856ad364e35_10.0.17763.1_none_11720887760c6008\SystemSettingsAdminFlows.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-s..mpropertiesadvanced_31bf3856ad364e35_10.0.17763.1_none_e80e71bd3c6fd7e0\SystemPropertiesAdvanced.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-s..mpropertieshardware_31bf3856ad364e35_10.0.17763.1_none_31c06f252b23c684\SystemPropertiesHardware.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-s..msettings-datamodel_31bf3856ad364e35_10.0.17763.1217_none_37ca34fece932f10\SystemSettingsBroker.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-s..msettings-datamodel_31bf3856ad364e35_10.0.17763.1339_none_37c13816ce99b0f1\SystemSettingsBroker.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-s..msettings-datamodel_31bf3856ad364e35_10.0.17763.1_none_daf7ea9954f50a98\SystemSettingsBroker.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-s..nsemanager-shellext_31bf3856ad364e35_10.0.17763.1_none_a31018b38d35ca9c\LicenseManagerShellext.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-s..opertiesperformance_31bf3856ad364e35_10.0.17763.1_none_4b9c97155b03a92a\SystemPropertiesPerformance.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-s..pertiescomputername_31bf3856ad364e35_10.0.17763.1_none_21391c36946769fa\SystemPropertiesComputerName.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-s..restartup-baaupdate_31bf3856ad364e35_10.0.17763.1_none_2714b0722b517e34\baaupdate.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-s..restartup-repairbde_31bf3856ad364e35_10.0.17763.1_none_c2ba2b3d682eaf81\repair-bde.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-s..ropertiesprotection_31bf3856ad364e35_10.0.17763.1_none_547840b374ad1f9d\SystemPropertiesProtection.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-s..up-drivepreparation_31bf3856ad364e35_10.0.17763.1_none_91b77140c126e5a6\BdeHdCfg.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-safedocs-main_31bf3856ad364e35_10.0.17763.1282_none_72a964853889557c\sdclt.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-safedocs-main_31bf3856ad364e35_10.0.17763.1339_none_7298f3af3896a621\sdclt.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-safedocs-main_31bf3856ad364e35_10.0.17763.1_none_15cfa631bef1ffc8\sdclt.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-scripting_31bf3856ad364e35_10.0.17763.1217_none_96008760d22181ef\cscript.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-scripting_31bf3856ad364e35_10.0.17763.1217_none_96008760d22181ef\wscript.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-scripting_31bf3856ad364e35_10.0.17763.1_none_392e3cfb58835d77\cscript.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-scripting_31bf3856ad364e35_10.0.17763.1_none_392e3cfb58835d77\wscript.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-securestartup-cpl_31bf3856ad364e35_10.0.17763.1_none_484c4139e341cbaa\BitLockerWizard.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-securestartup-cpl_31bf3856ad364e35_10.0.17763.1_none_484c4139e341cbaa\BitLockerWizardElev.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-securestartup-cpl_31bf3856ad364e35_10.0.17763.404_none_cc79258310a2beed\BitLockerWizard.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-securestartup-cpl_31bf3856ad364e35_10.0.17763.404_none_cc79258310a2beed\BitLockerWizardElev.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-securestartup-notify_31bf3856ad364e35_10.0.17763.1_none_0db8554300292dc8\fvenotify.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-securestartup-prompt_31bf3856ad364e35_10.0.17763.1_none_e0d557073c1d9289\fveprompt.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-securestartup-unlock_31bf3856ad364e35_10.0.17763.1_none_555b9aeb84a25453\bdeunlock.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-security-secedit_31bf3856ad364e35_10.0.17763.1_none_9fad180009e7f9a0\SecEdit.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-security-spp-ux-dlg_31bf3856ad364e35_10.0.17763.1192_none_ec02bbe6abb742ea\changepk.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-security-spp-ux-dlg_31bf3856ad364e35_10.0.17763.1_none_8f1d2d5d3228efd0\changepk.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-security-spp-ux_31bf3856ad364e35_10.0.17763.1217_none_a959d3067099c1ec\slui.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-security-spp-ux_31bf3856ad364e35_10.0.17763.1339_none_a950d61e70a043cd\slui.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-security-spp-ux_31bf3856ad364e35_10.0.17763.1_none_4c8788a0f6fb9d74\slui.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-sethc_31bf3856ad364e35_10.0.17763.1339_none_b04f765c46e960a6\EaseOfAccessDialog.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-sethc_31bf3856ad364e35_10.0.17763.1339_none_b04f765c46e960a6\sethc.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-sethc_31bf3856ad364e35_10.0.17763.1_none_538628decd44ba4d\EaseOfAccessDialog.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-sethc_31bf3856ad364e35_10.0.17763.1_none_538628decd44ba4d\sethc.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-setup-component_31bf3856ad364e35_10.0.17763.1282_none_7fcc26877f030a47\Setup.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-setup-component_31bf3856ad364e35_10.0.17763.1_none_22f26834056bb493\Setup.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-sharedfoldersui_31bf3856ad364e35_10.0.17763.1_none_a8e31ebd89b41eda\shrpubw.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-sigverif_31bf3856ad364e35_10.0.17763.1_none_ac5f6e4253880ea7\sigverif.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-snippingtool-app_31bf3856ad364e35_10.0.17763.1_none_8a89ec14e1cc5fde\SnippingTool.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-speech-userexperience_31bf3856ad364e35_10.0.17763.1_none_0ccfd9f0a3f60bb8\SpeechUXWiz.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-sqm-consolidator-base_31bf3856ad364e35_10.0.17763.1039_none_21ef1310334cd841\wsqmcons.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-sqm-consolidator-base_31bf3856ad364e35_10.0.17763.1339_none_21cea34c33652c14\wsqmcons.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-sqm-consolidator-base_31bf3856ad364e35_10.0.17763.1_none_c50555ceb9c085bb\wsqmcons.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-sysprep_31bf3856ad364e35_10.0.17763.1_none_e0448aaa50a44d5a\sysprep.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-systempropertiesremote_31bf3856ad364e35_10.0.17763.1_none_859b2c6e63f70694\SystemPropertiesRemote.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-systemrestore-main_31bf3856ad364e35_10.0.17763.1039_none_948f770e84f4bcab\rstrui.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-systemrestore-main_31bf3856ad364e35_10.0.17763.1_none_37a5b9cd0b686a25\rstrui.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-t..appserver-licensing_31bf3856ad364e35_10.0.17763.1_none_977c05599386d47c\tlsbln.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-t..appserver-licensing_31bf3856ad364e35_10.0.17763.771_none_1b5a3f02c12336c6\tlsbln.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-t..cesframework-ctfmon_31bf3856ad364e35_10.0.17763.1_none_8df676b8e8baf623\ctfmon.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-t..es-workspaceruntime_31bf3856ad364e35_10.0.17763.1282_none_7404e2f5af02fb20\wksprt.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-t..es-workspaceruntime_31bf3856ad364e35_10.0.17763.1_none_172b24a2356ba56c\wksprt.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-t..etpc-mathinputpanel_31bf3856ad364e35_10.0.17763.1282_none_18412b5122ac3320\mip.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-t..etpc-mathinputpanel_31bf3856ad364e35_10.0.17763.1_none_bb676cfda914dd6c\mip.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-t..ices-appcompattools_31bf3856ad364e35_10.0.17763.1_none_e3e57976c3e7d5e5\TSAppInstall.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-t..minalservicesclient_31bf3856ad364e35_10.0.17763.1_none_3ea2377a7940fbfa\mstsc.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-t..minalservicesclient_31bf3856ad364e35_10.0.17763.404_none_c2cf1bc3a6a1ef3d\mstsc.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-t..nputpersonalization_31bf3856ad364e35_10.0.17763.1282_none_8d4bbb2e9814f6f8\ShapeCollector.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-t..nputpersonalization_31bf3856ad364e35_10.0.17763.1_none_3071fcdb1e7da144\ShapeCollector.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-tabletpc-controlpanel_31bf3856ad364e35_10.0.17763.1_none_d0395c0db31aaf7f\MultiDigiMon.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-tabletpc-controlpanel_31bf3856ad364e35_10.0.17763.1_none_d0395c0db31aaf7f\tabcal.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-tabletpc-inputpanel_31bf3856ad364e35_10.0.17763.1282_none_5f2ebdff49430ece\TabTip.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-tabletpc-inputpanel_31bf3856ad364e35_10.0.17763.1_none_0254ffabcfabb91a\TabTip.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-tapicore_31bf3856ad364e35_10.0.17763.1_none_d4ffc26f9ec00653\dialer.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-telnet-client_31bf3856ad364e35_10.0.17763.1_none_a8f77b4a7d33d682\telnet.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-tpm-adminsnapin_31bf3856ad364e35_10.0.17763.1_none_684300d4376a9022\TpmInit.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-u..ountcontrolsettings_31bf3856ad364e35_10.0.17763.1075_none_d159155aaa4d46d4\UserAccountControlSettings.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-u..ountcontrolsettings_31bf3856ad364e35_10.0.17763.1_none_746afbd130c4f576\UserAccountControlSettings.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-unp_31bf3856ad364e35_10.0.17763.1_none_9dc0d4dbb0a54c05\UNPUXHost.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-unp_31bf3856ad364e35_10.0.17763.1_none_9dc0d4dbb0a54c05\UNPUXLauncher.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-unp_31bf3856ad364e35_10.0.17763.973_none_21a112e4de3fdb4b\UNPUXHost.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-unp_31bf3856ad364e35_10.0.17763.973_none_21a112e4de3fdb4b\UNPUXLauncher.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-w..ommand-line-utility_31bf3856ad364e35_10.0.17763.1_none_926fbf4425005e17\WMIC.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-w..sition-uicomponents_31bf3856ad364e35_10.0.17763.1_none_bfba693add750210\wiaacmgr.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-wab-app_31bf3856ad364e35_10.0.17763.1_none_336f47662fbc0a5e\wab.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-wab-app_31bf3856ad364e35_10.0.17763.1_none_336f47662fbc0a5e\wabmig.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-winlogon-tools_31bf3856ad364e35_10.0.17763.1075_none_e2277d445ead94b3\wlrmdr.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-winlogon-tools_31bf3856ad364e35_10.0.17763.1_none_853963bae5254355\wlrmdr.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-winlogon_31bf3856ad364e35_10.0.17763.1075_none_bd770485a6a3394f\winlogon.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-winlogon_31bf3856ad364e35_10.0.17763.1_none_6088eafc2d1ae7f1\winlogon.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-winver_31bf3856ad364e35_10.0.17763.1_none_a7176821f4a2458b\winver.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-wmi-core-providerhost_31bf3856ad364e35_10.0.17763.1_none_0128a870e38e75c3\WmiPrvSE.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-wmi-core-svc_31bf3856ad364e35_10.0.17763.1_none_9178a5b54f1a8a8a\WinMgmt.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-wmi-tools_31bf3856ad364e35_10.0.17763.1_none_c8c153c6dbc8d25f\wbemtest.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-wmpdmc-ux_31bf3856ad364e35_10.0.17763.1_none_df295aae4f8a44da\WMPDMC.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-wmpnss-ux_31bf3856ad364e35_10.0.17763.1_none_a88aacf611a00c76\wmpnscfg.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-wordpad_31bf3856ad364e35_10.0.17763.1075_none_7b6e7ca23e97421b\wordpad.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-wordpad_31bf3856ad364e35_10.0.17763.1_none_1e806318c50ef0bd\wordpad.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-write_31bf3856ad364e35_10.0.17763.1_none_5048bc153541494b\write.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-wusa_31bf3856ad364e35_10.0.17763.1_none_9dc67b6270c64728\wusa.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-xpsreachviewer_31bf3856ad364e35_10.0.17763.1282_none_62bafbb91ff8433e\xpsrchvw.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-xpsreachviewer_31bf3856ad364e35_10.0.17763.1_none_05e13d65a660ed8a\xpsrchvw.exe
+c:\Windows\WinSxS\amd64_microsoft-windows-xwizard-host-process_31bf3856ad364e35_10.0.17763.1_none_49b9fab890ad567c\xwizard.exe
+c:\Windows\WinSxS\amd64_microsoft-xbox-gameoverlay_31bf3856ad364e35_10.0.17763.1075_none_8c69cd20f9024ea2\GamePanel.exe
+c:\Windows\WinSxS\amd64_microsoft-xbox-gameoverlay_31bf3856ad364e35_10.0.17763.1_none_2f7bb3977f79fd44\GamePanel.exe
+c:\Windows\WinSxS\amd64_msbuild_b03f5f7f11d50a3a_10.0.17763.1_none_f5a7250c35a55a6e\MSBuild.exe
+c:\Windows\WinSxS\amd64_msbuild_b03f5f7f11d50a3a_3.5.17763.1_none_e1dfb46a1ccf92e8\MSBuild.exe
+c:\Windows\WinSxS\amd64_msbuild_b03f5f7f11d50a3a_4.0.15713.0_none_da500ddf9f3ce843\MSBuild.exe
+c:\Windows\WinSxS\amd64_msbuild_b03f5f7f11d50a3a_4.0.15744.161_none_d105a3fc4266ca83\MSBuild.exe
+c:\Windows\WinSxS\amd64_multipoint-logcollector_31bf3856ad364e35_10.0.17763.1_none_90e86981f34baa50\LogCollector.exe
+c:\Windows\WinSxS\amd64_multipoint-wmsmanager_31bf3856ad364e35_10.0.17763.1_none_0cd4b89ae04f4aa9\WmsManager.exe
+c:\Windows\WinSxS\amd64_multipoint-wmssessionagent_31bf3856ad364e35_10.0.17763.1_none_91e21649c977f4e5\WmsSessionAgent.exe
+c:\Windows\WinSxS\amd64_vmconnect6.2_31bf3856ad364e35_10.0.17763.1_none_971fca8474904472\vmconnect6.2.exe
+c:\Windows\WinSxS\amd64_vmconnect6.3_31bf3856ad364e35_10.0.17763.1_none_971fb3bc74905e13\vmconnect6.3.exe
+c:\Windows\WinSxS\amd64_vmconnect_31bf3856ad364e35_10.0.17763.1_none_80fc164ea247ba6e\vmconnect.exe
+c:\Windows\WinSxS\amd64_windows-defender-offline-amcore_31bf3856ad364e35_10.0.17763.1_none_356bebf0a107270e\OfflineScannerShell.exe
+c:\Windows\WinSxS\amd64_windows-defender-service_31bf3856ad364e35_10.0.17763.1_none_b66c0cb3aef5ffee\MpCmdRun.exe
+c:\Windows\WinSxS\amd64_windows-securityhealth-sso_31bf3856ad364e35_10.0.17763.1075_none_0cffb60447ab2781\SecurityHealthSystray.exe
+c:\Windows\WinSxS\amd64_windows-securityhealth-sso_31bf3856ad364e35_10.0.17763.1_none_b0119c7ace22d623\SecurityHealthSystray.exe
+c:\Windows\WinSxS\amd64_windowssearchengine_31bf3856ad364e35_7.0.17763.1098_none_4335312c16c7aea9\SearchFilterHost.exe
+c:\Windows\WinSxS\amd64_windowssearchengine_31bf3856ad364e35_7.0.17763.1098_none_4335312c16c7aea9\SearchProtocolHost.exe
+c:\Windows\WinSxS\amd64_windowssearchengine_31bf3856ad364e35_7.0.17763.1_none_0bd29f2ebe71ae90\SearchFilterHost.exe
+c:\Windows\WinSxS\amd64_windowssearchengine_31bf3856ad364e35_7.0.17763.1_none_0bd29f2ebe71ae90\SearchProtocolHost.exe
+c:\Windows\WinSxS\msil_hyperv-ux-ui-vmcreate_31bf3856ad364e35_10.0.17763.1_none_c80d5a3fc3385295\VMCreate.exe
+c:\Windows\WinSxS\msil_hyperv-ux-ui-vmimport_31bf3856ad364e35_10.0.17763.1_none_15e290ed9c543ef6\VMImport.exe
+c:\Windows\WinSxS\msil_inspectvhddialog6.2_31bf3856ad364e35_10.0.17763.1_none_b89e00107758f200\InspectVhdDialog6.2.exe
+c:\Windows\WinSxS\msil_inspectvhddialog6.3_31bf3856ad364e35_10.0.17763.1_none_b89f005a77580b57\InspectVhdDialog6.3.exe
+c:\Windows\WinSxS\msil_inspectvhddialog_31bf3856ad364e35_10.0.17763.1_none_06e9bb790021ba22\InspectVhdDialog.exe
+c:\Windows\WinSxS\msil_multipoint-wmsdashboard_31bf3856ad364e35_10.0.17763.1_none_40f260b244035501\WmsDashboard.exe
+c:\Windows\WinSxS\wow64_adobe-flash-for-windows_31bf3856ad364e35_10.0.17763.1283_none_83941fc96fb13115\FlashPlayerApp.exe
+c:\Windows\WinSxS\wow64_adobe-flash-for-windows_31bf3856ad364e35_10.0.17763.1283_none_83941fc96fb13115\FlashUtil_ActiveX.exe
+c:\Windows\WinSxS\wow64_adobe-flash-for-windows_31bf3856ad364e35_10.0.17763.1_none_26ba783df619c1c0\FlashPlayerApp.exe
+c:\Windows\WinSxS\wow64_adobe-flash-for-windows_31bf3856ad364e35_10.0.17763.1_none_26ba783df619c1c0\FlashUtil_ActiveX.exe
+c:\Windows\WinSxS\wow64_eventviewersettings_31bf3856ad364e35_10.0.17763.1_none_f0126c3e903d51f9\eventvwr.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-a..roblemstepsrecorder_31bf3856ad364e35_10.0.17763.1282_none_32e5e3b7511b4699\psr.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-a..roblemstepsrecorder_31bf3856ad364e35_10.0.17763.1_none_d60c2563d783f0e5\psr.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-advancedtaskmanager_31bf3856ad364e35_10.0.17763.1075_none_06ef88a0f191d09b\LaunchTM.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-advancedtaskmanager_31bf3856ad364e35_10.0.17763.1075_none_06ef88a0f191d09b\Taskmgr.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-advancedtaskmanager_31bf3856ad364e35_10.0.17763.1_none_aa016f1778097f3d\LaunchTM.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-advancedtaskmanager_31bf3856ad364e35_10.0.17763.1_none_aa016f1778097f3d\Taskmgr.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-audio-volumecontrol_31bf3856ad364e35_10.0.17763.1075_none_1e311f280d8c7ef9\SndVol.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-audio-volumecontrol_31bf3856ad364e35_10.0.17763.1_none_c143059e94042d9b\SndVol.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-bth-user_31bf3856ad364e35_10.0.17763.1_none_6033d42361b84171\bthudtask.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-bth-user_31bf3856ad364e35_10.0.17763.1_none_6033d42361b84171\fsquirt.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-calc_31bf3856ad364e35_10.0.17763.1_none_a4d89572a74625f4\calc.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-certificaterequesttool_31bf3856ad364e35_10.0.17763.1_none_632b27bba3f2725b\certreq.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-certutil_31bf3856ad364e35_10.0.17763.1_none_b09f9c24bfe6c0c3\certutil.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-charmap_31bf3856ad364e35_10.0.17763.1_none_ed74519630e554df\charmap.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-cleanmgr_31bf3856ad364e35_10.0.17763.1_none_685eca98ea15ff2a\cleanmgr.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-commandprompt_31bf3856ad364e35_10.0.17763.1_none_86275af4a6e6b766\cmd.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-commandprompt_31bf3856ad364e35_10.0.17763.592_none_09f0f143d492709b\cmd.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-computerdefaults_31bf3856ad364e35_10.0.17763.1075_none_5e7f4f6cc95bea0a\ComputerDefaults.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-computerdefaults_31bf3856ad364e35_10.0.17763.1_none_019135e34fd398ac\ComputerDefaults.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-control_31bf3856ad364e35_10.0.17763.1_none_94868d7537080264\control.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-credwiz_31bf3856ad364e35_10.0.17763.1_none_9af544e2f85f4c7f\credwiz.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-cttune_31bf3856ad364e35_10.0.17763.1_none_ae9f20a94b0f4642\cttune.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-d..-externaldictionary_31bf3856ad364e35_10.0.17763.1075_none_94a43770beb1b5e2\IMEWDBLD.EXE
+c:\Windows\WinSxS\wow64_microsoft-windows-d..-externaldictionary_31bf3856ad364e35_10.0.17763.1_none_37b61de745296484\IMEWDBLD.EXE
+c:\Windows\WinSxS\wow64_microsoft-windows-d..-japanese-utilities_31bf3856ad364e35_10.0.17763.1075_none_4539eca6782d2911\IMJPDCT.EXE
+c:\Windows\WinSxS\wow64_microsoft-windows-d..-japanese-utilities_31bf3856ad364e35_10.0.17763.1075_none_4539eca6782d2911\IMJPUEX.EXE
+c:\Windows\WinSxS\wow64_microsoft-windows-d..-japanese-utilities_31bf3856ad364e35_10.0.17763.1_none_e84bd31cfea4d7b3\IMJPDCT.EXE
+c:\Windows\WinSxS\wow64_microsoft-windows-d..-japanese-utilities_31bf3856ad364e35_10.0.17763.1_none_e84bd31cfea4d7b3\IMJPUEX.EXE
+c:\Windows\WinSxS\wow64_microsoft-windows-d..d-searchintegration_31bf3856ad364e35_10.0.17763.1075_none_ddc05f5d95742d5b\IMESEARCH.EXE
+c:\Windows\WinSxS\wow64_microsoft-windows-d..d-searchintegration_31bf3856ad364e35_10.0.17763.1_none_80d245d41bebdbfd\IMESEARCH.EXE
+c:\Windows\WinSxS\wow64_microsoft-windows-d..ime-eashared-imepad_31bf3856ad364e35_10.0.17763.1075_none_9294efeba5438119\IMEPADSV.EXE
+c:\Windows\WinSxS\wow64_microsoft-windows-d..ime-eashared-imepad_31bf3856ad364e35_10.0.17763.1_none_35a6d6622bbb2fbb\IMEPADSV.EXE
+c:\Windows\WinSxS\wow64_microsoft-windows-d..me-japanese-setting_31bf3856ad364e35_10.0.17763.1075_none_0a38a5e182f17345\IMJPSET.EXE
+c:\Windows\WinSxS\wow64_microsoft-windows-d..me-japanese-setting_31bf3856ad364e35_10.0.17763.1_none_ad4a8c58096921e7\IMJPSET.EXE
+c:\Windows\WinSxS\wow64_microsoft-windows-d..omerfeedbackmanager_31bf3856ad364e35_10.0.17763.1075_none_343c69589443e631\imecfmui.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-d..omerfeedbackmanager_31bf3856ad364e35_10.0.17763.1_none_d74e4fcf1abb94d3\imecfmui.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-d..phics-tools-desktop_31bf3856ad364e35_10.0.17763.1_none_4d1b61281adb34a7\VsGraphicsDesktopEngine.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-d..phics-tools-desktop_31bf3856ad364e35_10.0.17763.253_none_d11131bf48659ffa\VsGraphicsDesktopEngine.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-d..x-directxdiagnostic_31bf3856ad364e35_10.0.17763.1_none_1ede2c69ea4e26c7\dxdiag.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-d..x-directxdiagnostic_31bf3856ad364e35_10.0.17763.475_none_a2c0618917e6f6f8\dxdiag.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-defrag-adminui_31bf3856ad364e35_10.0.17763.1039_none_f11a6037965b73e6\dfrgui.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-defrag-adminui_31bf3856ad364e35_10.0.17763.1_none_9430a2f61ccf2160\dfrgui.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-deployment_31bf3856ad364e35_10.0.17763.1_none_f7098b0279d8301a\setupugc.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-devicepairingapp_31bf3856ad364e35_10.0.17763.1_none_6ab8f5e58e96b628\DevicePairingWizard.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-directshow-dvdplay_31bf3856ad364e35_10.0.17763.1_none_fcc8b762a6944dc6\dvdplay.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-directx-control-panel_31bf3856ad364e35_10.0.17763.1_none_ecc3d28cdc4a3ae5\DXCpl.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-directx-graphics-tools_31bf3856ad364e35_10.0.17763.1039_none_87c3704d624755a8\VsGraphicsRemoteEngine.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-directx-graphics-tools_31bf3856ad364e35_10.0.17763.1_none_2ad9b30be8bb0322\VsGraphicsRemoteEngine.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-dpapi-keys_31bf3856ad364e35_10.0.17763.1_none_78ed673359fb01ce\dpapimig.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-dpiscaling_31bf3856ad364e35_10.0.17763.1_none_7562676de77a445b\DpiScaling.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-driververifier_31bf3856ad364e35_10.0.17763.1_none_b5866f4f29459441\verifiergui.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-efs-rekeywiz_31bf3856ad364e35_10.0.17763.1_none_03053eb498620d4c\rekeywiz.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-errorreportingcore_31bf3856ad364e35_10.0.17763.1282_none_786b04a10c05bf94\wermgr.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-errorreportingcore_31bf3856ad364e35_10.0.17763.1339_none_785a93cb0c131039\wermgr.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-errorreportingcore_31bf3856ad364e35_10.0.17763.1_none_1b91464d926e69e0\wermgr.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-errorreportingfaults_31bf3856ad364e35_10.0.17763.1282_none_c7fb6f2d42ead4e4\WerFault.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-errorreportingfaults_31bf3856ad364e35_10.0.17763.1282_none_c7fb6f2d42ead4e4\WerFaultSecure.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-errorreportingfaults_31bf3856ad364e35_10.0.17763.1339_none_c7eafe5742f82589\WerFault.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-errorreportingfaults_31bf3856ad364e35_10.0.17763.1339_none_c7eafe5742f82589\WerFaultSecure.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-errorreportingfaults_31bf3856ad364e35_10.0.17763.1_none_6b21b0d9c9537f30\WerFault.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-errorreportingfaults_31bf3856ad364e35_10.0.17763.1_none_6b21b0d9c9537f30\WerFaultSecure.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-es-authentication_31bf3856ad364e35_10.0.17763.1_none_3cd750d8a32308b0\EhStorAuthn.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-eudcedit_31bf3856ad364e35_10.0.17763.1_none_54b318dd4c085530\eudcedit.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-explorer_31bf3856ad364e35_10.0.17763.1217_none_a9a185af7fe4c12e\explorer.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-explorer_31bf3856ad364e35_10.0.17763.1339_none_a99888c77feb430f\explorer.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-explorer_31bf3856ad364e35_10.0.17763.1_none_4ccf3b4a06469cb6\explorer.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-fontview_31bf3856ad364e35_10.0.17763.1_none_3f7ea177430133fb\fontview.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-grpconv_31bf3856ad364e35_10.0.17763.1_none_9da2b915ca3806f6\grpconv.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-htmlhelp_31bf3856ad364e35_10.0.17763.1_none_c3708aea1146a90b\hh.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-htmlhelp_31bf3856ad364e35_10.0.17763.475_none_4752c0093edf793c\hh.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-i..etexplorer-optional_31bf3856ad364e35_11.0.17763.1_none_c7c26b69a529d3a2\iexplore.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-i..etexplorer-optional_31bf3856ad364e35_11.0.17763.771_none_5b673e2d9160effe\iexplore.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-i..i_initiator_service_31bf3856ad364e35_10.0.17763.1131_none_326de30b1b35bfab\iscsicli.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-i..i_initiator_service_31bf3856ad364e35_10.0.17763.1_none_d58e3f75a1a21e3c\iscsicli.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-i..llshield-wow64-main_31bf3856ad364e35_10.0.17763.1_none_5f32ee3fe2ccf0e3\setup.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-i..tional-chinese-core_31bf3856ad364e35_10.0.17763.1075_none_b18cab4e070a8c60\IMTCLNWZ.EXE
+c:\Windows\WinSxS\wow64_microsoft-windows-i..tional-chinese-core_31bf3856ad364e35_10.0.17763.1075_none_b18cab4e070a8c60\IMTCPROP.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-i..tional-chinese-core_31bf3856ad364e35_10.0.17763.1_none_549e91c48d823b02\IMTCLNWZ.EXE
+c:\Windows\WinSxS\wow64_microsoft-windows-i..tional-chinese-core_31bf3856ad364e35_10.0.17763.1_none_549e91c48d823b02\IMTCPROP.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-icm-dccw_31bf3856ad364e35_10.0.17763.1_none_160940181b0d7bae\dccw.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-icm-ui_31bf3856ad364e35_10.0.17763.1_none_35734ba22d599495\colorcpl.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-ie-htmlapplication_31bf3856ad364e35_11.0.17763.1_none_8865fe5100c19aae\mshta.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-iis-legacysnapin_31bf3856ad364e35_10.0.17763.1_none_7c3b683f3e902bc1\InetMgr6.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-ime-eashared-ccshared_31bf3856ad364e35_10.0.17763.1075_none_2e22b2a98044c84a\IMCCPHR.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-ime-eashared-ccshared_31bf3856ad364e35_10.0.17763.1_none_d134992006bc76ec\IMCCPHR.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-iscsi_initiator_ui_31bf3856ad364e35_10.0.17763.1_none_d305bee8e89c0d1b\iscsicpl.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-legacyhwui_31bf3856ad364e35_10.0.17763.1_none_dd8eb69ad4cb1745\hdwwiz.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-m..-management-console_31bf3856ad364e35_10.0.17763.1282_none_67679d9b7bc3c265\mmc.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-m..-management-console_31bf3856ad364e35_10.0.17763.1_none_0a8ddf48022c6cb1\mmc.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-m..-odbc-administrator_31bf3856ad364e35_10.0.17763.1_none_3f6a7b95ca413a24\odbcad32.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-magnify_31bf3856ad364e35_10.0.17763.1_none_69486ba4253a0dba\Magnify.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-mediaplayer-core_31bf3856ad364e35_10.0.17763.1282_none_635e15aa553b3d40\wmpconfig.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-mediaplayer-core_31bf3856ad364e35_10.0.17763.1282_none_635e15aa553b3d40\wmplayer.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-mediaplayer-core_31bf3856ad364e35_10.0.17763.1282_none_635e15aa553b3d40\wmpshare.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-mediaplayer-core_31bf3856ad364e35_10.0.17763.1_none_06845756dba3e78c\wmpconfig.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-mediaplayer-core_31bf3856ad364e35_10.0.17763.1_none_06845756dba3e78c\wmplayer.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-mediaplayer-core_31bf3856ad364e35_10.0.17763.1_none_06845756dba3e78c\wmpshare.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-mediaplayer-setup_31bf3856ad364e35_10.0.17763.194_none_2cd9ed0490beff2b\setup_wm.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-mediaplayer-setup_31bf3856ad364e35_10.0.17763.194_none_2cd9ed0490beff2b\unregmp2.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-mediaplayer-setup_31bf3856ad364e35_10.0.17763.1_none_a90e5db9631507e4\setup_wm.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-mediaplayer-setup_31bf3856ad364e35_10.0.17763.1_none_a90e5db9631507e4\unregmp2.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-msdt_31bf3856ad364e35_10.0.17763.1_none_a09cf62aaa10a775\msdt.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-mspaint_31bf3856ad364e35_10.0.17763.1_none_89381adc7b1be711\mspaint.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-newdev_31bf3856ad364e35_10.0.17763.1_none_0c90df8bdd3345aa\ndadmin.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-newdev_31bf3856ad364e35_10.0.17763.1_none_0c90df8bdd3345aa\newdev.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-newdev_31bf3856ad364e35_10.0.17763.771_none_906f19350acfa7f4\ndadmin.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-newdev_31bf3856ad364e35_10.0.17763.771_none_906f19350acfa7f4\newdev.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-notepad_31bf3856ad364e35_10.0.17763.1_none_6a3521b2fc89e96a\notepad.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-notepad_31bf3856ad364e35_10.0.17763.475_none_ee1756d22a22b99b\notepad.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-nslookup_31bf3856ad364e35_10.0.17763.1_none_c69b0827f2fcbc7c\nslookup.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-nslookup_31bf3856ad364e35_10.0.17763.292_none_4a6498c520a87e3c\nslookup.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-o..onalfeatures-fondue_31bf3856ad364e35_10.0.17763.1_none_44cfa16c18af9446\Fondue.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-onedrive-setup_31bf3856ad364e35_10.0.17763.1_none_205ad563b29a7967\OneDriveSetup.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-openwith_31bf3856ad364e35_10.0.17763.1075_none_c5297c6d78c664ef\OpenWith.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-openwith_31bf3856ad364e35_10.0.17763.1_none_683b62e3ff3e1391\OpenWith.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-p..installerandprintui_31bf3856ad364e35_10.0.17763.1282_none_2e48922afc0dce97\printui.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-p..installerandprintui_31bf3856ad364e35_10.0.17763.1_none_d16ed3d7827678e3\printui.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-p..randprintui-ntprint_31bf3856ad364e35_10.0.17763.1_none_eb1e0e7409f6649b\ntprint.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-performancetoolsgui_31bf3856ad364e35_10.0.17763.1282_none_f3fe10b6a71573bb\perfmon.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-performancetoolsgui_31bf3856ad364e35_10.0.17763.1282_none_f3fe10b6a71573bb\resmon.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-performancetoolsgui_31bf3856ad364e35_10.0.17763.1_none_972452632d7e1e07\perfmon.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-performancetoolsgui_31bf3856ad364e35_10.0.17763.1_none_972452632d7e1e07\resmon.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-proquota_31bf3856ad364e35_10.0.17763.1_none_22e18c0f1eef55e0\proquota.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-quickassist_31bf3856ad364e35_10.0.17763.1_none_f91b60b2fb4d1415\quickassist.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-rasconnectionmanager_31bf3856ad364e35_10.0.17763.1_none_5a3ad3a8ed0fbae6\cmdl32.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-rasconnectionmanager_31bf3856ad364e35_10.0.17763.1_none_5a3ad3a8ed0fbae6\cmmon32.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-rasconnectionmanager_31bf3856ad364e35_10.0.17763.1_none_5a3ad3a8ed0fbae6\cmstp.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-registry-editor_31bf3856ad364e35_10.0.17763.168_none_733949d395f0dd5e\regedit.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-registry-editor_31bf3856ad364e35_10.0.17763.168_none_733949d395f0dd5e\regedt32.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-registry-editor_31bf3856ad364e35_10.0.17763.1_none_ef49499c6862d48e\regedit.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-registry-editor_31bf3856ad364e35_10.0.17763.1_none_ef49499c6862d48e\regedt32.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-rundll32_31bf3856ad364e35_10.0.17763.1_none_d31fe5c73774c0db\rundll32.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-runlegacycplelevated_31bf3856ad364e35_10.0.17763.1_none_0c26a35581d7038c\RunLegacyCPLElevated.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-runonce_31bf3856ad364e35_10.0.17763.1_none_10d568d44b921ff7\runonce.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-s..mpropertiesadvanced_31bf3856ad364e35_10.0.17763.1_none_f2631c0f70d099db\SystemPropertiesAdvanced.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-s..mpropertieshardware_31bf3856ad364e35_10.0.17763.1_none_3c1519775f84887f\SystemPropertiesHardware.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-s..opertiesperformance_31bf3856ad364e35_10.0.17763.1_none_55f141678f646b25\SystemPropertiesPerformance.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-s..pertiescomputername_31bf3856ad364e35_10.0.17763.1_none_2b8dc688c8c82bf5\SystemPropertiesComputerName.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-s..ropertiesprotection_31bf3856ad364e35_10.0.17763.1_none_5ecceb05a90de198\SystemPropertiesProtection.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-scripting_31bf3856ad364e35_10.0.17763.1217_none_a05531b3068243ea\cscript.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-scripting_31bf3856ad364e35_10.0.17763.1217_none_a05531b3068243ea\wscript.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-scripting_31bf3856ad364e35_10.0.17763.1_none_4382e74d8ce41f72\cscript.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-scripting_31bf3856ad364e35_10.0.17763.1_none_4382e74d8ce41f72\wscript.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-security-secedit_31bf3856ad364e35_10.0.17763.1_none_aa01c2523e48bb9b\SecEdit.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-sethc_31bf3856ad364e35_10.0.17763.1339_none_baa420ae7b4a22a1\EaseOfAccessDialog.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-sethc_31bf3856ad364e35_10.0.17763.1339_none_baa420ae7b4a22a1\sethc.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-sethc_31bf3856ad364e35_10.0.17763.1_none_5ddad33101a57c48\EaseOfAccessDialog.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-sethc_31bf3856ad364e35_10.0.17763.1_none_5ddad33101a57c48\sethc.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-sharedfoldersui_31bf3856ad364e35_10.0.17763.1_none_b337c90fbe14e0d5\shrpubw.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-systempropertiesremote_31bf3856ad364e35_10.0.17763.1_none_8fefd6c09857c88f\SystemPropertiesRemote.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-t..cesframework-ctfmon_31bf3856ad364e35_10.0.17763.1_none_984b210b1d1bb81e\ctfmon.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-t..minalservicesclient_31bf3856ad364e35_10.0.17763.1_none_48f6e1ccada1bdf5\mstsc.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-t..minalservicesclient_31bf3856ad364e35_10.0.17763.404_none_cd23c615db02b138\mstsc.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-tapicore_31bf3856ad364e35_10.0.17763.1_none_df546cc1d320c84e\dialer.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-tpm-adminsnapin_31bf3856ad364e35_10.0.17763.1_none_7297ab266bcb521d\TpmInit.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-u..ountcontrolsettings_31bf3856ad364e35_10.0.17763.1075_none_dbadbfacdeae08cf\UserAccountControlSettings.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-u..ountcontrolsettings_31bf3856ad364e35_10.0.17763.1_none_7ebfa6236525b771\UserAccountControlSettings.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-w..ommand-line-utility_31bf3856ad364e35_10.0.17763.1_none_9cc4699659612012\WMIC.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-w..sition-uicomponents_31bf3856ad364e35_10.0.17763.1_none_ca0f138d11d5c40b\wiaacmgr.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-wab-app_31bf3856ad364e35_10.0.17763.1_none_3dc3f1b8641ccc59\wab.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-wab-app_31bf3856ad364e35_10.0.17763.1_none_3dc3f1b8641ccc59\wabmig.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-winhstb_31bf3856ad364e35_10.0.17763.1_none_2420a29095f0ffc8\winhlp32.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-winver_31bf3856ad364e35_10.0.17763.1_none_b16c127429030786\winver.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-wmi-core-providerhost_31bf3856ad364e35_10.0.17763.1_none_0b7d52c317ef37be\WmiPrvSE.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-wmi-core-svc_31bf3856ad364e35_10.0.17763.1_none_9bcd5007837b4c85\WinMgmt.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-wordpad_31bf3856ad364e35_10.0.17763.1075_none_85c326f472f80416\wordpad.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-wordpad_31bf3856ad364e35_10.0.17763.1_none_28d50d6af96fb2b8\wordpad.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-wow64-legacy_31bf3856ad364e35_10.0.17763.1_none_e6d8e92c6008719c\setup16.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-write_31bf3856ad364e35_10.0.17763.1_none_5a9d666769a20b46\write.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-wusa_31bf3856ad364e35_10.0.17763.1_none_a81b25b4a5270923\wusa.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-xpsreachviewer_31bf3856ad364e35_10.0.17763.1282_none_6d0fa60b54590539\xpsrchvw.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-xpsreachviewer_31bf3856ad364e35_10.0.17763.1_none_1035e7b7dac1af85\xpsrchvw.exe
+c:\Windows\WinSxS\wow64_microsoft-windows-xwizard-host-process_31bf3856ad364e35_10.0.17763.1_none_540ea50ac50e1877\xwizard.exe
+c:\Windows\WinSxS\wow64_microsoft-xbox-gameoverlay_31bf3856ad364e35_10.0.17763.1075_none_96be77732d63109d\GamePanel.exe
+c:\Windows\WinSxS\wow64_microsoft-xbox-gameoverlay_31bf3856ad364e35_10.0.17763.1_none_39d05de9b3dabf3f\GamePanel.exe
+c:\Windows\WinSxS\wow64_windowssearchengine_31bf3856ad364e35_7.0.17763.1098_none_4d89db7e4b2870a4\SearchFilterHost.exe
+c:\Windows\WinSxS\wow64_windowssearchengine_31bf3856ad364e35_7.0.17763.1098_none_4d89db7e4b2870a4\SearchProtocolHost.exe
+c:\Windows\WinSxS\wow64_windowssearchengine_31bf3856ad364e35_7.0.17763.1_none_16274980f2d2708b\SearchFilterHost.exe
+c:\Windows\WinSxS\wow64_windowssearchengine_31bf3856ad364e35_7.0.17763.1_none_16274980f2d2708b\SearchProtocolHost.exe
+c:\Windows\WinSxS\x86_microsoft-windows-i..devicescontrolpanel_31bf3856ad364e35_10.0.17763.1_none_b9471a35e8eda854\ImagingDevices.exe
+c:\Windows\WinSxS\x86_microsoft-windows-ie-iechooser_31bf3856ad364e35_11.0.17763.1282_none_25b236b23d13f3cf\IEChooser.exe
+c:\Windows\WinSxS\x86_microsoft-windows-ie-iechooser_31bf3856ad364e35_11.0.17763.1_none_b911df4404e1e409\IEChooser.exe
+c:\Windows\WinSxS\x86_microsoft-windows-ie-ielowutil_31bf3856ad364e35_11.0.17763.1_none_cf0ed5607be092c8\ielowutil.exe
+c:\Windows\WinSxS\x86_microsoft-windows-ie-iexpress_31bf3856ad364e35_11.0.17763.1_none_2d14a61b4957ca7d\iexpress.exe
+c:\Windows\WinSxS\x86_microsoft-windows-ie-iexpress_31bf3856ad364e35_11.0.17763.1_none_2d14a61b4957ca7d\wextract.exe
+c:\Windows\WinSxS\x86_microsoft-windows-ieinstal_31bf3856ad364e35_11.0.17763.1_none_b134a2589c48361e\ieinstal.exe
+c:\Windows\WinSxS\x86_microsoft-windows-isoburn_31bf3856ad364e35_10.0.17763.1_none_7ad9f58139073c62\isoburn.exe
+c:\Windows\WinSxS\x86_msbuild_b03f5f7f11d50a3a_10.0.17763.1_none_3d545be34a218374\MSBuild.exe
+c:\Windows\WinSxS\x86_msbuild_b03f5f7f11d50a3a_3.5.17763.1_none_85c118e6647221b2\MSBuild.exe
+c:\Windows\WinSxS\x86_msbuild_b03f5f7f11d50a3a_4.0.15713.0_none_21fd44b6b3b91149\MSBuild.exe
+c:\Windows\WinSxS\x86_msbuild_b03f5f7f11d50a3a_4.0.15744.161_none_18b2dad356e2f389\MSBuild.exe

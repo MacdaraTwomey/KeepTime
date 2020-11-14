@@ -1,0 +1,11 @@
+#include <winres.h> // if we use predefined symbols or use winres.h or afxres.h or windows.h
+#include "..\\code\\resource.h"
+
+// This file and resource.h must end with a newline
+
+ID_MAIN_ICON ICON "..\\build\\all.ico"
+
+
+
+
+

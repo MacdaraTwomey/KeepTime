@@ -1,5 +1,6 @@
 #pragma once
 
+// Modified from 4coder_string.h
 
 #include <string.h> // just for strlen, could just implement
 

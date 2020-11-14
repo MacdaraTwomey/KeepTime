@@ -1,0 +1,48 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.27428.2015
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{911E67C6-3D85-4FCE-B560-20A9C3E3FF48}") = "monitor", "monitor.exe", "{C214F08E-E971-4409-B2C1-C5CCE5383AF8}"
+	ProjectSection(DebuggerProjectSystem) = preProject
+		PortSupplier = 00000000-0000-0000-0000-000000000000
+		Executable = c:\dev\projects\monitor\build\monitor.exe
+		RemoteMachine = DESKTOP
+		StartingDirectory = c:\dev\projects\monitor\build
+		Environment = Default
+		LaunchingEngine = 00000000-0000-0000-0000-000000000000
+		UseLegacyDebugEngines = No
+		LaunchSQLEngine = No
+		AttachLaunchAction = No
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Project1", "..\Project1\Project1.vcxproj", "{42DFBCEE-8C9E-4BF6-8ED6-6A75771BE585}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{C214F08E-E971-4409-B2C1-C5CCE5383AF8}.Debug|x64.ActiveCfg = Release|x64
+		{C214F08E-E971-4409-B2C1-C5CCE5383AF8}.Debug|x86.ActiveCfg = Release|x64
+		{C214F08E-E971-4409-B2C1-C5CCE5383AF8}.Release|x64.ActiveCfg = Release|x64
+		{C214F08E-E971-4409-B2C1-C5CCE5383AF8}.Release|x86.ActiveCfg = Release|x64
+		{42DFBCEE-8C9E-4BF6-8ED6-6A75771BE585}.Debug|x64.ActiveCfg = Debug|x64
+		{42DFBCEE-8C9E-4BF6-8ED6-6A75771BE585}.Debug|x64.Build.0 = Debug|x64
+		{42DFBCEE-8C9E-4BF6-8ED6-6A75771BE585}.Debug|x86.ActiveCfg = Debug|Win32
+		{42DFBCEE-8C9E-4BF6-8ED6-6A75771BE585}.Debug|x86.Build.0 = Debug|Win32
+		{42DFBCEE-8C9E-4BF6-8ED6-6A75771BE585}.Release|x64.ActiveCfg = Release|x64
+		{42DFBCEE-8C9E-4BF6-8ED6-6A75771BE585}.Release|x64.Build.0 = Release|x64
+		{42DFBCEE-8C9E-4BF6-8ED6-6A75771BE585}.Release|x86.ActiveCfg = Release|Win32
+		{42DFBCEE-8C9E-4BF6-8ED6-6A75771BE585}.Release|x86.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {F111380A-0658-4142-86A3-00AE7F172780}
+	EndGlobalSection
+EndGlobal

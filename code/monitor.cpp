@@ -518,6 +518,13 @@ update(Monitor_State *state, SDL_Window *window, s64 dt_microseconds, Window_Eve
         }
     }
     
+    
+    if (current_date != day_list->days.back().date)
+    {
+        start_new_day(day_list, current_date);
+        // Don't really need to unload and reload all icons from GPU as it can easily hold many thousands
+    }
+    
     if (window_event == Window_Shown)
     {
         if (!ui->open)
@@ -529,12 +536,6 @@ update(Monitor_State *state, SDL_Window *window, s64 dt_microseconds, Window_Eve
             load_ui(ui, apps->local_programs.size(), current_date, oldest_date, newest_date);
             //platform_set_sleep_time(state->refresh_frame_time);
         }
-    }
-    
-    if (current_date != day_list->days.back().date)
-    {
-        start_new_day(day_list, current_date);
-        // Don't really need to unload and reload all icons from GPU as it can easily hold many thousands
     }
     
     state->accumulated_time += dt_microseconds;

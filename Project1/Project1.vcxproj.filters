@@ -78,6 +78,9 @@
     <ClInclude Include="..\code\monitor_string.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\code\apps.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\code\win32_monitor.cpp">
@@ -132,6 +135,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\code\date_picker.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\code\apps.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

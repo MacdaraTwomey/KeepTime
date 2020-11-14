@@ -1,4 +1,9 @@
 
-build/
 .vs/
-curl_7.69.1/
+build/.vs/
+build/*.obj
+build/*.pdb
+build/*.ilk
+build/*.exp
+build/Debug
+build/x64

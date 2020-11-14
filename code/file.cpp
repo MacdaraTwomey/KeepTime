@@ -7,6 +7,8 @@ static constexpr char DebugSaveFileName[] = "debug_monitor_save.txt";
 static constexpr u32 MAGIC_NUMBER = 0xDACA571E;
 static constexpr u32 CURRENT_VERSION = 0;
 
+// TODO: Prefer to have file read/write in platform layer
+
 // Monitor Binary File
 struct MBF_Header
 {
@@ -433,6 +435,7 @@ read_from_MBF(App_List *apps, Day_List *day_list, Settings *settings, char *file
     date::sys_days current_date = get_local_time_day();
     if (day_list->days.size() == 0 || current_date != day_list->days.back().date)
     {
+        // TODO:  Dont like this here
         start_new_day(day_list, current_date);
     }
     

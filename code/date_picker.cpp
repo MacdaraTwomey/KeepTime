@@ -418,10 +418,20 @@ date_picker_forwards(Date_Picker *date_picker, date::sys_days oldest_date, date:
 
 void
 init_date_picker(Date_Picker *picker, date::sys_days current_date, 
-                 date::sys_days oldest_date, date::sys_days newest_date)
+                 date::sys_days recorded_oldest_date, date::sys_days recorded_newest_date)
 {
     // Current used for selected date of calendar and the picker
     // oldest and newest used for date picker and calendar limits
+    
+    // TODO: What if we loaded from a file and have no dates near current_date
+    // either need get_records_in_date_range to return no records or make date picker
+    // initialised within range
+    // For now allow zero records to be displayed,  also good is user installed for first time and has no records
+    
+    if (current_date > recorded_newest_date) 
+    {
+        current_date = recorded_newest_date;
+    }
     
 #if 0
     picker->range_type = Range_Type_Daily;
@@ -436,10 +446,10 @@ init_date_picker(Date_Picker *picker, date::sys_days current_date,
 #endif
     
     // sets label and if buttons are disabled 
-    date_picker_clip_and_update(picker, oldest_date, newest_date);
+    date_picker_clip_and_update(picker, recorded_oldest_date, recorded_newest_date);
     
-    init_calendar(&picker->first_calendar, current_date, oldest_date, newest_date);
-    init_calendar(&picker->second_calendar, current_date, oldest_date, newest_date);
+    init_calendar(&picker->first_calendar, current_date, recorded_oldest_date, recorded_newest_date);
+    init_calendar(&picker->second_calendar, current_date, recorded_oldest_date, recorded_newest_date);
 }
 
 bool
@@ -519,7 +529,6 @@ do_date_select_popup(Date_Picker *date_picker, date::sys_days oldest_date, date:
             
             date_picker_clip_and_update(date_picker, oldest_date, newest_date);
         }
-        
         
         if (do_calendar_button(&date_picker->first_calendar, oldest_date, newest_date))
         {

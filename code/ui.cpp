@@ -633,24 +633,42 @@ get_records_in_date_range(Day_View *day_view, u32 *record_count,
 {
     Record *result = nullptr;
     
-    // Dates should be in our days range
+    // Allow no days to be in range for robustness
+    
+    // start: |5   8|
+    // start:                               |23   24|
+    // start:         |10             21|       
+    // Day_View: 7 8 9 11 12 13 14 20 21 22
+    
     int start_idx = -1;
     int end_idx = -1;
     for (int i = 0; i < day_view->days.size(); ++i)
     {
-        if (start_range == day_view->days[i].date)
+        date::sys_days date = day_view->days[i].date;
+        if (start_idx == -1 && start_range <= date) 
         {
             start_idx = i;
         }
-        if (end_range == day_view->days[i].date)
+        if (end_range >= date) 
         {
-            end_idx = i;
-            Assert(start_idx != -1);
-            break;
+            end_range = date;
         }
     }
     
-    Assert(start_idx != -1 && end_idx != -1);
+    if (start_idx != -1 && end_idx != -1) 
+    {
+        *record_count = 0;
+        return result;
+    }
+    
+    if (start_idx == -1) 
+    {
+        start_idx = 0;
+    }
+    if (end_idx == -1)
+    {
+        end_idx = day_view->days.size() - 1;
+    }
     
     s32 total_record_count = 0;
     for (int i = start_idx; i <= end_idx; ++i)
@@ -860,7 +878,7 @@ draw_ui_and_update(SDL_Window *window, UI_State *ui, Settings *settings, App_Lis
             ui->date_range_changed = false;
         }
         
-        s64 max_duration = (ui->record_count > 0) ? ui->sorted_records[0].duration : 1;
+        s64 max_duration = (ui->sorted_records != nullptr) ? ui->sorted_records[0].duration : 1;
         float max_bar_width = ImGui::GetWindowWidth() * 0.9f;
         float pixels_per_duration = max_bar_width / max_duration;
         
