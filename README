@@ -1,0 +1,7 @@
+
+
+
+
+
+// Need to include because of FTL
+This project uses the FreeType library for font rendering
