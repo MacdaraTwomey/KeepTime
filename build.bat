@@ -7,7 +7,7 @@
 :: /FC outputs full source file paths
 :: /subsystem:windows needed for SDL
 
-SET DefineFlags=-DMONITOR_DEBUG
+SET DefineFlags=-DMONITOR_DEBUG=1
 :: -DTRACY_ENABLE
 :: -DRECORD_ALL_ACTIVE_WINDOWS 
 

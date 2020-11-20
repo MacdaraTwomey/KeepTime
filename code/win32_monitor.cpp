@@ -665,6 +665,7 @@ win32_firefox_get_url_document_if_fullscreen(HWND hwnd)
     
     IUIAutomationElement *firefox_window = nullptr;
     IUIAutomationElement *not_offscreen_element = nullptr;
+    // NOTE: After firefox update there is now no group
     IUIAutomationElement *group = nullptr;
     
     HRESULT err = win32_context.uia->ElementFromHandle(hwnd, &firefox_window);
@@ -674,11 +675,22 @@ win32_firefox_get_url_document_if_fullscreen(HWND hwnd)
     //VARIANT bounding_rect = {};
     //err = firefox_window->GetCurrentPropertyValue(UIA_BoundingRectanglePropertyId, &bounding_rect);
     
-    // This doesn't seem to throw exception
-    err = firefox_window->FindFirst(TreeScope_Children, win32_context.is_group, &group);
-    if (err != S_OK || !group) goto CLEANUP;
     
-    err = group->FindFirst(TreeScope_Children, win32_context.is_not_offscreen, &not_offscreen_element);
+    // TODO: Make sure this is only done once and stuff is freed
+    VARIANT enabled_true;
+    enabled_true.vt = VT_BOOL;
+    enabled_true.boolVal = -1; // -1 is true
+    
+    IUIAutomationCondition *is_enabled = nullptr; 
+    IUIAutomationCondition *is_enabled_not_offscreen = nullptr; 
+    
+    HRESULT err2 = 
+        win32_context.uia->CreatePropertyCondition(UIA_IsEnabledPropertyId, 
+                                                   enabled_true, &is_enabled);
+    HRESULT err6 = win32_context.uia->CreateAndCondition(is_enabled, win32_context.is_not_offscreen, &is_enabled_not_offscreen);
+    
+    
+    err = firefox_window->FindFirst(TreeScope_Children, is_enabled_not_offscreen, &not_offscreen_element);
     if (err != S_OK || !not_offscreen_element) goto CLEANUP;
     
     // Try to skip over one child using TreeScope_Descendants
@@ -687,7 +699,7 @@ win32_firefox_get_url_document_if_fullscreen(HWND hwnd)
     
     CLEANUP:
     if (not_offscreen_element) not_offscreen_element->Release();
-    if (group) group->Release();
+    //if (group) group->Release();
     if (firefox_window) firefox_window->Release();
     
     return document;
@@ -741,6 +753,8 @@ bool win32_firefox_get_url_from_element(IUIAutomationElement *element, char *buf
 bool
 platform_get_firefox_url(Platform_Window window, char *buf, size_t *length)
 {
+    // NOTE: IMPORTANT: Inspect has different views, 'raw view' doesn't seem to correspond to the way i'm using the api currently, for example there is no Navigation toolbar element in raw view.
+    
     // To get the URL of the active tab in Firefox Window:
     // Mozilla firefox window          ControlType: UIA_WindowControlTypeId (0xC370) LocalizedControlType: "window"
     //   "Navigation" tool bar         UIA_ToolBarControlTypeId (0xC365) LocalizedControlType: "tool bar"

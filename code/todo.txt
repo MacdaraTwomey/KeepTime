@@ -6,16 +6,15 @@
 * Make a make_release.bat file that deletes unneeded stuff and arranges well. SO it can be pushed to master branch from development branch.
 * Safer writing to database file, (maybe copy and delete old file)
 * Popup on unrecoverable errors
-* Add own licence and licences of used open source code (and maybe fonts)
 * Get memory allocation sizes right
-* Hangs and become responsive when  mouseover tray icon
-* Uses GPU when hidden
+* Hangs and become responsive when  mouseover tray icon (not really seeing this anymore)
 * I think a time point is saved before sleep and after computer sleeps and wakes up then next time point will be much later, and this will be added to the next app 
-
+# Changing data doesnt change records shown
 
 * Replace vector with custom thing
 * replace hash table with custom thing (no deleting so don't need tombstones)
 * ensure memory arenas actually work past 1 block
+
 
   -- Finished product --
 * Better loading of textures for the first time (its currently slow with approx >50 textures)

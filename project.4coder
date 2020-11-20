@@ -16,7 +16,8 @@ load_paths = {
   {  { {".", .relative = true, .recursive = false, },
 	   {"code", .relative = true, .recursive = false, },
        {"build", .relative = true, .recursive = false, },
-       {"imgui", .relative = true, .recursive = false, } }, .os = "win"},
+       //{"imgui", .relative = true, .recursive = false, } 
+     }, .os = "win"},
 };
 
 // dont want cursor at end for build because this puts you on the last error

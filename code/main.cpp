@@ -211,7 +211,10 @@ int main(int argc, char* argv[])
         
         {
             ZoneScopedN("Swap buffers and glFinish");
-            SDL_GL_SwapWindow(window);
+            
+            // Only swap window when visible, seems to stop GPU usage when hidden
+            if (SDL_GetWindowFlags(window) & SDL_WINDOW_SHOWN)
+                SDL_GL_SwapWindow(window);
         }
     }
     

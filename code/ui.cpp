@@ -18,7 +18,9 @@ static u32 g_text_down = 5;
 static u32 g_text_right = 7;
 static float g_bar_height = ICON_SIZE;
 static float g_bar_down = 1;
-static bool g_fullscreen = false;
+static bool g_fullscreen = !MONITOR_DEBUG; 
+
+#define SHOW_FREETYPE_OPTIONS_WINDOW (MONITOR_DEBUG && 0)
 
 // from monitor.cpp
 Icon_Asset *get_app_icon_asset(App_List *apps, UI_State *ui, App_Id id);
@@ -160,10 +162,7 @@ unload_ui(UI_State *ui)
     ui->open = false;
 }
 
-
-
-
-#if 1
+#if SHOW_FREETYPE_OPTIONS_WINDOW
 struct FreeTypeTest
 {
     enum FontBuildMode
@@ -245,8 +244,10 @@ struct FreeTypeTest
         ImGui::End();
     }
 };
-#endif
 
+FreeTypeTest freetype_test; // and construct this object
+
+#endif
 
 s32
 remove_duplicate_and_empty_keyword_strings(Keyword_Array keywords)
@@ -592,8 +593,6 @@ do_settings_popup(Settings *settings, Edit_Settings *edit_settings, ImFont *smal
     return !open;
 }
 
-FreeTypeTest freetype_test;
-
 void
 draw_record_time_text(s64 duration)
 {
@@ -732,12 +731,7 @@ draw_ui_and_update(SDL_Window *window, UI_State *ui, Settings *settings, App_Lis
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplSDL2_NewFrame(window);
     
-#if 1
-    ImGui::NewFrame();
-    bool show_demo_window = true;
-    if (show_demo_window)
-        ImGui::ShowDemoWindow(&show_demo_window);
-#else
+#if SHOW_FREETYPE_OPTIONS_WINDOW
     // Light hinting with freetype looks better than stb font renderer (at least at size 22 pixels)
     if (freetype_test.UpdateRebuild())
     {
@@ -745,18 +739,13 @@ draw_ui_and_update(SDL_Window *window, UI_State *ui, Settings *settings, App_Lis
         ImGui_ImplOpenGL3_DestroyDeviceObjects();
         ImGui_ImplOpenGL3_CreateDeviceObjects();
     }
-    ImGui::NewFrame();
-    
-    bool show_demo_window = true;
-    if (show_demo_window)
-        ImGui::ShowDemoWindow(&show_demo_window);
-    
-    ImGui::SetNextWindowPos(ImVec2(900, 0), true);
-    freetype_test.ShowFreetypeOptionsWindow();
 #endif
     
-    void debug_ui_options(Monitor_State *state);
+    ImGui::NewFrame();
     
+#if MONITOR_DEBUG
+    bool show_demo_window = true;
+    ImGui::ShowDemoWindow(&show_demo_window);
     
     {
         ImGuiIO& io = ImGui::GetIO();
@@ -765,8 +754,16 @@ draw_ui_and_update(SDL_Window *window, UI_State *ui, Settings *settings, App_Lis
         {
             ImGui::SetNextWindowFocus();
         }
+        
+        void debug_ui_options(Monitor_State *state);
         debug_ui_options(state);
     }
+#endif
+    
+#if SHOW_FREETYPE_OPTIONS_WINDOW
+    ImGui::SetNextWindowPos(ImVec2(900, 0), true);
+    freetype_test.ShowFreetypeOptionsWindow();
+#endif
     
     ImGuiWindowFlags flags =
         ImGuiWindowFlags_NoTitleBar
