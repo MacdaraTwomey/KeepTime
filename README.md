@@ -13,6 +13,7 @@ From here you can select a date range to aggregate data from and display.
 
 In the settings menu you can choose whether you want All or None websites to be recorded, or to only record a Custom list.
 
+![Alt text](.github/images/keeptime1.jpg?raw=true "Title")
 https://raw.githubusercontent.com/{macdaratwomey}/{programmonitor}/{master}/.github/images/{program_monitor1}.{png}
 
 ## How it works
