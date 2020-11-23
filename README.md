@@ -13,7 +13,7 @@ From here you can select a date range to aggregate data from and display.
 
 In the settings menu you can choose whether you want All or None websites to be recorded, or to only record a Custom list.
 
-![Alt text](.github/images/keeptimedesktop1.jpeg?raw=true "Title")
+![Alt text](.github/images/KeepTimeDesktop1.jpeg?raw=true)
 
 ## How it works
 
