@@ -755,6 +755,8 @@ platform_get_firefox_url(Platform_Window window, char *buf, size_t *length)
 {
     // NOTE: IMPORTANT: Inspect has different views, 'raw view' doesn't seem to correspond to the way i'm using the api currently, for example there is no Navigation toolbar element in raw view.
     
+    // If could search for no name elements then would be able to have single method that works for fullscreen and normal, by looking for no name, enabled, not offscreen. 
+    
     // To get the URL of the active tab in Firefox Window:
     // Mozilla firefox window          ControlType: UIA_WindowControlTypeId (0xC370) LocalizedControlType: "window"
     //   "Navigation" tool bar         UIA_ToolBarControlTypeId (0xC365) LocalizedControlType: "tool bar"
