@@ -2,6 +2,13 @@
 
 KeepTime is a simple automatic time tracking app that monitors your personal program and website usage, and displays the collected data in a summary chart. 
 
+## Features
+
+* Fine time resolution monitoring 
+* Doesn't require a browser plugin
+* Adjustable date range barplot, Check your program usage at different granularities
+* Small memory footprint
+
 ## Usage
 
 To install just click the executable when you want to start tracking your program usage. 
