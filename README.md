@@ -13,7 +13,7 @@ From here you can select a date range to aggregate data from and display.
 
 In the settings menu you can choose whether you want All or None websites to be recorded, or to only record a Custom list.
 
-![Alt text](.github/images/KeepTimeDesktop1.jpeg?raw=true)
+![Alt text](.github/images/KeepTimeDesktop1.jpeg)
 
 ## How it works
 
@@ -26,5 +26,7 @@ then navigate to the KeepTime base directory and run build.bat.
 
 Currently only Windows is supported.
 
-// Need to include because of FTL
-This project uses the FreeType library for font rendering
+## Dependencies
+
+This project uses SDL for opening a window and handling input, ImGui for rendering the UI and the FreeType library for font rendering.
+These are provided as dll files in the build directory.
