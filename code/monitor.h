@@ -10,10 +10,10 @@
 #include <unordered_map>
 #include <chrono>
 
-#define PROGRAM_NAME "MonitorXXXX"
-#define VERSION_STRING "0.0.0"
+#define PROGRAM_NAME "KeepTime"
+#define VERSION_STRING "0.0.1"
 #define NAME_STRING "Mac"
-#define LICENSE_STRING "TODO: Licence"
+#define LICENSE_STRING "MIT Licence"
 
 // TODO: make a malloc failure routine that maybe writes to savefile, and frees stuff and maybe exits gracefully
 struct

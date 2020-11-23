@@ -78,11 +78,11 @@ init_imgui_fonts_and_style(ImFont **small_font)
     ImFont *normal_font = io.Fonts->AddFontFromMemoryCompressedTTF(SourceSansProRegular_compressed_data, SourceSansProRegular_compressed_size, NORMAL_FONT_SIZE, nullptr);
     
     // This adds 56000 IndexAdvanceX floats because it is based off the max codepoint so unused glyph indexes just have default advance
-    io.Fonts->AddFontFromFileTTF("c:\\dev\\projects\\monitor\\build\\fonts\\MaterialIcons-Regular.ttf", NORMAL_FONT_SIZE, &config, icon_range);
+    io.Fonts->AddFontFromFileTTF("c:\\dev\\projects\\keeptime\\build\\fonts\\MaterialIcons-Regular.ttf", NORMAL_FONT_SIZE, &config, icon_range);
     
     // Subset is 2K instead of 126K not a buig deal (before compression)
     // https://transfonter.org/
-    // "c:\\dev\\projects\\monitor\\build\\fonts\\subset-MaterialIcons-Regular.ttf"
+    // "c:\\dev\\projects\\keeptime\\build\\fonts\\subset-MaterialIcons-Regular.ttf"
     
     ImFont *loaded_small_font = io.Fonts->AddFontFromMemoryCompressedTTF(SourceSansProRegular_compressed_data, SourceSansProRegular_compressed_size, SMALL_FONT_SIZE, nullptr);
     
@@ -337,7 +337,7 @@ do_misc_settings(Edit_Settings *edit_settings)
         ImGui::Text(PROGRAM_NAME);
         ImGui::Text("Version " VERSION_STRING);
         ImGui::Text("Made by " NAME_STRING);
-        ImGui::Text("License " LICENSE_STRING);
+        ImGui::Text(LICENSE_STRING);
         
         ImGui::NewLine();
         if (ImGui::Button("OK", ImVec2(UI_DEFAULT_BUTTON_WIDTH, 0)))

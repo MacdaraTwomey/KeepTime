@@ -2,7 +2,7 @@
 
 :: /subsystem:windows needed for SDL
 
-SET DefineFlags=-DMONITOR_DEBUG=1
+SET DefineFlags=-DMONITOR_DEBUG=0
 :: -DTRACY_ENABLE
 :: -DRECORD_ALL_ACTIVE_WINDOWS 
 
