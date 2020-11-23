@@ -1,10 +1,5 @@
 @echo off
 
-:: Old stuff
-:: /I..\curl_7.69.1\include
-:: ..\curl_7.69.1\x64_debug_dll_MDd\libcurl_debug.lib 
-
-:: /FC outputs full source file paths
 :: /subsystem:windows needed for SDL
 
 SET DefineFlags=-DMONITOR_DEBUG=1

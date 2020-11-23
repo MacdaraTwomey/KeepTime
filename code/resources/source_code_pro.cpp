@@ -1,4 +1,8 @@
 
+// Source Sans Pro is available at https://fonts.google.com/specimen/Source+Sans+Pro
+// Licenced under the Open Font Licence.
+// Converted to a text file.
+
 const unsigned int SourceSansProRegular_compressed_size = 149392;
 const unsigned int SourceSansProRegular_compressed_data[149392 / 4] =
 {
