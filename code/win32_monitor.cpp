@@ -234,36 +234,33 @@ platform_wait_for_event_with_timeout()
     DWORD result = MsgWaitForMultipleObjects(0, nullptr, FALSE, win32_context.sleep_time, wake_mask);
     if (result == WAIT_OBJECT_0)
     {
-        strcpy(msg, "Wait object 0\n");
+        //strcpy(msg, "Wait object 0\n");
     }
     else if (result == WAIT_ABANDONED_0)
     {
-        strcpy(msg, "Wait abandoned\n");
+        //strcpy(msg, "Wait abandoned\n");
     }
     else if (result == WAIT_TIMEOUT)
     {
-        strcpy(msg, "Wait Timeout\n");
-        
+        //strcpy(msg, "Wait Timeout\n");
     }
     else if (result == WAIT_FAILED)
     {
-        strcpy(msg, "Wait failed\n");
+        //strcpy(msg, "Wait failed\n");
         Assert(0);
     }
     else
     {
-        strcpy(msg, "other ...\n");
+        //strcpy(msg, "other ...\n");
         Assert(0);
     }
     
-    auto after_wait = platform_get_time();
-    s64 time_waited = platform_get_microseconds_elapsed(new_time, after_wait);// / 1000;
+    //auto after_wait = platform_get_time();
+    //s64 time_waited = platform_get_microseconds_elapsed(new_time, after_wait);// / 1000;
     
-    OutputDebugString(msg);
-    sprintf(msg, 
-            "Time to update: %llims\n"
-            "time waited: %llims\n", time_to_update, time_waited);
-    OutputDebugString(msg);
+    //OutputDebugString(msg);
+    //sprintf(msg, "Time to update: %llims\n" "time waited: %llims\n", time_to_update, time_waited);
+    //OutputDebugString(msg);
 }
 
 void
@@ -463,7 +460,7 @@ platform_get_active_window()
 {
     // TODO: Use GetShellWindow GetShellWindow to detect when not doing anything on desktop, if foreground == desktop etc
     
-#ifdef RECORD_ALL_ACTIVE_WINDOWS
+#if RECORD_ALL_ACTIVE_WINDOWS
     
     static HWND queue[100];
     static int count = 0;
@@ -680,6 +677,8 @@ win32_firefox_get_url_document_if_fullscreen(HWND hwnd)
     VARIANT enabled_true;
     enabled_true.vt = VT_BOOL;
     enabled_true.boolVal = -1; // -1 is true
+    // TODO: Variant clear
+    
     
     IUIAutomationCondition *is_enabled = nullptr; 
     IUIAutomationCondition *is_enabled_not_offscreen = nullptr; 
@@ -733,7 +732,34 @@ win32_window_is_fullscreen(HWND hwnd)
     return (window_width == monitor_width && window_height == monitor_height);
 }
 
-bool win32_firefox_get_url_from_element(IUIAutomationElement *element, char *buf, int buf_size, size_t *length)
+bool
+win32_firefox_element_has_keyboard_focus(IUIAutomationElement *element) 
+{
+    bool result = false;
+    VARIANT has_focus;
+    has_focus.vt = VT_BOOL;
+    has_focus.boolVal = 0;
+    
+    HRESULT err = element->GetCurrentPropertyValue(UIA_HasKeyboardFocusPropertyId, &has_focus);
+    if (err == S_OK)
+    {
+        if (has_focus.boolVal)
+        {
+            result = (has_focus.boolVal == -1); // -1 == true
+        }
+    }
+    
+    VariantClear(&has_focus);
+    if (result)
+        OutputDebugStringA("Has keyboard focus\n");
+    else
+        OutputDebugStringA("No keyboard focus\n");
+    
+    return result;
+}
+
+bool
+win32_firefox_get_url_from_element(IUIAutomationElement *element, char *buf, int buf_size, size_t *length)
 {
     bool success = false;
     VARIANT url_bar = {};
@@ -809,7 +835,13 @@ platform_get_firefox_url(Platform_Window window, char *buf, size_t *length)
             {
                 // TODO: Assert that this is onscreen (the current tab)
                 
-                if (win32_firefox_get_url_from_element(document, buf, PLATFORM_MAX_URL_LEN, length))
+                if (win32_firefox_element_has_keyboard_focus(document))
+                {
+                    // Dont get urls that may be currently being edited
+                    success = false;
+                    re_load_firefox_element = false;
+                }
+                else if (win32_firefox_get_url_from_element(document, buf, PLATFORM_MAX_URL_LEN, length))
                 {
                     // Don't release element (try to reuse next time)
                     success = true;
@@ -828,7 +860,12 @@ platform_get_firefox_url(Platform_Window window, char *buf, size_t *length)
             }
             if (editbox)
             {
-                if (win32_firefox_get_url_from_element(editbox, buf, PLATFORM_MAX_URL_LEN, length))
+                if (win32_firefox_element_has_keyboard_focus(editbox))
+                {
+                    success = false;
+                    re_load_firefox_element = false;
+                }
+                else if (win32_firefox_get_url_from_element(editbox, buf, PLATFORM_MAX_URL_LEN, length))
                 {
                     // Don't release element (try to reuse next time)
                     success = true;
@@ -856,7 +893,11 @@ platform_get_firefox_url(Platform_Window window, char *buf, size_t *length)
         
         if (element)
         {
-            if (win32_firefox_get_url_from_element(element, buf, PLATFORM_MAX_URL_LEN, length))
+            if (win32_firefox_element_has_keyboard_focus(element))
+            {
+                success = false;
+            }
+            else if (win32_firefox_get_url_from_element(element, buf, PLATFORM_MAX_URL_LEN, length))
             {
                 // Don't release element (try to reuse next time)
                 success = true;

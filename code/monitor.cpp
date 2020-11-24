@@ -78,34 +78,6 @@ get_app_icon_asset(App_List *apps, UI_State *ui, App_Id id)
 void
 debug_add_records(App_List *apps, Day_List *day_list, date::sys_days cur_date)
 {
-    static char *some_names[] = {
-        "C:\\Program Files\\Krita (x64)\\bin\\krita.exe",
-        "C:\\Program Files\\Mozilla Firefox\\firefox.exe",
-        "C:\\dev\\projects\\monitor\\build\\monitor.exe",
-        "C:\\Program Files\\7-Zip\\7zFM.exe",  // normal 7z.exe had no icon
-        "C:\\Qt\\5.12.2\\msvc2017_64\\bin\\designer.exe",
-        "C:\\Qt\\5.12.2\\msvc2017_64\\bin\\assistant.exe",
-        "C:\\Program Files (x86)\\Dropbox\\Client\\Dropbox.exe",
-        "C:\\Program Files (x86)\\Vim\\vim80\\gvim.exe",
-        "C:\\Windows\\notepad.exe",
-        "C:\\Program Files\\CMake\\bin\\cmake-gui.exe",
-        "C:\\Program Files\\Git\\git-bash.exe",
-        "C:\\Program Files\\Malwarebytes\\Anti-Malware\\mbam.exe",
-        "C:\\Program Files\\Sublime Text 3\\sublime_text.exe",
-        "C:\\Program Files\\Typora\\bin\\typora.exe",
-        "C:\\files\\applications\\cmder\\cmder.exe",
-        "C:\\files\\applications\\4coder\\4ed.exe",
-        "C:\\files\\applications\\Aseprite\\aseprite.exe",
-        "C:\\dev\\projects\\shell\\shell.exe",  // No icon in executable just default windows icon showed in explorer, so can't load anything
-        "C:\\Program Files\\Realtek\\Audio\\HDA\\RtkNGUI64.exe",
-        "C:\\Program Files\\VideoLAN\\VLC\\vlc.exe",
-        "C:\\Program Files\\Windows Defender\\MpCmdRun.exe",
-        "C:\\Program Files\\Java\\jdk-11.0.2\\bin\\java.exe",
-        "C:\\Program Files (x86)\\Internet Explorer\\iexplore.exe",
-        "C:\\Program Files (x86)\\Meld\\Meld.exe",
-        "C:\\Program Files (x86)\\MSI Afterburner\\MSIAfterburner.exe"
-    };
-    
     static char *website_names[] = {
         "teachyourselfcs.com",
         "trello.com",
@@ -120,71 +92,37 @@ debug_add_records(App_List *apps, Day_List *day_list, date::sys_days cur_date)
         "QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQA",
     };
     
-    static char **exes = nullptr;
-    static int count = 0;
-    static bool first = true;
+    static char *exes[] = {
+#include "..\\build\\exes_with_icons.txt"
+    };
+    static int count = array_count(exes);
     
-    if (first)
-    {
-        exes = (char **)calloc(1, sizeof(char *) * 10000);
-        Assert(exes);
-        
-        char filename[500];
-        char *base = SDL_GetBasePath();
-        //snprintf(filename, array_count(filename), "%sexes.txt", base);
-        snprintf(filename, array_count(filename), "%sexes_with_icons.txt", base);
-        
-        FILE *exes_file = fopen(filename, "r");
-        Assert(exes_file);
-        
-        SDL_free(base);
-        
-        char buf[2000] = {};
-        while (fgets(buf, 2000, exes_file) != nullptr)
-        {
-            size_t len = strlen(buf);
-            exes[count] = (char *)calloc(1, len + 1);
-            Assert(exes[count]);
-            
-            strcpy(exes[count], buf);
-            
-            // remove newline
-            exes[count][len-1] = 0;
-            count += 1;
-        }
-        
-        fclose(exes_file);
-        first = false;
-        
 #if 0
-        char filename[500];
-        char *base = SDL_GetBasePath();
-        snprintf(filename, array_count(filename), "%sexes_with_icons.txt", base);
-        
-        FILE *file = fopen(filename, "w");
-        Assert(file);
-        
-        SDL_free(base);
-        
-        for (int i = 0; i < count; ++i)
+    // Write file
+    static char *base  = SDL_GetBasePath();
+    snprintf(filename, array_count(filename), "%sexes_with_icons.txt", base);
+    
+    FILE *file = fopen(filename, "w");
+    Assert(file);
+    
+    SDL_free(base);
+    
+    for (int i = 0; i < count; ++i)
+    {
+        Bitmap bmp = {};
+        u32 *mem = (u32 *)malloc(ICON_SIZE*ICON_SIZE*4);;
+        if (platform_get_icon_from_executable(exes[i], 32, &bmp, mem))
         {
-            int  w;
-            int h; 
-            int pitch;
-            u32 *p;
-            if (platform_get_icon_from_executable(exes[i], 32, &w, &h, &pitch, &p))
-            {
-                char buf[2000];
-                snprintf(buf, 2000, "%s\n", exes[i]);
-                fputs(buf, file);
-                
-                free(p);
-            }
+            char buf[2000];
+            snprintf(buf, 2000, "\"%s\",\n", exes[i]);
+            fputs(buf, file);
         }
-        
-        fclose(file);
-#endif
+        free(mem);
     }
+    
+    fclose(file);
+#endif
+    
     
     char **names = exes;
     int num_names = count;
@@ -196,7 +134,7 @@ debug_add_records(App_List *apps, Day_List *day_list, date::sys_days cur_date)
     // Should be no days in day list
     Assert(day_list->days.size() == 0);
     
-    date::sys_days start  = cur_date - date::days{70};
+    date::sys_days start  = cur_date - date::days{400};
     
     for (date::sys_days d = start; d < cur_date; d += date::days{1})
     {
@@ -292,8 +230,28 @@ extract_domain_name(String url)
     
     // If this finds a port number or username password or something, when there is no http://, then it just wont satisfy other double-slash condition.
     
+    if (search_for_char(url, 0, ' ') != -1)
+    {
+        // Found an invalid char in url (space)
+        String result;
+        result.str = url.str;
+        result.capacity = 0;
+        result.length = 0;
+        return result;
+    }
+    
     // We don't handle weird urls very well, or file:// 
     size_t start = scheme_length(url);
+    
+    if (start >= url.length)
+    {
+        // URl is only a scheme
+        String result;
+        result.str = url.str;
+        result.capacity = 0;
+        result.length = 0;
+        return result;
+    }
     
     // Look for end of host
     s32 slash_end = search_for_char(url, start, '/');
@@ -302,7 +260,6 @@ extract_domain_name(String url)
     if (question_mark_end == -1) question_mark_end = url.length;
     
     s32 end = std::min(slash_end, question_mark_end) - 1; // -1 to get last char of url or one before / or ?
-    
     String authority = substr_range(url, start, end);
     if (authority.length > 0)
     {
@@ -333,6 +290,20 @@ extract_domain_name(String url)
                     break;
                 }
             }
+            
+            if (domain[0] == '.' || domain[domain.length-1] == '.')
+            {
+                good_domain = false;
+            }
+            
+            s32 period_offset = search_for_char(domain, 0, '.');
+            if (period_offset == -1)
+            {
+                // If no sub domains stuff then probably bad
+                good_domain = false;
+                
+            }
+            
             
             if (good_domain) return domain;
         }
@@ -475,7 +446,9 @@ update(Monitor_State *state, SDL_Window *window, s64 dt_microseconds, Window_Eve
             init_arena(&settings->keyword_arena, MAX_KEYWORD_COUNT * MAX_KEYWORD_SIZE);
             
             // add fake days before current_date
-            //debug_add_records(apps, day_list, current_date);
+#if FAKE_RECORDS
+            debug_add_records(apps, day_list, current_date);
+#endif
             start_new_day(day_list, current_date);
             
             settings->misc = Misc_Options::default_misc_options();

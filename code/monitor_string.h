@@ -4,6 +4,8 @@
 
 #include <string.h> // just for strlen, could just implement
 
+// TODO: Last char function
+
 // probably don't even need a capacity
 
 struct String

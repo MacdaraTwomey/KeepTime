@@ -10,7 +10,6 @@
 * Hangs and become responsive when  mouseover tray icon (not really seeing this anymore)
 * I think a time point is saved before sleep and after computer sleeps and wakes up then next time point will be much later, and this will be added to the next app 
 # Changing date doesnt change records shown BUG
-* filter non urls (and urls being edited, can look at keyboard focus property and return empty string maybe)
 * Dependency on compiler provided crt, you have to assume user has redistributables for that compiler version or codistruibute the redistributable installer.
 
 

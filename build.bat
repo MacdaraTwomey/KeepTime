@@ -2,9 +2,10 @@
 
 :: /subsystem:windows needed for SDL
 
-SET DefineFlags=-DMONITOR_DEBUG=0
+SET DefineFlags=-DMONITOR_DEBUG=1 ^
+ -DRECORD_ALL_ACTIVE_WINDOWS=0 ^
+ -DFAKE_RECORDS=1
 :: -DTRACY_ENABLE
-:: -DRECORD_ALL_ACTIVE_WINDOWS 
 
 set LinkedLibraries=..\SDL2\SDL2.lib ..\SDL2\SDL2main.lib ..\GLEW21\glew32.lib ..\imgui\imgui.lib ..\freetype\freetype.lib opengl32.lib user32.lib shell32.lib Gdi32.lib Comctl32.lib 
 
