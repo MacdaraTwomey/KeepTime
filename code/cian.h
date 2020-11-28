@@ -91,8 +91,8 @@ cian_print_assert_msg_and_panic(const char *assertion, const char *file, const c
 #define CIAN_STRINGIFY(expr) CIAN_STRINGIFY1(expr)
 
 #define CIAN_ASSERT1(cond, file, func, line)  do { \
-if (!(cond)) { \
-cian_print_assert_msg_and_panic(CIAN_STRINGIFY((cond)), (file), (func), (line)); \
+if (!static_cast<bool>(cond)) { \
+cian_print_assert_msg_and_panic(CIAN_STRINGIFY(cond), (file), (func), (line)); \
 CIAN_DEBUG_TRAP(); \
 } \
 } while(0) 

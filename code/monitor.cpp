@@ -354,7 +354,7 @@ poll_windows(App_List *apps, Settings *settings)
         char url_buf[PLATFORM_MAX_URL_LEN];
         size_t url_len = 0;
         
-        if (platform_get_firefox_url(window, url_buf, &url_len))
+        if (platform_firefox_get_url(window, url_buf, &url_len))
         {
             String url = make_string(url_buf, url_len);
             if (url.length > 0)
@@ -420,7 +420,7 @@ update(Monitor_State *state, SDL_Window *window, s64 dt_microseconds, Window_Eve
         Day_List *day_list = &state->day_list;
         
         bool init_state_from_defaults = true;
-        if (file_exists(state->savefile_path))
+        if (platform_file_exists(state->savefile_path))
         {
             if (read_from_MBF(apps, day_list, settings, state->savefile_path))
             {
@@ -514,6 +514,7 @@ update(Monitor_State *state, SDL_Window *window, s64 dt_microseconds, Window_Eve
     state->accumulated_time += dt_microseconds;
     if (ui->open)
     {
+        // TODO: Can set the rhs compared variable to 0 when ui closed and we want to poll everytime woken up
         // state->settings.misc_options.poll_frequency_milliseconds * MICROSECS_PER_MILLISEC;
         if (state->accumulated_time >= DEFAULT_POLL_FREQUENCY_MILLISECONDS)
         {

@@ -22,36 +22,10 @@
 
 #include "win32_monitor.cpp"
 #include "monitor.cpp"
+#include "platform.cpp"
 
 #define WINDOW_WIDTH 1240
 #define WINDOW_HEIGHT 720
-
-u32
-platform_get_monitor_refresh_rate()
-{
-    // or if 0 is not correct, could pass in sdl_window and get index with SDL_GetWindowDisplayIndex
-    SDL_DisplayMode display_mode;
-    int result = SDL_GetCurrentDisplayMode(0, &display_mode);
-    if (result == 0)
-    {
-        return display_mode.refresh_rate;
-    }
-    else
-    {
-        return 16; // 60fps default
-    }
-}
-
-void
-platform_get_base_directory(char *directory, s32 capacity)
-{
-    char *exe_dir_path = SDL_GetBasePath();
-    if (exe_dir_path) 
-    {
-        strncpy(directory, exe_dir_path, capacity);
-        SDL_free(exe_dir_path);
-    }
-}
 
 int main(int argc, char* argv[])
 {
@@ -102,18 +76,7 @@ int main(int argc, char* argv[])
     
     IMGUI_CHECKVERSION();
     
-    SDL_EventState(SDL_SYSWMEVENT, SDL_ENABLE);
-    
-    SDL_SysWMinfo info;
-    SDL_VERSION(&info.version); /* initialize info structure with SDL version info */
-    if(SDL_GetWindowWMInfo(window, &info)) 
-    {
-        if (!platform_init_context(info.info.win.window))
-        {
-            return 1;
-        }
-    }
-    else
+    if (!platform_init_context(window))
     {
         Assert(0);
         return 1;
@@ -199,7 +162,7 @@ int main(int argc, char* argv[])
             else if (event.type == SDL_SYSWMEVENT) 
             {
                 SDL_SysWMmsg *sys_msg = event.syswm.msg;
-                platform_handle_message(sys_msg->msg.win.msg, sys_msg->msg.win.lParam, sys_msg->msg.win.wParam);
+                platform_handle_message(sys_msg);
             }
         }
         
@@ -218,9 +181,7 @@ int main(int argc, char* argv[])
         }
     }
     
-#if defined(_WIN32)
     platform_free_context();
-#endif
     
     if (imgui_initialised)
     {

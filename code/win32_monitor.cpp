@@ -83,7 +83,7 @@ win32_get_wall_time_microseconds()
 #endif
 
 s64
-platform_get_time()
+win32_get_time()
 {
     LARGE_INTEGER now;
     QueryPerformanceCounter(&now);
@@ -91,7 +91,7 @@ platform_get_time()
 }
 
 s64
-platform_get_microseconds_elapsed(s64 start, s64 end)
+win32_get_microseconds_elapsed(s64 start, s64 end)
 {
     s64 microseconds;
     microseconds = end - start;
@@ -101,7 +101,7 @@ platform_get_microseconds_elapsed(s64 start, s64 end)
 }
 
 bool
-platform_init_context(HWND hwnd)
+win32_init_context(HWND hwnd)
 {
     win32_context = {};
     win32_context.window = hwnd;
@@ -220,11 +220,11 @@ win32_hide_win()
 }
 
 void
-platform_wait_for_event_with_timeout()
+win32_wait_for_event_with_timeout()
 {
     static s64 old_time;
-    auto new_time = platform_get_time();
-    s64 time_to_update = platform_get_microseconds_elapsed(old_time, new_time);// / 1000;
+    auto new_time = win32_get_time();
+    s64 time_to_update = win32_get_microseconds_elapsed(old_time, new_time);// / 1000;
     old_time = new_time;
     
     // NOTE: Waking on any event is not important when running 60fps for the UI
@@ -264,14 +264,14 @@ platform_wait_for_event_with_timeout()
 }
 
 void
-platform_set_sleep_time(u32 milliseconds)
+win32_set_sleep_time(u32 milliseconds)
 {
     Assert(milliseconds >= 0);
     win32_context.sleep_time = milliseconds;
 }
 
 void
-platform_free_context()
+win32_free_context()
 {
     Shell_NotifyIconA(NIM_DELETE, &win32_context.nid);
     
@@ -336,7 +336,7 @@ print_flags(SDL_Window *window)
 }
 
 void
-platform_handle_message(UINT msg, LPARAM lParam, WPARAM wParam)
+win32_handle_message(UINT msg, LPARAM lParam, WPARAM wParam)
 {
     HWND window = win32_context.window;
     switch (msg)
@@ -455,8 +455,8 @@ struct Process_Ids
     DWORD child;
 };
 
-Platform_Window
-platform_get_active_window()
+HWND
+win32_get_active_window()
 {
     // TODO: Use GetShellWindow GetShellWindow to detect when not doing anything on desktop, if foreground == desktop etc
     
@@ -483,14 +483,10 @@ platform_get_active_window()
         first = false;
     }
     
-    Platform_Window window = {};
+    HWND foreground_win = {};
     if (count > 0)
     {
-        HWND foreground_win = queue[count-1];
-        window = {};
-        window.handle = foreground_win;
-        window.is_valid = (foreground_win != 0);
-        
+        foreground_win = queue[count-1];
         count -= 1;
     }
     else
@@ -501,21 +497,17 @@ platform_get_active_window()
     if (done)
     {
         // Can return 0 is certain circumstances, such as when a window is losing activation
-        HWND foreground_win = GetForegroundWindow();
-        window = {};
-        window.handle = foreground_win;
-        window.is_valid = (foreground_win != 0);
+        foreground_win = GetForegroundWindow();
     }
 #else
     
     HWND foreground_win = GetForegroundWindow();
-    Platform_Window window = {};
-    window.handle = foreground_win;
     //window.is_valid = (foreground_win != 0 && foreground_win != win32_context.desktop_window && foreground_win != win32_context.shell_window);
-    window.is_valid = (foreground_win != 0); // TODO: For now we say desktop and shell are valid so we can get their paths, in future make them invalid.
+    
+    // TODO: If foreground_win == shell or desktop set to 0
 #endif
     
-    return window;
+    return foreground_win;
 }
 
 BOOL CALLBACK
@@ -534,13 +526,13 @@ MyEnumChildWindowsCallback(HWND hwnd, LPARAM lParam)
 }
 
 bool
-platform_get_program_from_window(Platform_Window window, char *buf, size_t *length)
+win32_get_program_from_window(HWND hwnd, u32 max_path_len, char *buf, size_t *length)
 {
     // TODO: check against desktop and shell windows
     // TODO: Return utf8 path
     
     // On success fills buf will contiain null terminated string, and sets length to string length (not including null terminator)
-    HWND handle = window.handle;
+    HWND handle = hwnd;
     
     // TODO: Just for debugging
     if (handle == win32_context.desktop_window)
@@ -568,13 +560,13 @@ platform_get_program_from_window(Platform_Window window, char *buf, size_t *leng
     // So we search for a child pid that is different to its parent's pid, to get the process we want.
     // https://stackoverflow.com/questions/32360149/name-of-process-for-active-window-in-windows-8-10
     
-    EnumChildWindows(window.handle, MyEnumChildWindowsCallback, (LPARAM)&process_ids);
+    EnumChildWindows(handle, MyEnumChildWindowsCallback, (LPARAM)&process_ids);
     HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, process_ids.child);
     if (process)
     {
         // filename_len is overwritten with number of characters written to full_path
         // Null terminates
-        DWORD filename_len = (DWORD)PLATFORM_MAX_PATH_LEN-1;
+        DWORD filename_len = (DWORD)max_path_len-1;
         if (QueryFullProcessImageNameA(process, 0, buf, &filename_len))
         {
             CloseHandle(process);
@@ -777,7 +769,7 @@ win32_firefox_get_url_from_element(IUIAutomationElement *element, char *buf, int
 }
 
 bool
-platform_get_firefox_url(Platform_Window window, char *buf, size_t *length)
+win32_get_firefox_url(HWND hwnd, u32 max_url_len, char *buf, size_t *length)
 {
     // NOTE: IMPORTANT: Inspect has different views, 'raw view' doesn't seem to correspond to the way i'm using the api currently, for example there is no Navigation toolbar element in raw view.
     
@@ -805,7 +797,6 @@ platform_get_firefox_url(Platform_Window window, char *buf, size_t *length)
     static IUIAutomationElement *editbox = nullptr;
     static IUIAutomationElement *document = nullptr;
     
-    HWND hwnd = window.handle;
     bool is_fullscreen = win32_window_is_fullscreen(hwnd);
     
     // TODO: Get firefox window once-ish (is this even a big deal if we have to re_load element it is just one extra call anyway)
@@ -841,7 +832,7 @@ platform_get_firefox_url(Platform_Window window, char *buf, size_t *length)
                     success = false;
                     re_load_firefox_element = false;
                 }
-                else if (win32_firefox_get_url_from_element(document, buf, PLATFORM_MAX_URL_LEN, length))
+                else if (win32_firefox_get_url_from_element(document, buf, max_url_len, length))
                 {
                     // Don't release element (try to reuse next time)
                     success = true;
@@ -865,7 +856,7 @@ platform_get_firefox_url(Platform_Window window, char *buf, size_t *length)
                     success = false;
                     re_load_firefox_element = false;
                 }
-                else if (win32_firefox_get_url_from_element(editbox, buf, PLATFORM_MAX_URL_LEN, length))
+                else if (win32_firefox_get_url_from_element(editbox, buf, max_url_len, length))
                 {
                     // Don't release element (try to reuse next time)
                     success = true;
@@ -897,7 +888,7 @@ platform_get_firefox_url(Platform_Window window, char *buf, size_t *length)
             {
                 success = false;
             }
-            else if (win32_firefox_get_url_from_element(element, buf, PLATFORM_MAX_URL_LEN, length))
+            else if (win32_firefox_get_url_from_element(element, buf, max_url_len, length))
             {
                 // Don't release element (try to reuse next time)
                 success = true;
@@ -1020,7 +1011,7 @@ win32_get_bitmap_data_from_HICON(HICON icon, s32 dimension, u32 *pixels)
 
 
 bool
-platform_get_default_icon(u32 desired_size, Bitmap *bitmap)
+win32_get_default_icon(u32 desired_size, Bitmap *bitmap)
 {
     // NOTE: You don't need to delete LoadIcon hicon
     bool success = false;
@@ -1043,7 +1034,7 @@ platform_get_default_icon(u32 desired_size, Bitmap *bitmap)
 }
 
 bool
-platform_get_icon_from_executable(char *path, u32 desired_size, Bitmap *bitmap, u32 *allocated_bitmap_memory)
+win32_get_icon_from_executable(char *path, u32 desired_size, Bitmap *bitmap, u32 *allocated_bitmap_memory)
 {
     Assert(allocated_bitmap_memory);
     
@@ -1087,7 +1078,7 @@ platform_get_icon_from_executable(char *path, u32 desired_size, Bitmap *bitmap, 
 }
 
 bool
-platform_show_other_instance_if_already_running(char *program_name)
+win32_show_other_instance_if_already_running(char *program_name)
 {
     HWND other_window = FindWindowA("SDL_app", program_name);
     if (other_window)
@@ -1101,7 +1092,7 @@ platform_show_other_instance_if_already_running(char *program_name)
 
 #if 0
 void
-platform_get_changed_window()
+win32_get_changed_window()
 {
     if (win32_context.window_changed)
     {
@@ -1166,7 +1157,7 @@ platform_get_changed_window()
         
         char buf[2000];
         size_t len;
-        if (platform_get_active_window(Platform_Window{foreground_win, true}, buf, &len))
+        if (win32_get_active_window(Platform_Window{foreground_win, true}, buf, &len))
         {
             String full_path = make_string_size_cap(buf, len, array_count(buf));
             String program_name = get_filename_from_path(full_path);

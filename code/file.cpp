@@ -2,8 +2,6 @@
 #include "monitor.h"
 #include <stdio.h>
 
-static constexpr char SaveFileName[] = "monitor_save.pmd";
-static constexpr char DebugSaveFileName[] = "debug_monitor_save.txt";
 static constexpr u32 MAGIC_NUMBER = 0xDACA571E;
 static constexpr u32 CURRENT_VERSION = 0;
 
@@ -267,74 +265,10 @@ get_string_from_block(char *string_block, u32 string_length, u32 *string_block_o
     return s;
 }
 
-bool file_exists(char *path)
-{
-    FILE *file = fopen(path, "rb");
-    if (file)
-    {
-        fclose(file);
-        return true;
-    }
-    
-    return false;
-}
-
-// TODO: Debug doesn't check if file exists etc
-s64 
-get_file_size(FILE *file)
-{
-    // Bad because messes with seek position
-    // TODO: Pretty sure it is bad to seek to end of file
-    fseek(file, 0, SEEK_END); // Not portable. TODO: Use os specific calls
-    long int size = ftell(file);
-    fseek(file, 0, SEEK_SET); // Not portable. TODO: Use os specific calls
-    return (s64) size;
-}
-
-struct Entire_File
-{
-    u8 *data;
-    size_t size;
-};
-
-Entire_File
-read_entire_file(char *file_name)
-{
-    Entire_File result = {};
-    
-    FILE *file = fopen(file_name, "rb");
-    if (file)
-    {
-        s64 file_size = get_file_size(file);
-        if (file_size > 0)
-        {
-            u8 *data = (u8 *)xalloc(file_size);
-            if (data)
-            {
-                if (fread(data, 1, file_size, file) == file_size)
-                {
-                    result.data = data;
-                    result.size = file_size;
-                }
-                else
-                {
-                    free(data);
-                }
-            }
-        }
-        
-        // I don't think it matters if this fails as we already have the file data
-        fclose(file);
-    }
-    
-    return result;
-}
-
-
 bool
 read_from_MBF(App_List *apps, Day_List *day_list, Settings *settings, char *file_name)
 {
-    Entire_File entire_file = read_entire_file(file_name);
+    Platform_Entire_File entire_file = platform_read_entire_file(file_name);
     defer(free(entire_file.data));
     
     if (entire_file.size < sizeof(MBF_Header)) 

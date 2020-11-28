@@ -32,6 +32,5 @@ Monitor_State
     App_List apps;
     Settings settings;
     
-    
     bool is_initialised;
 };
