@@ -1,39 +1,274 @@
 #pragma once
 
-// Modified from 4coder_string.h
+#include "base.h"
 
-#include <string.h> // just for strlen, could just implement
+//
+// NOTE:
+// In a string the null terminator doesn't count towards the length unless you use string_builder
+// and call NullTerminate(), or otherwise make one with it included.
+//
+// TODO: 
+// Correct handling of UTF8 strings
+// e.g. ToUpper
 
-// TODO: Last char function
 
-// probably don't even need a capacity
-
-struct String
+struct string
 {
-    char *str;
-    i32 length;
-    i32 capacity;
+    char *Str;
+    u64 Length;
     
-    char &operator[](size_t index)
+    const char &operator[](size_t Index) const
     {
-        Assert(index >= 0 && index < length);
-        return str[index];
+        Assert(Index >= 0 && Index < Length);
+        return Str[Index];
+    }
+    char &operator[](size_t Index)
+    {
+        Assert(Index >= 0 && Index < Length);
+        return Str[Index];
     }
 };
 
-typedef String CString;
+// It would be nice to be able to pass a c_string to a function expecting a string but NOT
+// be able to pass a string to a function expecting a c_string.
 
-template<size_t N>
-constexpr String make_const_string(const char (&a)[N])
+//typedef string c_string; /// c_string means must be null terminated. Good idea?
+struct c_string : public string
 {
-    return String{const_cast<char *>(a), N-1, N-1};
+    static constexpr bool IS_C_STRING = true;
+    // use using to make alias to string.Str etc
+};
+
+#define StringLiteral(lit) string{(lit), sizeof(lit) - 1} // Null terminator not included in Length
+
+char StringGetChar(string String, u64 Index)
+{
+    char Result = 0;
+    if (Index < String.Length)
+    {
+        Result = String.Str[Index];
+    }
+    
+    return Result;
 }
 
+// This doesn't count the null terminator as part of the length
+u64 StringLength(char *CString)
+{
+    u64 Length = 0; 
+    while (*CString) 
+    {
+        ++CString;
+        Length += 1;
+    }
+    
+    return Length;
+}
+
+string MakeString(char *CString)
+{
+    string Result;
+    Result.Str = CString;
+    Result.Length = StringLength(CString);
+    return Result;
+}
+
+bool StringEquals(string a, string b)
+{
+    bool Result = (a.Length == b.Length);
+    if (Result)
+    {
+        for (u32 i = 0; i < a.Length; ++i)
+        {
+            if (a.Str[i] != b.Str[i]) 
+            {
+                Result = false;
+                break;
+            }
+        }
+    }
+    
+    return Result;
+}
+
+bool IsUpper(char c)
+{
+    return (c >= 'A' && c <= 'Z');
+}
+
+bool IsLower(char c)
+{
+    return (c >= 'a' && c <= 'z');
+}
+
+bool IsAlpha()
+{
+    return IsLower(c) || IsUpper(c);
+}
+
+bool IsNumeric(char c)
+{
+    return (c >= '0' && c <= '9');
+}
+
+bool IsAlphaNumeric(char c)
+{
+    return IsAlpha(c) || IsNumeric(c);
+}
+
+char ToUpper(char c)
+{
+    return (IsUpper(c)) ? c - 32 : c;
+}
+
+char ToLower(char c)
+{
+    return (ToLower(c)) ? c + 32 : c;
+}
+
+string StringPrefix(string String, u64 n)
+{
+    String.Length = ClampTop(n, String->Length);
+    return String;
+}
+
+void StringSkip(string *String, u64 n)
+{
+    n = ClampTop(n, String->Length);
+    String->Str = String->Str + n;
+    String->Length -= n;
+}
+
+void StringChop(string *String, u64 n)
+{
+    n = ClampTop(n, String->Length);
+    String->Length -= n;
+}
+
+u64 StringFindChar(string String, char Char)
+{
+    u64 Position = String.Length;
+    for (u64 i = 0; i < String.Length; ++i)
+    {
+        if (String.Str[i] == Char)
+        {
+            Position = i;
+            break;
+        }
+    }
+    
+    return Position;
+}
+
+u64 StringFindCharReverse(string String, char Char)
+{
+    u64 Position = String.Length;
+    for (u64 i = String.Length - 1; i != 0; --i)
+    {
+        if (String.Str[i] == Char)
+        {
+            Position = i;
+            break;
+        }
+    }
+    
+    return Position;
+}
+
+s32 StringFindLastSlash(string Path)
+{
+    u64 Result = Path.Length;
+    for (u64 i = Path.Length - 1; i >= 0; --i)
+    {
+        if (Path.Str[i] == '\\' || Path.Str[i] == '/')
+        {
+            Result = i;
+            break;
+        }
+    }
+    
+    return Result;
+}
+
+void StringRemoveExtension(string *File)
+{
+    // Files can have multiple dots, and only last is the real extension.
+    
+    // If no dot is found Length stays the same
+    u64 DotPosition = StringReverseSearch(*File, '.');
+    File->Length = DotPosition;
+}
+
+// Returns length 0 string if Path has no filename
+string StringFilenameFromPath(string Path)
+{
+    u64 LastSlash = StringFindLastSlash(Path);
+    StringSuffix(&Path, LastSlash);
+    return Path;
+}
+
+
+// This requires that arena allocations are contiguous and no one else can use the arena
+// Not sure if this is a good idea, but we almost never actually need to build strings
+struct string_builder
+{
+    char *Memory;
+    u64 Length;
+    u64 Capacity;
+    
+    void Append(string NewString)
+    {
+        u64 Remaining = Capacity - Length;
+        if (NewString.Length <= Remaining)
+        {
+            char *p = Memory + Length;
+            for (u64 i = 0; i < NewString.Length; ++i)
+            {
+                *p++ = NewString[i];
+            }
+            
+            Length += NewString.Length;
+        }
+        else
+        {
+            Assert(0);
+        }
+    }
+    
+    // Null terminator counts as length in built string
+    void NullTerminate()
+    {
+        Assert(Capacity > Length);
+        
+        if (Memory[Length] != '\0')
+        {
+            Memory[Length] = '\0';
+            Length += 1;
+        }
+    }
+    
+    string GetString()
+    {
+        return string{Memory, Length};
+    }
+};
+
+string_builder StringBuilder(arena *Arena, u64 Capacity)
+{
+    string_builder Result;
+    Result.Memory = Allocate(Arena, Capacity, char);
+    Result.Length = 0;
+    Result.Capacity = Capacity;
+    return Result;
+}
+
+#if 0
 // should I say capacity == sizeof(lit)? we can't write to it but can make use of knowledge of null terminator
 // Encode null terminated with type system?
 // Must be a actual string literal not a char *array_of_str[] reference
-#define make_string_from_literal(lit) make_string((lit), sizeof(lit)-1)
+
 #define make_fixed_size_string(buf) make_string_size_cap((buf), 0, sizeof((buf)))
+
 
 String
 make_string_size_cap(void *str, i32 size, i32 capacity)
@@ -66,6 +301,8 @@ make_string(void *str, i32 size)
     s.capacity = size;
     return s;
 }
+
+
 
 String
 substr(String parent, i32 offset)
@@ -197,19 +434,6 @@ string_equals(String a, char *b)
 }
 
 
-bool
-string_equals(String a, String b)
-{
-    if (a.length != b.length) return false;
-    
-    for (i32 i = 0; i < a.length; ++i)
-    {
-        if (a.str[i] != b.str[i]) return false;
-    }
-    
-    return true;
-}
-
 
 
 i32
@@ -242,30 +466,6 @@ search_for_char(String str, i32 offset, char c)
     }
     
     return -1;
-}
-
-bool
-is_upper(char c)
-{
-    return (c >= 'A' && c <= 'Z');
-}
-
-bool
-is_lower(char c)
-{
-    return (c >= 'a' && c <= 'z');
-}
-
-char
-to_upper(char c)
-{
-    return (is_lower(c)) ? c - 32 : c;
-}
-
-char
-to_lower(char c)
-{
-    return (is_upper(c)) ? c + 32 : c;
 }
 
 bool
@@ -407,25 +607,6 @@ get_filename_from_path(String path)
     return result;
 }
 
-void
-remove_extension(String *file)
-{
-    // Do reverse find because files can have multiple dots, and only last is the real extension I think.
-    i32 dot_pos = file->length;
-    for (i32 i = file->length-1; i >= 0; --i)
-    {
-        if (file->str[i] == '.')
-        {
-            dot_pos = i;
-            break;
-        }
-    }
-    // If file is only ".exe" with nothing before extension size == 0
-    // If no dots length stays the same
-    // If there is a dot, the string is clipped to before the dot
-    file->length = dot_pos;
-}
-
 bool
 string_is_null_terminated(String s)
 {
@@ -437,3 +618,4 @@ string_is_null_terminated(String s)
     
     return is_null_terminated;
 }
+#endif

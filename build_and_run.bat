@@ -10,7 +10,7 @@ goto bad
 
 :good
    echo Success
-   build\monitor.exe
+   build\three_dee.exe
    goto end
 
 :bad

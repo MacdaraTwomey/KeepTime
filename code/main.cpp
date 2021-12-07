@@ -29,6 +29,8 @@
 
 int main(int argc, char* argv[])
 {
+    
+    printf("OPEN\n");
     ZoneScoped;
     
     // Only function that should be called before platform init context

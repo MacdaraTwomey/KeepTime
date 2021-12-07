@@ -1,3 +1,5 @@
+
+#if 0
 #include <unordered_map>
 
 #include "cian.h"
@@ -171,48 +173,89 @@ debug_add_records(App_List *apps, Day_List *day_list, date::sys_days cur_date)
     }
 }
 
-size_t
-scheme_length(String url)
+string UrlParseScheme(string *Url)
 {
     // "A URL-scheme string must be one ASCII alpha, followed by zero or more of ASCII alphanumeric, U+002B (+), U+002D (-), and U+002E (.)" - https://url.spec.whatwg.org/#url-scheme-string
     // such as http, file, dict
-    // can have file:///c:/ in which case host will still have /c:/ in front of it, but this is fine we only handle http(s) type urls
     
-    size_t len = 0;
-    for (size_t i = 0; i < url.length - 2; ++i)
+    u64 SchemeLength = 0;
+    
+    u64 ColonPos = StringFindChar(*Url, ':');
+    if (ColonPos < Url->Length)
     {
-        char c = url.str[i];
-        if (c == ':' && url.str[i+1] == '/' && url.str[i+2] == '/')
+        for (u64 i = 0; i < ColonPos; ++i)
         {
-            len = i + 3;
-            break;
+            char c = StringGetChar(*Url, i);
+            if (!(IsAlphaNumeric(c) || c == '+' || c == '-' || c == '.'))
+            {
+                // non_valid scheme string character
+                SchemeLength = 0;
+                break;
+            }
         }
         
-        if (!(is_upper(c) || is_lower(c) || c == '+' || c == '-' || c == '.'))
+        if (!IsAlpha(StringGetChar(*Url, 0)))
         {
-            // non_valid scheme string character
-            break;
+            SchemeLength = 0;
         }
     }
     
-    return len;
+    string Scheme = StringPrefix(*Url, SchemeLength);
+    StringSkip(Url, SchemeLength + 1); // skip scheme and ':'
+    
+    return Scheme;
 }
 
-String
-extract_domain_name(String url)
+string UrlParseAuthority(string *Url)
+{
+    // If Authority present then path must start with a slash
+    u64 NextSlashPos = StringFindChar(*Url, '/');
+    string Authority = StringPrefix(*Url, NextSlashPos);
+    return Authority;
+}
+
+string UrlParseHostFromAuthority(string Authority)
+{
+    // authority = [userinfo "@"] host [":" port]
+    
+    // Enclosed by square brackets
+    if (StringGetChar(Authority, 0) == '[')
+    {
+        StringSkip(&Authority, 1);
+        if (StringGetChar(Authority, Authority.Length - 1) == ']'))
+        {
+            StringChop(&Authority, 1);
+        }
+        else
+        {
+            // Error missing ']'
+            // But we try and parse the rest anyway
+        }
+    }
+    
+    // Skip optional userinfo before Host
+    u64 AtPos = StringFindChar(Authority, '@');
+    if (AtPos < Authority->Length)
+    {
+        StringSkip(&Authority, AtPos + 1); 
+    }
+    
+    // Remove optional port after host
+    u64 ColonPos = StringFindChar(Host, ':');
+    string Host = StringPrefix(&Authority, ColonPos); 
+    
+    return Host;
+}
+
+string UrlParseHost(String Url)
 {
     // Other good reference: https://github.com/curl/curl/blob/master/lib/urlapi.c
-    
     // From wikipedia: (where [component] means optional)
     
-    // URI       = scheme:[//authority]path[?query][#fragment]
-    // authority = [userinfo@]host[:port]
+    // Browsers are must more permissive than spec 
     
     // host must be a hostname or a IP address
     // IPv4 addresses must be in dot-decimal notation, and IPv6 addresses must be enclosed in brackets ([]).
-    
-    // A path may be empty consisting of two slashes (//)
-    // If an authority component is absent, then the path cannot begin with an empty segment, that is with two slashes (//), because it could be confused with an authority.
     
     // UTF8 URLs are possible
     // Web and Internet software automatically convert the __domain name__ into punycode usable by the Domain Name System
@@ -221,101 +264,44 @@ extract_domain_name(String url)
     
     // The __path name__ can also be encoded using percent encoding, but we don't care about path component here
     
-    // NOTE: URL could just be gibberish (page wan't loaded and user was just typing in url bar)
-    
-    // path slash after host can also be omitted and instead end in query '?' like  http://www.url.com?id=2380
-    // This is not valid but may occur and seems to be accepted by broswer
+    // URL could just be gibberish (page wan't loaded and user was just typing in url bar)
     
     // Browsers also accept multiple slashes where there should be one in path
     
-    // If this finds a port number or username password or something, when there is no http://, then it just wont satisfy other double-slash condition.
+    string Host = {};
     
-    if (search_for_char(url, 0, ' ') != -1)
+    if (!StringFindChar(Url, ' '))
     {
-        // Found an invalid char in url (space)
-        String result;
-        result.str = url.str;
-        result.capacity = 0;
-        result.length = 0;
-        return result;
-    }
-    
-    // We don't handle weird urls very well, or file:// 
-    size_t start = scheme_length(url);
-    
-    if (start >= url.length)
-    {
-        // URl is only a scheme
-        String result;
-        result.str = url.str;
-        result.capacity = 0;
-        result.length = 0;
-        return result;
-    }
-    
-    // Look for end of host
-    s32 slash_end = search_for_char(url, start, '/');
-    s32 question_mark_end = search_for_char(url, start, '?');
-    if (slash_end == -1) slash_end = url.length;
-    if (question_mark_end == -1) question_mark_end = url.length;
-    
-    s32 end = std::min(slash_end, question_mark_end) - 1; // -1 to get last char of url or one before / or ?
-    String authority = substr_range(url, start, end);
-    if (authority.length > 0)
-    {
-        // If authority has a '@' (or ':') it has a userinfo (or port) before (or after) it
+        // Ensure no invalid spaces in URL
         
-        // userinfo followed by at symbol
-        s32 host_start = 0;
-        s32 at_symbol = search_for_char(authority, host_start, '@');
-        if (at_symbol != -1) host_start = at_symbol + 1;
-        
-        // port preceded by colon
-        s32 host_end = authority.length - 1;
-        s32 port_colon = search_for_char(authority, host_start, ':');
-        if (port_colon != -1) host_end = port_colon - 1;
-        
-        if (host_end - host_start >= 1)
+        string Scheme = UrlParseScheme(&Url);
+        if (StringEquals(Scheme, StringLiteral("https")) || 
+            StringEquals(Scheme, StringLiteral("http")))
         {
-            // Check against valid characters so if user was just typing in garbage into URL bar, then clicked away, we won't think its a domain.
-            String domain = substr_range(authority, host_start, host_end);
-            
-            bool good_domain = true;
-            for (u32 i = 0; i < domain.length; ++i)
+            // URI = scheme ":" ["//" authority] path ["?" query] ["#" fragment]
+            // Path may or may not start with slash, or can be empty resulting in two slashes "//"
+            // If the authority component is absent then the path cannot begin with an empty segment "//"
+            bool ExpectAuthority = (StringGetChar(Url, 0) == '/') && StringGetChar(Url, 1) == '/');
+            if (ExpectAuthority)
             {
-                char c = domain[i];
-                if (!(isalnum(c) || c == '-' || c == '.'))
-                {
-                    good_domain = false;
-                    break;
-                }
-            }
-            
-            if (domain[0] == '.' || domain[domain.length-1] == '.')
-            {
-                good_domain = false;
-            }
-            
-            s32 period_offset = search_for_char(domain, 0, '.');
-            if (period_offset == -1)
-            {
-                // If no sub domains stuff then probably bad
-                good_domain = false;
+                StringSkip(*Url, 2);
+                string Authority = UrlParseAuthority(*Url);
+                //StringSkip(*Url, Authority.Length);
                 
+                Host = UrlParseHostFromAuthority(Authority);
+                
+                // Expect 1 or 2 slashes after host
             }
-            
-            
-            if (good_domain) return domain;
+            else
+            {
+                // Expect 0 or 1 slashes after
+            }
         }
     }
     
-    String result;
-    result.str = url.str;
-    result.capacity = 0;
-    result.length = 0;
-    
-    return result;
+    return Host;
 }
+
 
 App_Id
 poll_windows(App_List *apps, Settings *settings)
@@ -385,9 +371,8 @@ poll_windows(App_List *apps, Settings *settings)
 }
 
 
-
 void
-update(Monitor_State *state, SDL_Window *window, s64 dt_microseconds, Window_Event window_event)
+update2(Monitor_State *state, SDL_Window *window, s64 dt_microseconds, Window_Event window_event)
 {
     ZoneScoped;
     
@@ -540,4 +525,161 @@ update(Monitor_State *state, SDL_Window *window, s64 dt_microseconds, Window_Eve
     }
     
 }
+#endif
 
+
+#include "platform.h"
+#include "base.h"
+#include "date.h"
+#include "monitor_string.h"
+
+struct monitor_state
+{
+    bool IsInitialised;
+    
+    arena PermanentArena;
+    arena TemporaryArena;
+};
+
+date::sys_days
+GetLocalTime()
+{
+    time_t rawtime;
+    time( &rawtime );
+    
+    // Looks in TZ database, not threadsafe
+    struct tm *info;
+    info = localtime( &rawtime );
+    auto now = date::sys_days{
+        date::month{(unsigned)(info->tm_mon + 1)}/date::day{(unsigned)info->tm_mday}/date::year{info->tm_year + 1900}};
+    
+    return now;
+}
+
+
+void PollWindows(arena *Arena)
+{
+    platform_window_handle Window = PlatformGetActiveWindow();
+    if (Window == 0)
+    {
+        
+    }
+    
+    char *ProgramPathCString = PlatformGetProgramFromWindow(Arena, Window);
+    if (ProgramPathCString == nullptr)
+    {
+        
+    }
+    
+    string ProgramPath = MakeString(ProgramPathCString);
+    string Filename = StringFilenameFromPath(ProgramPath);
+    StringRemoveExtension(&Filename);
+    if (Filename.Length == 0)
+    {
+        
+    }
+    
+    if (StringEquals(Filename, StringLiteral("firefox")))
+    {
+        char *UrlCString = PlatformFirefoxGetUrl(Arena, Window);
+        string Url = MakeString(UrlCString);
+        string Host = UrlParseHost(Url);
+        if (Host.Length > 0)
+        {
+            
+        }
+    }
+    
+}
+
+
+void Update(monitor_state *State, s64 dtMicroseconds)
+{
+    date::sys_days Date = GetLocalTime();
+    
+    if (!State->IsInitialised)
+    {
+        //create_world_icon_source_file("c:\\dev\\projects\\monitor\\build\\world.png", "c:\\dev\\projects\\monitor\\code\\world_icon.cpp", ICON_SIZE);
+        
+        
+        // Do i need this to construct all vectors etc, as opposed to just zeroed memory?
+        *State = {};
+        
+        u32 Alignment = 8;
+        State->PermanentArena = MakeArena(MB(100), Alignment);
+        State->TemporaryArena = MakeArena(KB(64), Alignment);
+        
+        temp_memory TempMemory = BeginTempArena(&State->TemporaryArena);
+        
+        char *ExecutablePath = PlatformGetExecutablePath(&State->TemporaryArena );
+        string ExeDirectory = MakeString(ExecutablePath);
+        if (ExeDirectory.Length == 0)
+        {
+            Assert(0);
+        }
+        
+        StringPrefix(&ExeDirectory, StringFindLastSlash(ExeDirectory) + 1);
+        
+        string SaveFileName = StringLiteral("savefile.mbf");
+        string TempSaveFileName = StringLiteral("temp_savefile.mbf");
+        
+        // or just pass allocator?
+        string_builder FileBuilder = StringBuilder(&State->PermanentArena, ExeDirectory.Length + SaveFileName.Length + 1); 
+        FileBuilder.Append(ExeDirectory);
+        FileBuilder.Append(SaveFileName);
+        FileBuilder.NullTerminate();
+        string SaveFilePath = FileBuilder.GetString();
+        
+        string_builder TempFileBuilder = StringBuilder(&State->PermanentArena, ExeDirectory.Length + TempSaveFileName.Length + 1); 
+        TempFileBuilder.Append(ExeDirectory);
+        TempFileBuilder.Append(TempSaveFileName);
+        TempFileBuilder.NullTerminate();
+        string TempSaveFilePath = TempFileBuilder.GetString();
+        
+        if (PlatformFileExists(&State->TemporaryArena, SaveFilePath.Str))
+        {
+            //if (read_from_MBF(apps, day_list, settings, State->savefile_path))
+        }
+        else
+        {
+            //apps->local_program_ids = std::unordered_map<String, App_Id>(50);
+            //apps->website_ids       = std::unordered_map<String, App_Id>(50);
+            
+            // Can be used with temp_arena or arena
+            
+            //apps->local_programs.reserve(50);
+            //apps->websites.reserve(50);
+            //apps->next_program_id = LOCAL_PROGRAM_ID_START;
+            //apps->next_website_id = WEBSITE_ID_START;
+            
+            //init_arena(&apps->name_arena, Kilobytes(10), Kilobytes(10));
+            //init_arena(&day_list->record_arena, MAX_DAILY_RECORDS_MEMORY_SIZE, MAX_DAILY_RECORDS_MEMORY_SIZE);
+            //init_arena(&settings->keyword_arena, MAX_KEYWORD_COUNT * MAX_KEYWORD_SIZE);
+            
+            // add fake days before current_date
+#if FAKE_RECORDS
+            debug_add_records(apps, day_list, current_date);
+#endif
+            //start_new_day(day_list, current_date);
+            
+            //settings->misc = Misc_Options::default_misc_options();
+            
+            // Keywords must be null terminated when given to platform gui
+            //add_keyword(settings, "CITS3003");
+            //add_keyword(settings, "youtube");
+            //add_keyword(settings, "docs.microsoft");
+            //add_keyword(settings, "google");
+            //add_keyword(settings, "github");
+        }
+        
+        State->IsInitialised = true;
+        
+        EndTempMemory(TempMemory);
+    }
+    
+    //app_id ID = PollOpenWindow();
+    
+    
+    CheckArena(&State->PermanentArena);
+    CheckArena(&State->TemporaryArena);
+}

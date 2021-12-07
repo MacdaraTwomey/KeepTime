@@ -13,27 +13,27 @@ patterns = {
 };
 
 load_paths = {
-  {  { {".", .relative = true, .recursive = false, },
-	   {"code", .relative = true, .recursive = false, },
-       {"build", .relative = true, .recursive = false, },
-       //{"imgui", .relative = true, .recursive = false, } 
-     }, .os = "win"},
+    {  { {".", .relative = true, .recursive = false, },
+            {"code", .relative = true, .recursive = false, },
+            {"build", .relative = true, .recursive = false, },
+            //{"imgui", .relative = true, .recursive = false, } 
+        }, .os = "win"},
 };
 
 // dont want cursor at end for build because this puts you on the last error
 command_list = {
-  { .name = "build",
-    .out = "*compilation*", .footer_panel = true, .save_dirty_files = true, .cursor_at_end = false,
-    .cmd = { { "build.bat", .os = "win"}, },
-  },
-  { .name = "run",
-    .out = "*run*", .footer_panel = true, .save_dirty_files = false, .cursor_at_end = true,
-    .cmd = { { "build\monitor.exe", .os = "win"}, },
-  },
-  { .name = "build_and_run",
-    .out = "*compilation*", .footer_panel = true, .save_dirty_files = true, .cursor_at_end = false,
-    .cmd = { { "build_and_run.bat", .os = "win"}, },
-  },
+    { .name = "build",
+        .out = "*compilation*", .footer_panel = true, .save_dirty_files = true, .cursor_at_end = false,
+        .cmd = { { "build.bat", .os = "win"}, },
+    },
+    { .name = "run",
+        .out = "*run*", .footer_panel = true, .save_dirty_files = false, .cursor_at_end = true,
+        .cmd = { { "build\monitor.exe", .os = "win"}, },
+    },
+    { .name = "build_and_run",
+        .out = "*compilation*", .footer_panel = true, .save_dirty_files = true, .cursor_at_end = false,
+        .cmd = { { "build_and_run.bat", .os = "win"}, },
+    },
 };
 
 fkey_command[1] = "build";
