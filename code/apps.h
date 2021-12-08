@@ -68,20 +68,9 @@ namespace std {
     };
 }
 
-struct Record
-{
-    // Could add a 32-bit date in here without changing size in memory
-    App_Id id;
-    s64 duration; // microseconds
-};
-// might want to set with attention paid to arena size, and extra size that is added etc
-constexpr u32 MAX_DAILY_RECORDS = 1000;
-constexpr u32 MAX_DAILY_RECORDS_MEMORY_SIZE = MAX_DAILY_RECORDS * sizeof(Record); 
-
 struct Day
 {
     Record *records;
-    date::sys_days date;
     u32 record_count;
 };
 

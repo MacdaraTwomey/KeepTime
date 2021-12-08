@@ -191,6 +191,7 @@ get_local_program_app_id(App_List *apps, String short_name, String full_name)
     
     return result;
 }
+
 App_Id
 get_website_app_id(App_List *apps, String short_name)
 {

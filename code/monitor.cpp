@@ -1,177 +1,53 @@
 
-#if 0
-#include <unordered_map>
-
-#include "cian.h"
+#include "platform.h"
+#include "base.h"
+#include "date.h"
 #include "monitor_string.h"
-#include "graphics.h"
-#include "icon.h"
 #include "helper.h"
 
-#include "date.h"
-
-#include "monitor.h"
-#include "platform.h"
-
-#include "resources/source_code_pro.cpp"
-#include "resources/world_icon.cpp"
-
-#include "helper.cpp"
-#include "bitmap.cpp"
-#include "apps.cpp"
-#include "file.cpp"
-#include "date_picker.cpp"
-#include "icon.cpp" 
-#include "ui.cpp"
-
-
-Icon_Asset *
-get_app_icon_asset(App_List *apps, UI_State *ui, App_Id id)
+typedef u32 app_id;
+enum app_type
 {
-    if (is_website(id))
-    {
-        //get_favicon_from_website(url);
-        
-        Icon_Asset *default_icon = &ui->icons[DEFAULT_WEBSITE_ICON_INDEX];
-        Assert(default_icon->texture_handle != 0);
-        return default_icon;
-    }
-    
-    if (is_local_program(id))
-    {
-        u32 id_index = index_from_id(id);
-        if (id_index >= ui->icon_indexes.size())
-        {
-            ui->icon_indexes.resize(id_index + 1, -1); // insert -1 at the end of array to n=id_index+1 slots
-        }
-        
-        s32 *icon_index = &ui->icon_indexes[id_index];
-        if (*icon_index == -1)
-        {
-            String path = apps->local_programs[id_index].full_name;
-            Assert(path.length > 0);
-            
-            Bitmap bitmap = {};
-            bool success = platform_get_icon_from_executable(path.str, ICON_SIZE, &bitmap, ui->icon_bitmap_storage);
-            if (success)
-            {
-                // TODO: Maybe mark old paths that couldn't get correct icon for deletion or to stop trying to get icon, or assign a default invisible icon
-                *icon_index = load_icon_asset(ui->icons, bitmap);
-                Assert(*icon_index > 1);
-                return &ui->icons[*icon_index];
-            }
-        }
-        else
-        {
-            // Icon already loaded
-            Assert(*icon_index < ui->icons.size());
-            Icon_Asset *icon = &ui->icons[*icon_index];
-            Assert(icon->texture_handle != 0);
-            return icon;
-        }
-    }
-    
-    Icon_Asset *default_icon = &ui->icons[DEFAULT_LOCAL_PROGRAM_ICON_INDEX];
-    Assert(default_icon->texture_handle != 0);
-    return default_icon;
-}
+    NONE = 0,
+    PROGRAM = 1, // Program IDs do not have the most significant bit set
+    WEBSITE = 2, // Website IDs have the most significant bit set
+};
 
-
-void
-debug_add_records(App_List *apps, Day_List *day_list, date::sys_days cur_date)
+struct app_info
 {
-    static char *website_names[] = {
-        "teachyourselfcs.com",
-        "trello.com",
-        "github.com",
-        "ukulelehunt.com",
-        "forum.ukuleleunderground.com",
-        "soundcloud.com",
-        "www.a1k0n.net",
-        "ocw.mit.edu",
-        "artsandculture.google.com",
-        "abcdefghijklmnopqrstuvwxyz1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ!@#$%^&*[]-+_=();',./",
-        "QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQA",
-    };
-    
-    static char *exes[] = {
-#include "..\\build\\exes_with_icons.txt"
-    };
-    static int count = array_count(exes);
-    
-#if 0
-    // Write file
-    static char *base  = SDL_GetBasePath();
-    snprintf(filename, array_count(filename), "%sexes_with_icons.txt", base);
-    
-    FILE *file = fopen(filename, "w");
-    Assert(file);
-    
-    SDL_free(base);
-    
-    for (int i = 0; i < count; ++i)
+    app_type Type;
+    union
     {
-        Bitmap bmp = {};
-        u32 *mem = (u32 *)malloc(ICON_SIZE*ICON_SIZE*4);;
-        if (platform_get_icon_from_executable(exes[i], 32, &bmp, mem))
-        {
-            char buf[2000];
-            snprintf(buf, 2000, "\"%s\",\n", exes[i]);
-            fputs(buf, file);
-        }
-        free(mem);
-    }
+        string ProgramPath; 
+        string WebsiteHost;
+        string Name; // For referencing app's path or host in a non-specific way
+    };
+};
+
+constexpr u32 APP_TYPE_BIT_INDEX = 31;
+
+struct record
+{
+    app_id ID;
+    date::sys_days Date; // days since 2000 or something...
+    u64 DurationMicroseconds; 
+};
+
+static_assert(sizeof(date::sys_days) == 4, ""); // check size
+
+struct monitor_state
+{
+    bool IsInitialised;
     
-    fclose(file);
-#endif
+    arena PermanentArena;
+    arena TemporaryArena;
     
+    hash_table AppTable;
+    u32 CurrentID;
     
-    char **names = exes;
-    int num_names = count;
-    //char **names = some_names;
-    //int num_names = array_count(some_names);
-    int num_local_programs = rand_between(1, 6);
-    int num_websites = rand_between(1, 3);
-    
-    // Should be no days in day list
-    Assert(day_list->days.size() == 0);
-    
-    date::sys_days start  = cur_date - date::days{400};
-    
-    for (date::sys_days d = start; d < cur_date; d += date::days{1})
-    {
-        start_new_day(day_list, d);
-        
-        int n = num_local_programs;
-        for (int j = 0; j < n; ++j)
-        {
-            int name_idx = rand_between(0, num_names - 1);
-            int dt_microsecs = rand_between(0, MICROSECS_PER_SEC * 3);
-            
-            String full_path = make_string_size_cap(names[name_idx], strlen(names[name_idx]), strlen(names[name_idx]));
-            String program_name = get_filename_from_path(full_path);
-            Assert(program_name.length != 0);
-            
-            remove_extension(&program_name);
-            Assert(program_name.length != 0);
-            
-            App_Id record_id = get_local_program_app_id(apps, program_name, full_path);
-            add_or_update_record(day_list, record_id, dt_microsecs);
-        }
-        
-        n = num_websites;
-        for (int j = 0; j < n; ++j)
-        {
-            int name_idx = rand_between(0, array_count(website_names) - 1);
-            int dt_microsecs = rand_between(0, MICROSECS_PER_SEC * 2);
-            
-            String domain_name = make_string_size_cap(website_names[name_idx], strlen(website_names[name_idx]), strlen(website_names[name_idx]));
-            
-            App_Id record_id = get_website_app_id(apps, domain_name);
-            add_or_update_record(day_list, record_id, dt_microsecs);
-        }
-    }
-}
+    record *Records;
+    u64 RecordCount;
+};
 
 string UrlParseScheme(string *Url)
 {
@@ -222,7 +98,7 @@ string UrlParseHostFromAuthority(string Authority)
     if (StringGetChar(Authority, 0) == '[')
     {
         StringSkip(&Authority, 1);
-        if (StringGetChar(Authority, Authority.Length - 1) == ']'))
+        if (StringGetChar(Authority, Authority.Length - 1) == ']')
         {
             StringChop(&Authority, 1);
         }
@@ -235,19 +111,19 @@ string UrlParseHostFromAuthority(string Authority)
     
     // Skip optional userinfo before Host
     u64 AtPos = StringFindChar(Authority, '@');
-    if (AtPos < Authority->Length)
+    if (AtPos < Authority.Length)
     {
         StringSkip(&Authority, AtPos + 1); 
     }
     
     // Remove optional port after host
-    u64 ColonPos = StringFindChar(Host, ':');
-    string Host = StringPrefix(&Authority, ColonPos); 
+    u64 ColonPos = StringFindChar(Authority, ':');
+    string Host = StringPrefix(Authority, ColonPos); 
     
     return Host;
 }
 
-string UrlParseHost(String Url)
+string UrlParseHost(string Url)
 {
     // Other good reference: https://github.com/curl/curl/blob/master/lib/urlapi.c
     // From wikipedia: (where [component] means optional)
@@ -270,10 +146,9 @@ string UrlParseHost(String Url)
     
     string Host = {};
     
+    // Ensure no invalid spaces in URL
     if (!StringFindChar(Url, ' '))
     {
-        // Ensure no invalid spaces in URL
-        
         string Scheme = UrlParseScheme(&Url);
         if (StringEquals(Scheme, StringLiteral("https")) || 
             StringEquals(Scheme, StringLiteral("http")))
@@ -281,11 +156,11 @@ string UrlParseHost(String Url)
             // URI = scheme ":" ["//" authority] path ["?" query] ["#" fragment]
             // Path may or may not start with slash, or can be empty resulting in two slashes "//"
             // If the authority component is absent then the path cannot begin with an empty segment "//"
-            bool ExpectAuthority = (StringGetChar(Url, 0) == '/') && StringGetChar(Url, 1) == '/');
+            bool ExpectAuthority = (StringGetChar(Url, 0) == '/') && (StringGetChar(Url, 1) == '/');
             if (ExpectAuthority)
             {
-                StringSkip(*Url, 2);
-                string Authority = UrlParseAuthority(*Url);
+                StringSkip(&Url, 2);
+                string Authority = UrlParseAuthority(&Url);
                 //StringSkip(*Url, Authority.Length);
                 
                 Host = UrlParseHostFromAuthority(Authority);
@@ -301,6 +176,283 @@ string UrlParseHost(String Url)
     
     return Host;
 }
+
+date::sys_days
+GetLocalTime()
+{
+    time_t rawtime;
+    time( &rawtime );
+    
+    // Looks in TZ database, not threadsafe
+    struct tm *info;
+    info = localtime( &rawtime );
+    auto now = date::sys_days{
+        date::month{(unsigned)(info->tm_mon + 1)}/date::day{(unsigned)info->tm_mday}/date::year{info->tm_year + 1900}};
+    
+    return now;
+}
+
+void SetBit(u32 *A, u32 BitIndex)
+{
+    Assert(BitIndex < 32);
+    *A |= (1 << BitIndex);
+}
+
+u32 GetBit(u32 A, u32 BitIndex)
+{
+    Assert(BitIndex < 32);
+    return A & (1 << BitIndex);
+}
+
+app_id GenerateAppID(u32 *CurrentID, app_type AppType)
+{
+    Assert(*CurrentID != 0);
+    Assert(*CurrentID < (1 << APP_TYPE_BIT_INDEX));
+    
+    app_id ID = *CurrentID++;
+    if (AppType == app_type::WEBSITE) SetBit(&ID, APP_TYPE_BIT_INDEX); 
+    
+    return ID;
+}
+
+app_info GetActiveAppInfo(arena *Arena)
+{
+    app_info AppInfo = {app_type::NONE};
+    
+    platform_window_handle Window = PlatformGetActiveWindow();
+    if (Window)
+    {
+        char *ProgramPathCString = PlatformGetProgramFromWindow(Arena, Window);
+        if (ProgramPathCString)
+        {
+            string ProgramPath = MakeString(ProgramPathCString);
+            string Filename = StringFilenameFromPath(ProgramPath);
+            StringRemoveExtension(&Filename);
+            if (Filename.Length)
+            {
+                AppInfo.Type = app_type::PROGRAM;
+                AppInfo.ProgramPath = ProgramPath;
+                
+                if (StringEquals(Filename, StringLiteral("firefox")))
+                {
+                    char *UrlCString = PlatformFirefoxGetUrl(Arena, Window);
+                    string Url = MakeString(UrlCString);
+                    string Host = UrlParseHost(Url);
+                    if (Host.Length > 0)
+                    {
+                        AppInfo.Type = app_type::WEBSITE;
+                        AppInfo.WebsiteHost = Host;
+                    }
+                }
+            }
+        }
+    }
+    
+    return AppInfo;
+}
+
+app_id GetAppID(arena *Arena, hash_table *AppTable, u32 *CurrentID, app_info Info)
+{
+    app_id ID = 0;
+    
+    // Share hash table
+    hash_node *Slot = AppTable->GetItemSlot(Info.Name);
+    if (!Slot)
+    {
+        // Error no space in hash table (should never realistically happen)
+        // Return ID of NULL App?
+        Assert(0);
+    }
+    else if (AppTable->ItemExists(Slot))
+    {
+        ID = Slot->Value;
+    }
+    else 
+    {
+        ID = GenerateAppID(CurrentID, Info.Type);
+        
+        // Copy string
+        string AppName = PushString(Arena, Info.Name);
+        AppTable->AddItem(Slot, AppName, ID);
+    }
+    
+    Assert((Info.Type == app_type::PROGRAM && ((ID & (1 << APP_TYPE_BIT_INDEX)) == 0)) ||
+           (Info.Type == app_type::WEBSITE && ((ID & (1 << APP_TYPE_BIT_INDEX)) != 0)));
+    
+    return ID;
+}
+
+
+void AddOrUpdateRecord(record *Records, u64 *RecordCount, app_id ID, date::sys_days Date, s64 DurationMicroseconds)
+{
+    // Loop backwards searching through Records with passed Date for record marching our ID
+    for (u64 RecordIndex = *RecordCount - 1; 
+         RecordIndex != static_cast<u64>(-1); 
+         --RecordIndex)
+    {
+        record *ExistingRecord = Records + RecordIndex;
+        if (ExistingRecord->Date != Date)
+        {
+            // No matching ID in the Records in this Date
+            record *NewRecord = Records + *RecordCount;
+            NewRecord->ID = ID;
+            NewRecord->Date = Date;
+            NewRecord->DurationMicroseconds = DurationMicroseconds;
+            
+            *RecordCount += 1;
+            break;
+        }
+        
+        if (ExistingRecord->ID == ID)
+        {
+            ExistingRecord->DurationMicroseconds += DurationMicroseconds;
+            break;
+        }
+    }
+}
+
+void Update(monitor_state *State, s64 dtMicroseconds)
+{
+    date::sys_days Date = GetLocalTime();
+    
+    if (!State->IsInitialised)
+    {
+        //create_world_icon_source_file("c:\\dev\\projects\\monitor\\build\\world.png", "c:\\dev\\projects\\monitor\\code\\world_icon.cpp", ICON_SIZE);
+        
+        
+        // Do i need this to construct all vectors etc, as opposed to just zeroed memory?
+        *State = {};
+        
+        u32 Alignment = 8;
+        State->PermanentArena = MakeArena(MB(100), Alignment);
+        State->TemporaryArena = MakeArena(KB(64), Alignment);
+        
+        temp_memory TempMemory = BeginTempArena(&State->TemporaryArena);
+        
+        char *ExecutablePath = PlatformGetExecutablePath(&State->TemporaryArena );
+        string ExeDirectory = MakeString(ExecutablePath);
+        if (ExeDirectory.Length == 0)
+        {
+            Assert(0);
+        }
+        
+        ExeDirectory = StringPrefix(ExeDirectory, StringFindLastSlash(ExeDirectory) + 1);
+        
+        string SaveFileName = StringLiteral("savefile.mbf");
+        string TempSaveFileName = StringLiteral("temp_savefile.mbf");
+        
+        // or just pass allocator?
+        string_builder FileBuilder = StringBuilder(&State->PermanentArena, ExeDirectory.Length + SaveFileName.Length + 1); 
+        FileBuilder.Append(ExeDirectory);
+        FileBuilder.Append(SaveFileName);
+        FileBuilder.NullTerminate();
+        string SaveFilePath = FileBuilder.GetString();
+        
+        string_builder TempFileBuilder = StringBuilder(&State->PermanentArena, ExeDirectory.Length + TempSaveFileName.Length + 1); 
+        TempFileBuilder.Append(ExeDirectory);
+        TempFileBuilder.Append(TempSaveFileName);
+        TempFileBuilder.NullTerminate();
+        string TempSaveFilePath = TempFileBuilder.GetString();
+        
+        if (PlatformFileExists(&State->TemporaryArena, SaveFilePath.Str))
+        {
+            //if (read_from_MBF(apps, day_list, settings, State->savefile_path))
+        }
+        else
+        {
+            //apps->local_program_ids = std::unordered_map<String, App_Id>(50);
+            //apps->website_ids       = std::unordered_map<String, App_Id>(50);
+            
+            // Can be used with temp_arena or arena
+            
+            //apps->local_programs.reserve(50);
+            //apps->websites.reserve(50);
+            //apps->next_program_id = LOCAL_PROGRAM_ID_START;
+            //apps->next_website_id = WEBSITE_ID_START;
+            
+            //init_arena(&apps->name_arena, Kilobytes(10), Kilobytes(10));
+            //init_arena(&day_list->record_arena, MAX_DAILY_RECORDS_MEMORY_SIZE, MAX_DAILY_RECORDS_MEMORY_SIZE);
+            //init_arena(&settings->keyword_arena, MAX_KEYWORD_COUNT * MAX_KEYWORD_SIZE);
+            
+            // add fake days before current_date
+#if FAKE_RECORDS
+            debug_add_records(apps, day_list, current_date);
+#endif
+            //start_new_day(day_list, current_date);
+            
+            //settings->misc = Misc_Options::default_misc_options();
+            
+            // Keywords must be null terminated when given to platform gui
+            //add_keyword(settings, "CITS3003");
+            //add_keyword(settings, "youtube");
+            //add_keyword(settings, "docs.microsoft");
+            //add_keyword(settings, "google");
+            //add_keyword(settings, "github");
+        }
+        
+        // We won't have many programs but may have many websites
+        // 24 byte entries * 10000 Entries = 240 KB
+        u64 AppTableItemCount = 10000;
+        State->AppTable = MakeHashTable(&State->PermanentArena, AppTableItemCount); 
+        
+        State->CurrentID = 1; // Leave ID 0 unused
+        
+        u64 MaxRecordCount = 100000;
+        State->Records = Allocate(&State->PermanentArena, MaxRecordCount, record);
+        State->RecordCount = 0;
+        
+        State->IsInitialised = true;
+        
+        EndTempMemory(TempMemory);
+    }
+    
+    temp_memory TempMemory = BeginTempArena(&State->TemporaryArena);
+    
+    app_info AppInfo = GetActiveAppInfo(&State->TemporaryArena);
+    if (AppInfo.Type != NONE)
+    {
+        app_id ID = GetAppID(&State->PermanentArena, &State->AppTable, &State->CurrentID, AppInfo);
+        if (ID)
+        {
+            u64 MaxRecordCount = 100000;
+            Assert(State->RecordCount < MaxRecordCount);
+            AddOrUpdateRecord(State->Records, &State->RecordCount, ID, Date, dtMicroseconds);
+        }
+    }
+    
+    EndTempMemory(TempMemory);
+    
+    CheckArena(&State->PermanentArena);
+    CheckArena(&State->TemporaryArena);
+}
+
+
+#if 0
+
+#include <unordered_map>
+
+#include "cian.h"
+#include "monitor_string.h"
+#include "graphics.h"
+#include "icon.h"
+#include "helper.h"
+
+#include "date.h"
+
+#include "monitor.h"
+#include "platform.h"
+
+#include "resources/source_code_pro.cpp"
+#include "resources/world_icon.cpp"
+
+#include "helper.cpp"
+#include "bitmap.cpp"
+#include "apps.cpp"
+#include "file.cpp"
+#include "date_picker.cpp"
+#include "icon.cpp" 
+#include "ui.cpp"
+
 
 
 App_Id
@@ -525,161 +677,155 @@ update2(Monitor_State *state, SDL_Window *window, s64 dt_microseconds, Window_Ev
     }
     
 }
-#endif
 
 
-#include "platform.h"
-#include "base.h"
-#include "date.h"
-#include "monitor_string.h"
-
-struct monitor_state
+Icon_Asset *
+get_app_icon_asset(App_List *apps, UI_State *ui, App_Id id)
 {
-    bool IsInitialised;
-    
-    arena PermanentArena;
-    arena TemporaryArena;
-};
-
-date::sys_days
-GetLocalTime()
-{
-    time_t rawtime;
-    time( &rawtime );
-    
-    // Looks in TZ database, not threadsafe
-    struct tm *info;
-    info = localtime( &rawtime );
-    auto now = date::sys_days{
-        date::month{(unsigned)(info->tm_mon + 1)}/date::day{(unsigned)info->tm_mday}/date::year{info->tm_year + 1900}};
-    
-    return now;
-}
-
-
-void PollWindows(arena *Arena)
-{
-    platform_window_handle Window = PlatformGetActiveWindow();
-    if (Window == 0)
+    if (is_website(id))
     {
+        //get_favicon_from_website(url);
         
+        Icon_Asset *default_icon = &ui->icons[DEFAULT_WEBSITE_ICON_INDEX];
+        Assert(default_icon->texture_handle != 0);
+        return default_icon;
     }
     
-    char *ProgramPathCString = PlatformGetProgramFromWindow(Arena, Window);
-    if (ProgramPathCString == nullptr)
+    if (is_local_program(id))
     {
-        
-    }
-    
-    string ProgramPath = MakeString(ProgramPathCString);
-    string Filename = StringFilenameFromPath(ProgramPath);
-    StringRemoveExtension(&Filename);
-    if (Filename.Length == 0)
-    {
-        
-    }
-    
-    if (StringEquals(Filename, StringLiteral("firefox")))
-    {
-        char *UrlCString = PlatformFirefoxGetUrl(Arena, Window);
-        string Url = MakeString(UrlCString);
-        string Host = UrlParseHost(Url);
-        if (Host.Length > 0)
+        u32 id_index = index_from_id(id);
+        if (id_index >= ui->icon_indexes.size())
         {
+            ui->icon_indexes.resize(id_index + 1, -1); // insert -1 at the end of array to n=id_index+1 slots
+        }
+        
+        s32 *icon_index = &ui->icon_indexes[id_index];
+        if (*icon_index == -1)
+        {
+            String path = apps->local_programs[id_index].full_name;
+            Assert(path.length > 0);
             
-        }
-    }
-    
-}
-
-
-void Update(monitor_state *State, s64 dtMicroseconds)
-{
-    date::sys_days Date = GetLocalTime();
-    
-    if (!State->IsInitialised)
-    {
-        //create_world_icon_source_file("c:\\dev\\projects\\monitor\\build\\world.png", "c:\\dev\\projects\\monitor\\code\\world_icon.cpp", ICON_SIZE);
-        
-        
-        // Do i need this to construct all vectors etc, as opposed to just zeroed memory?
-        *State = {};
-        
-        u32 Alignment = 8;
-        State->PermanentArena = MakeArena(MB(100), Alignment);
-        State->TemporaryArena = MakeArena(KB(64), Alignment);
-        
-        temp_memory TempMemory = BeginTempArena(&State->TemporaryArena);
-        
-        char *ExecutablePath = PlatformGetExecutablePath(&State->TemporaryArena );
-        string ExeDirectory = MakeString(ExecutablePath);
-        if (ExeDirectory.Length == 0)
-        {
-            Assert(0);
-        }
-        
-        StringPrefix(&ExeDirectory, StringFindLastSlash(ExeDirectory) + 1);
-        
-        string SaveFileName = StringLiteral("savefile.mbf");
-        string TempSaveFileName = StringLiteral("temp_savefile.mbf");
-        
-        // or just pass allocator?
-        string_builder FileBuilder = StringBuilder(&State->PermanentArena, ExeDirectory.Length + SaveFileName.Length + 1); 
-        FileBuilder.Append(ExeDirectory);
-        FileBuilder.Append(SaveFileName);
-        FileBuilder.NullTerminate();
-        string SaveFilePath = FileBuilder.GetString();
-        
-        string_builder TempFileBuilder = StringBuilder(&State->PermanentArena, ExeDirectory.Length + TempSaveFileName.Length + 1); 
-        TempFileBuilder.Append(ExeDirectory);
-        TempFileBuilder.Append(TempSaveFileName);
-        TempFileBuilder.NullTerminate();
-        string TempSaveFilePath = TempFileBuilder.GetString();
-        
-        if (PlatformFileExists(&State->TemporaryArena, SaveFilePath.Str))
-        {
-            //if (read_from_MBF(apps, day_list, settings, State->savefile_path))
+            Bitmap bitmap = {};
+            bool success = platform_get_icon_from_executable(path.str, ICON_SIZE, &bitmap, ui->icon_bitmap_storage);
+            if (success)
+            {
+                // TODO: Maybe mark old paths that couldn't get correct icon for deletion or to stop trying to get icon, or assign a default invisible icon
+                *icon_index = load_icon_asset(ui->icons, bitmap);
+                Assert(*icon_index > 1);
+                return &ui->icons[*icon_index];
+            }
         }
         else
         {
-            //apps->local_program_ids = std::unordered_map<String, App_Id>(50);
-            //apps->website_ids       = std::unordered_map<String, App_Id>(50);
-            
-            // Can be used with temp_arena or arena
-            
-            //apps->local_programs.reserve(50);
-            //apps->websites.reserve(50);
-            //apps->next_program_id = LOCAL_PROGRAM_ID_START;
-            //apps->next_website_id = WEBSITE_ID_START;
-            
-            //init_arena(&apps->name_arena, Kilobytes(10), Kilobytes(10));
-            //init_arena(&day_list->record_arena, MAX_DAILY_RECORDS_MEMORY_SIZE, MAX_DAILY_RECORDS_MEMORY_SIZE);
-            //init_arena(&settings->keyword_arena, MAX_KEYWORD_COUNT * MAX_KEYWORD_SIZE);
-            
-            // add fake days before current_date
-#if FAKE_RECORDS
-            debug_add_records(apps, day_list, current_date);
-#endif
-            //start_new_day(day_list, current_date);
-            
-            //settings->misc = Misc_Options::default_misc_options();
-            
-            // Keywords must be null terminated when given to platform gui
-            //add_keyword(settings, "CITS3003");
-            //add_keyword(settings, "youtube");
-            //add_keyword(settings, "docs.microsoft");
-            //add_keyword(settings, "google");
-            //add_keyword(settings, "github");
+            // Icon already loaded
+            Assert(*icon_index < ui->icons.size());
+            Icon_Asset *icon = &ui->icons[*icon_index];
+            Assert(icon->texture_handle != 0);
+            return icon;
         }
-        
-        State->IsInitialised = true;
-        
-        EndTempMemory(TempMemory);
     }
     
-    //app_id ID = PollOpenWindow();
-    
-    
-    CheckArena(&State->PermanentArena);
-    CheckArena(&State->TemporaryArena);
+    Icon_Asset *default_icon = &ui->icons[DEFAULT_LOCAL_PROGRAM_ICON_INDEX];
+    Assert(default_icon->texture_handle != 0);
+    return default_icon;
 }
+
+
+void
+debug_add_records(App_List *apps, Day_List *day_list, date::sys_days cur_date)
+{
+    static char *website_names[] = {
+        "teachyourselfcs.com",
+        "trello.com",
+        "github.com",
+        "ukulelehunt.com",
+        "forum.ukuleleunderground.com",
+        "soundcloud.com",
+        "www.a1k0n.net",
+        "ocw.mit.edu",
+        "artsandculture.google.com",
+        "abcdefghijklmnopqrstuvwxyz1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ!@#$%^&*[]-+_=();',./",
+        "QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQA",
+    };
+    
+    static char *exes[] = {
+#include "..\\build\\exes_with_icons.txt"
+    };
+    static int count = array_count(exes);
+    
+#if 0
+    // Write file
+    static char *base  = SDL_GetBasePath();
+    snprintf(filename, array_count(filename), "%sexes_with_icons.txt", base);
+    
+    FILE *file = fopen(filename, "w");
+    Assert(file);
+    
+    SDL_free(base);
+    
+    for (int i = 0; i < count; ++i)
+    {
+        Bitmap bmp = {};
+        u32 *mem = (u32 *)malloc(ICON_SIZE*ICON_SIZE*4);;
+        if (platform_get_icon_from_executable(exes[i], 32, &bmp, mem))
+        {
+            char buf[2000];
+            snprintf(buf, 2000, "\"%s\",\n", exes[i]);
+            fputs(buf, file);
+        }
+        free(mem);
+    }
+    
+    fclose(file);
+#endif
+    
+    
+    char **names = exes;
+    int num_names = count;
+    //char **names = some_names;
+    //int num_names = array_count(some_names);
+    int num_local_programs = rand_between(1, 6);
+    int num_websites = rand_between(1, 3);
+    
+    // Should be no days in day list
+    Assert(day_list->days.size() == 0);
+    
+    date::sys_days start  = cur_date - date::days{400};
+    
+    for (date::sys_days d = start; d < cur_date; d += date::days{1})
+    {
+        start_new_day(day_list, d);
+        
+        int n = num_local_programs;
+        for (int j = 0; j < n; ++j)
+        {
+            int name_idx = rand_between(0, num_names - 1);
+            int dt_microsecs = rand_between(0, MICROSECS_PER_SEC * 3);
+            
+            String full_path = make_string_size_cap(names[name_idx], strlen(names[name_idx]), strlen(names[name_idx]));
+            String program_name = get_filename_from_path(full_path);
+            Assert(program_name.length != 0);
+            
+            remove_extension(&program_name);
+            Assert(program_name.length != 0);
+            
+            App_Id record_id = get_local_program_app_id(apps, program_name, full_path);
+            add_or_update_record(day_list, record_id, dt_microsecs);
+        }
+        
+        n = num_websites;
+        for (int j = 0; j < n; ++j)
+        {
+            int name_idx = rand_between(0, array_count(website_names) - 1);
+            int dt_microsecs = rand_between(0, MICROSECS_PER_SEC * 2);
+            
+            String domain_name = make_string_size_cap(website_names[name_idx], strlen(website_names[name_idx]), strlen(website_names[name_idx]));
+            
+            App_Id record_id = get_website_app_id(apps, domain_name);
+            add_or_update_record(day_list, record_id, dt_microsecs);
+        }
+    }
+}
+
+
+#endif

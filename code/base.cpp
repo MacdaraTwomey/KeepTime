@@ -133,6 +133,13 @@ char *PushCString(arena *Arena, char *String)
     return Memory;
 }
 
+string PushString(arena *Arena, string String)
+{
+    char *StringData = (char *)PushCopy(Arena, String.Str, String.Length);
+    string Result = MakeString(StringData, String.Length);
+    return Result;
+}
+
 // TODO:
 void PopSize(arena *Arena, u64 Pos)
 {

@@ -73,6 +73,14 @@ string MakeString(char *CString)
     return Result;
 }
 
+string MakeString(char *StringData, u64 Length)
+{
+    string Result;
+    Result.Str = StringData;
+    Result.Length = Length;
+    return Result;
+}
+
 bool StringEquals(string a, string b)
 {
     bool Result = (a.Length == b.Length);
@@ -101,7 +109,7 @@ bool IsLower(char c)
     return (c >= 'a' && c <= 'z');
 }
 
-bool IsAlpha()
+bool IsAlpha(char c)
 {
     return IsLower(c) || IsUpper(c);
 }
@@ -118,17 +126,17 @@ bool IsAlphaNumeric(char c)
 
 char ToUpper(char c)
 {
-    return (IsUpper(c)) ? c - 32 : c;
+    return IsUpper(c) ? c - 32 : c;
 }
 
 char ToLower(char c)
 {
-    return (ToLower(c)) ? c + 32 : c;
+    return IsLower(c) ? c + 32 : c;
 }
 
 string StringPrefix(string String, u64 n)
 {
-    String.Length = ClampTop(n, String->Length);
+    String.Length = ClampTop(n, String.Length);
     return String;
 }
 
@@ -195,7 +203,7 @@ void StringRemoveExtension(string *File)
     // Files can have multiple dots, and only last is the real extension.
     
     // If no dot is found Length stays the same
-    u64 DotPosition = StringReverseSearch(*File, '.');
+    u64 DotPosition = StringFindCharReverse(*File, '.');
     File->Length = DotPosition;
 }
 
@@ -203,7 +211,7 @@ void StringRemoveExtension(string *File)
 string StringFilenameFromPath(string Path)
 {
     u64 LastSlash = StringFindLastSlash(Path);
-    StringSuffix(&Path, LastSlash);
+    StringSkip(&Path, LastSlash + 1);
     return Path;
 }
 

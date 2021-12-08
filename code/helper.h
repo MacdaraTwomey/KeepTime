@@ -1,24 +1,5 @@
 #pragma once
 
-#include <type_traits>
-
-struct Block
-{
-    u64 size;
-    u64 used;
-    u8 *buffer;
-    Block *prev;
-};
-static_assert(sizeof(Block) == 32, ""); // For 8 byte alignment of buffer after block
-
-
-struct Arena
-{
-    // NOTE: Arena does not align allocations because it each arena is only used for one type, so remains aligned
-    Block *block;
-    u64 minimum_extra_size; // extra allocated whenever a new block is created
-};
-
 template<typename T, size_t N>
 struct Array
 {
@@ -46,45 +27,31 @@ struct Array
 unsigned long djb2(unsigned char *str);
 unsigned long djb2(unsigned char *str, size_t len);
 
-struct Hash_Node
+struct hash_node
 {
-    char *key;
-    u32 value;
+    // Programs can use only long name rather than both lond and short, and if needed can have
+    // auxillary cache storing program short names if we don't want to re-extract them.
+    string Key;
+    u32 Value;
+    u32 Occupancy;
 };
 
-struct Hash_Table
+// TODO: Do we need deletion
+struct hash_table
 {
-    static constexpr u64 DEFAULT_TABLE_SIZE = 128;
     static constexpr u8 EMPTY = 0;
-    static constexpr u8 DELETED = 1;
+    static constexpr u8 DELETED = 1; // Needed for open addressing for an Insert to know to keep probing 
     static constexpr u8 OCCUPIED = 2;
     
-    s64 count;
-    s64 size;
-    Hash_Node *buckets;
-    u8 *occupancy;
+    hash_node *Buckets;
+    u64 Count;
+    u64 Size;
+    //u8 *Occupancy;
     
-    s64 add_item(char *key, u32 value);
-    bool search(char *key, u32 *value);
-    void remove(char *key);
-    char *get_key_by_value(u32 value);
-    private:
-    void grow_table();
+    hash_node *GetItemSlot(string Key);
+    bool ItemExists(hash_node *Node);
+    void AddItem(hash_node *Node, string Key, u32 Value);
 };
-
-struct String_Builder
-{
-    char *str;
-    size_t capacity;
-    size_t len; // Length not including null terminator
-    
-    void grow(size_t min_amount);
-    void append(char *new_str);
-    void appendf(char *new_str, ...);
-    void add_bytes(char *new_str, size_t len); // Will add all bytes of string of size len (including extra null terminators you insert)
-    void clear();
-};
-
 
 // TODO: Do you really need rear index, or is just count enough
 template<typename T>

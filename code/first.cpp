@@ -21,6 +21,8 @@
 #include "base.h"
 #include "platform.h"
 #include "monitor_string.h"
+#include "helper.h"
+#include "helper.cpp"
 #include "base.cpp"
 #include "monitor.cpp"
 
