@@ -56,39 +56,6 @@ add_or_update_record(Day_List *day_list, App_Id id, s64 dt)
     }
 }
 
-void 
-add_keyword(Settings *settings, char *str)
-{
-    Assert(strlen(str) < MAX_KEYWORD_SIZE);
-    Assert(settings->keywords.count < MAX_KEYWORD_COUNT);
-    
-    String keyword = push_string(&settings->keyword_arena, str);
-    settings->keywords.add_item(keyword);
-}
-void 
-add_keyword(Settings *settings, String str)
-{
-    Assert(str.length < MAX_KEYWORD_SIZE);
-    Assert(settings->keywords.count < MAX_KEYWORD_COUNT);
-    
-    
-    String keyword = push_string(&settings->keyword_arena, str);
-    settings->keywords.add_item(keyword);
-}
-
-void
-apply_new_settings(Settings *settings, Edit_Settings *edit_settings, s32 pending_keyword_count)
-{
-    settings->keywords.clear();
-    reset_arena(&settings->keyword_arena);
-    for (int i = 0; i < pending_keyword_count; ++i)
-    {
-        add_keyword(settings, edit_settings->pending[i]);
-    }
-    
-    settings->misc = edit_settings->misc;
-}
-
 Day_View
 get_day_view(Day_List *day_list)
 {
@@ -245,21 +212,3 @@ get_app_count(App_List *apps)
     return count;
 }
 #endif
-
-bool
-string_matches_keyword(String string, Array<String, MAX_KEYWORD_COUNT> &keywords)
-{
-    for (i32 i = 0; i < keywords.count; ++i)
-    {
-        if (search_for_substr(string, 0, keywords[i]) != -1)
-        {
-            // TODO: Maybe cache last few keywords, if it doesn't match cache?
-            // maybe shuffle others down to avoid first and last being swapped and re-swapped repeatedly.
-            // However, don't really want to change order of keywords in the settings window. So maybe settings should be able to change it's order but also has a array on index values that it maintains so it can copy into edit_settings in original order.
-            
-            return true;
-        }
-    }
-    
-    return false;
-}

@@ -18,7 +18,7 @@ struct platform_file_contents
 };
 
 // Seems that all sizes work except 16 and except larger sizes (64 works though)
-constexpr u32 ICON_SIZE = 32;
+constexpr u32 PLATFORM_ICON_SIZE = 32;
 struct bitmap
 {
     // Top Down bitmap with a positive height
@@ -41,7 +41,7 @@ bool PlatformFileExists(arena *Arena, char * Filename);
 s64 PlatformGetFileSize(FILE * file);
 platform_file_contents PlatformReadEntireFile(char * FileName);
 void *PlatformMemoryReserve(u64 Size);
-void *PlatformMemoryCommit(void *Address, u64 size);
+bool PlatformMemoryCommit(void *Address, u64 size);
 void PlatformMemoryDecommit(void *Address, u64 Size);
 void PlatformMemoryFree(void *Address);
 

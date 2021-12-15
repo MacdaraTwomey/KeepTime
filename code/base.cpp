@@ -17,12 +17,13 @@
 // Default alignment of 8 is questionable, maybe default to 4, and allow passing in alignment
 
 #define PAGE_SIZE 4096
-#define DEFAULT_RESERVE_SIZE GB(1)
-#define DEFAULT_COMMIT_SIZE MB(8)
+#define COMMIT_GROW_SIZE MB(2)
 
 // TODO: Make Better
 void MemoryCopy(u64 Size, void *Source, void *Dest)
 {
+    Assert((Size > 0 && Source != nullptr && Dest != nullptr) || (Size == 0 && Dest == nullptr && Dest == nullptr));
+    
     u8 *SourceByte = (u8 *)Source;
     u8 *DestByte = (u8 *)Dest;
     for (u64 i = 0; i < Size; ++i)
@@ -33,6 +34,9 @@ void MemoryCopy(u64 Size, void *Source, void *Dest)
 
 void MemoryZero(u64 Size, void *Memory)
 {
+    Assert((Size > 0 && Memory != nullptr) || 
+           (Size == 0 && Memory == nullptr));
+    
     u8 *Byte = (u8 *)Memory;
     for (u64 i = 0; i < Size; ++i)
     {
@@ -50,49 +54,74 @@ u64 AlignUp(u64 Value, u64 Align)
     
     // Add maximum alignment amount (align - 1)
     // Then round off what we don't need by applying mask
-    return (Value + Align - 1) & ~(Align - 1);
+    u64 AlignMask = Align - 1;
+    return (Value + AlignMask) & ~AlignMask;
 }
 
-u8 *AlignUp(u8 *Ptr, u64 Align)
+arena CreateArena(u64 CommitSize, u64 ReserveSize)
 {
-    return (u8 *)AlignUp((u64)Ptr, Align);
-}
-
-arena MakeArena(u64 Size, u32 Alignment)
-{
-    size_t InitalCommitSize = AlignUp(Size, PAGE_SIZE);
+    Assert(CommitSize >= ReserveSize);
+    
+    u64 AlignedCommitSize = AlignUp(CommitSize, PAGE_SIZE);
+    u64 AlignedReserveSize = AlignUp(ReserveSize, PAGE_SIZE);
     
     // To reserve 1 GB it takes about 2 MB of memory for the page tables.
-    
-    void *Memory = PlatformMemoryReserve(DEFAULT_RESERVE_SIZE);
-    
-    // Can be used with temp_arena or arena
-    
+    void *Memory = PlatformMemoryReserve(AlignedReserveSize);
     Assert(Memory);
     
-    void *MemoryCommited = PlatformMemoryCommit(Memory, InitalCommitSize);
-    
-    Assert(MemoryCommited);
-    Assert(Memory == MemoryCommited);
-    
-    arena Arena;
-    Arena.Base = (u8 *)Memory;
-    Arena.Pos = 0;
-    Arena.CommitPos = InitalCommitSize;
+    arena Arena = {};
+    if (PlatformMemoryCommit(Memory, AlignedCommitSize))
+    {
+        Arena.Base = (u8 *)Memory;
+        Arena.Pos = 0;
+        Arena.Commit = AlignedCommitSize;
+        Arena.Capacity = AlignedReserveSize;
+        Arena.TempCount = 0;
+    }
     
     return Arena;
 }
 
-arena MakeArena(u64 Size)
+void FreeArena(arena *Arena)
 {
-    return MakeArena(Size, 8);
+    PlatformMemoryFree(Arena->Base);
+    *Arena = {};
 }
 
-arena MakeArena()
+arena *BootstrapArena(u64 CommitSize, u64 ReserveSize)
 {
-    return MakeArena(DEFAULT_COMMIT_SIZE);
+    arena *Arena = nullptr;
+    
+    Assert(CommitSize >= sizeof(Arena));
+    
+    u64 AlignedCommitSize = AlignUp(CommitSize, PAGE_SIZE);
+    u64 AlignedReserveSize = AlignUp(ReserveSize, PAGE_SIZE);
+    
+    // To reserve 1 GB it takes about 2 MB of memory for the page tables.
+    void *Memory = PlatformMemoryReserve(AlignedReserveSize);
+    Assert(Memory);
+    
+    if (PlatformMemoryCommit(Memory, AlignedCommitSize))
+    {
+        Arena = (arena *)Memory;
+        Arena->Base = (u8 *)Memory;
+        Arena->Pos = sizeof(arena);
+        Arena->Commit = AlignedCommitSize;
+        Arena->Capacity = AlignedReserveSize;
+        Arena->TempCount = 0;
+    }
+    
+    return Arena;
 }
 
+void *CheckTypeAlignment(void *Ptr, u32 Alignment)
+{
+    Assert(IsPowerOfTwo(Alignment));
+    Assert(((u64)Ptr & (Alignment - 1)) == 0);
+    return Ptr;
+}
+
+#if 0
 void *PushSize(arena *Arena, u64 Size)
 {
     Assert(Size != 0);
@@ -104,7 +133,7 @@ void *PushSize(arena *Arena, u64 Size)
     if (Size > Remaining)
     {
         // Align up and overflow past our current page aligned capcity commit mark then adde extra free space
-        size_t CommitSize = AlignUp(Size - Remaining, PAGE_SIZE) + DEFAULT_COMMIT_SIZE;
+        u64 CommitSize = AlignUp(Size - Remaining, PAGE_SIZE) + COMMIT_GROW_SIZE; // needs clamping
         u8 *StartOfNextCommit= Arena->Base + Arena->CommitPos;
         
         Assert(Arena->CommitPos + CommitSize <= DEFAULT_RESERVE_SIZE);
@@ -118,10 +147,57 @@ void *PushSize(arena *Arena, u64 Size)
     
     return Result;
 }
+#endif
 
+// It is not really necessary to properly align allocations on modern x64 processors (unless you are doing SIMD)
+// It may be undefined behaviour to access an unaligned type, but we are already ignoring strict aliasing.
+// So it would be nice to disable this assuming alignment behaviour.
+void *PushSize(arena *Arena, u64 Size, u32 Alignment, u8 ArenaPushFlags)
+{
+    Assert(Size != 0);
+    
+    u8 *Result = nullptr;
+    u64 AlignedPos = AlignUp(Arena->Pos, Alignment);
+    u64 NewPos = AlignedPos + Size;
+    
+    if (NewPos < Arena->Capacity)
+    {
+        if (NewPos > Arena->Commit)
+        {
+            u64 RequiredSize = Arena->Commit - NewPos;
+            u64 CommitSize = AlignUp(RequiredSize + COMMIT_GROW_SIZE, PAGE_SIZE);
+            CommitSize = ClampTop(CommitSize, Arena->Capacity);
+            u8 *StartOfNextCommit = Arena->Base + Arena->Commit;
+            if (PlatformMemoryCommit(StartOfNextCommit, CommitSize))
+            {
+                // Disable clear to zero as OS will clear for us
+                ArenaPushFlags &= ~ArenaPushFlags_ClearToZero; 
+                Arena->Commit += CommitSize;
+            }
+        }
+        
+        if (NewPos <= Arena->Commit)
+        {
+            Result = Arena->Base + AlignedPos;
+            Arena->Pos = NewPos;
+        }
+    }
+    
+    // TODO: Could return pointer to stub of preallocated memory on failure then set some arena error flag
+    Assert(Result);
+    
+    if (ArenaPushFlags & ArenaPushFlags_ClearToZero)
+    {
+        MemoryZero(Size, Result);
+    }
+    
+    return Result;
+}
+
+// Defaults to alignment of 4 bytes 
 void *PushCopy(arena *Arena, void *Source, u64 Size)
 {
-    void *Memory = PushSize(Arena, Size);
+    void *Memory = PushSize(Arena, Size, 4, ArenaPushFlags_None);
     MemoryCopy(Size, Source, Memory);
     return Memory;
 }
@@ -136,8 +212,17 @@ char *PushCString(arena *Arena, char *String)
 string PushString(arena *Arena, string String)
 {
     char *StringData = (char *)PushCopy(Arena, String.Str, String.Length);
-    string Result = MakeString(StringData, String.Length);
-    return Result;
+    return MakeString(StringData, String.Length);
+}
+
+// Make a new null terminated string
+string PushStringNullTerminated(arena *Arena, string String)
+{
+    u64 Length = String.Length;
+    char *StringData = (char *)PushSize(Arena, Length + 1, 4, ArenaPushFlags_None);
+    MemoryCopy(Length, String.Str, StringData);
+    StringData[Length] = 0;
+    return MakeString(StringData, String.Length);
 }
 
 // TODO:
@@ -151,6 +236,8 @@ void PopSize(arena *Arena, u64 Pos)
 
 temp_memory BeginTempArena(arena *Arena)
 {
+    Assert(Arena->TempCount == 0); // Assume this until I find a good way to have multiple
+    
     temp_memory Temp = {};
     Temp.Arena = Arena;
     Temp.StartPos = Arena->Pos; 
@@ -167,6 +254,8 @@ void EndTempMemory(temp_memory TempMemory)
     
     Arena->Pos = TempMemory.StartPos;
     Arena->TempCount -= 1;
+    
+    Assert(Arena->TempCount == 0); // Assume this until I find a good way to have multiple
 }
 
 void CheckArena(arena *Arena)

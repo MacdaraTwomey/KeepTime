@@ -3,8 +3,8 @@
 // Licenced under the Open Font Licence.
 // Converted to a text file.
 
-const unsigned int SourceSansProRegular_compressed_size = 149392;
-const unsigned int SourceSansProRegular_compressed_data[149392 / 4] =
+const unsigned int SourceSansProRegularCompressedSize= 149392;
+const unsigned int SourceSansProRegularCompressedData[149392 / 4] =
 {
     0x0000bc57, 0x00000000, 0x7ce00300, 0x00000400, 0x00010037, 0x000f0000, 0x00030080, 0x53414270, 0x5d1e6545, 0x2d0200bd, 0x241582fc, 0x49534446,
     0x24078247, 0xe0030001, 0x08078274, 0x4447083c, 0x21f74645, 0x020092fb, 0x0000442e, 0x50478c03, 0xfa43534f, 0x0200f527, 0x0100d031, 0x53477a5c,

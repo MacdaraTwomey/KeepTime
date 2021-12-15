@@ -16,13 +16,13 @@
 // Options could make like 2000 entry table with open addressing and data inline
 // Or could make the hash table smaller and use a use linked lists for collisions solving run out of room problem
 
-hash_table MakeHashTable(arena *Arena, u64 MaximumItems)
+string_map CreateStringMap(arena *Arena, u64 MaximumItems)
 {
-    hash_table Table = {};
-    Table.Buckets = Allocate(Arena, MaximumItems, hash_node);
-    Table.Count = 0;
-    Table.Size = MaximumItems;
-    return Table;
+    string_map Map = {};
+    Map.Entries = Allocate(Arena, MaximumItems, string_map_entry);
+    Map.Count = 0;
+    Map.Size = MaximumItems;
+    return Map;
 }
 
 // TODO Better hash function 
@@ -38,27 +38,27 @@ unsigned long djb2(unsigned char *str, size_t len)
     return hash;
 }
 
-hash_node *hash_table::GetItemSlot(string Key)
+string_map_entry *StringMapGet(string_map *Map, string Key)
 {
-    u64 StartIndex = (u64)djb2((unsigned char *)Key.Str, Key.Length) % Size;
+    u64 StartIndex = (u64)djb2((unsigned char *)Key.Str, Key.Length) % Map->Size;
     
-    hash_node *Result = nullptr;
-    for (u64 i = 0; i < Size; ++i)
+    string_map_entry *Result = nullptr;
+    for (u64 i = 0; i < Map->Size; ++i)
     {
-        u64 Index = (StartIndex + i) % Size;
-        if (Buckets[Index].Occupancy == OCCUPIED)
+        u64 Index = (StartIndex + i) % Map->Size;
+        if (Map->Entries[Index].Occupancy == string_map::OCCUPIED)
         {
-            if (StringEquals(Key, Buckets[Index].Key))
+            if (StringsAreEqual(Key, Map->Entries[Index].Key))
             {
                 // Found matching item
-                Result = &Buckets[Index];
+                Result = &Map->Entries[Index];
                 break;
             }
         }
-        else if (Buckets[Index].Occupancy == EMPTY)
+        else if (Map->Entries[Index].Occupancy == string_map::EMPTY)
         {
             // Found Empty slot
-            Result = &Buckets[Index];
+            Result = &Map->Entries[Index];
             break;
         }
         // If current slot deleted keep looking
@@ -67,26 +67,26 @@ hash_node *hash_table::GetItemSlot(string Key)
     return Result;
 }
 
-bool hash_table::ItemExists(hash_node *Node)
+bool StringMapEntryExists(string_map_entry *Entry)
 {
-    return Node->Occupancy == OCCUPIED;
+    return Entry->Occupancy == string_map::OCCUPIED;
 }
 
-void hash_table::AddItem(hash_node *Node, string Key, u32 Value)
+void StringMapAdd(string_map *Map, string_map_entry *Entry, string Key, u32 Value)
 {
-    Node->Key = Key;
-    Node->Value = Value;
-    Node->Occupancy = OCCUPIED;
+    Entry->Key = Key;
+    Entry->Value = Value;
+    Entry->Occupancy = string_map::OCCUPIED;
     
-    Count += 1;
+    Map->Count += 1;
 }
 
 #if 0
-hash_node *hash_table::GetItem(string Key)
+string_map_entry *string_map::GetItem(string Key)
 {
     u64 StartIndex = (u64)djb2((unsigned char *)Key.Str, Key.Length) % Size;
     
-    hash_node *Result = nullptr;
+    string_map_entry *Result = nullptr;
     for (u64 i = StartIndex; i < Size; ++i)
     {
         u64 Index = i % Size;

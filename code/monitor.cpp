@@ -1,83 +1,49 @@
 
-#include "platform.h"
 #include "base.h"
-#include "date.h"
+#include "platform.h"
 #include "monitor_string.h"
+#include "date.h"
 #include "helper.h"
+#include "monitor.h"
 
-typedef u32 app_id;
-enum app_type
+bool UrlSchemeIsValid(string Scheme)
 {
-    NONE = 0,
-    PROGRAM = 1, // Program IDs do not have the most significant bit set
-    WEBSITE = 2, // Website IDs have the most significant bit set
-};
-
-struct app_info
-{
-    app_type Type;
-    union
+    bool IsValid = IsAlpha(StringGetChar(Scheme, 0));
+    if (IsValid)
     {
-        string ProgramPath; 
-        string WebsiteHost;
-        string Name; // For referencing app's path or host in a non-specific way
-    };
-};
-
-constexpr u32 APP_TYPE_BIT_INDEX = 31;
-
-struct record
-{
-    app_id ID;
-    date::sys_days Date; // days since 2000 or something...
-    u64 DurationMicroseconds; 
-};
-
-static_assert(sizeof(date::sys_days) == 4, ""); // check size
-
-struct monitor_state
-{
-    bool IsInitialised;
+        for (u64 i = 0; i < Scheme.Length; ++i)
+        {
+            char c = Scheme[i];
+            bool ValidChar = IsAlphaNumeric(c) || c == '+' || c == '-' || c == '.';
+            if (!ValidChar)
+            {
+                IsValid = false;
+                break;
+            }
+        }
+    }
     
-    arena PermanentArena;
-    arena TemporaryArena;
-    
-    hash_table AppTable;
-    u32 CurrentID;
-    
-    record *Records;
-    u64 RecordCount;
-};
+    return IsValid;
+}
 
 string UrlParseScheme(string *Url)
 {
     // "A URL-scheme string must be one ASCII alpha, followed by zero or more of ASCII alphanumeric, U+002B (+), U+002D (-), and U+002E (.)" - https://url.spec.whatwg.org/#url-scheme-string
     // such as http, file, dict
     
-    u64 SchemeLength = 0;
+    string Scheme = {};
     
     u64 ColonPos = StringFindChar(*Url, ':');
     if (ColonPos < Url->Length)
     {
-        for (u64 i = 0; i < ColonPos; ++i)
+        u64 SchemeLength = ColonPos;
+        string TestScheme = StringPrefix(*Url, SchemeLength);
+        if (UrlSchemeIsValid(TestScheme))
         {
-            char c = StringGetChar(*Url, i);
-            if (!(IsAlphaNumeric(c) || c == '+' || c == '-' || c == '.'))
-            {
-                // non_valid scheme string character
-                SchemeLength = 0;
-                break;
-            }
-        }
-        
-        if (!IsAlpha(StringGetChar(*Url, 0)))
-        {
-            SchemeLength = 0;
+            Scheme = TestScheme;
+            StringSkip(Url, SchemeLength + 1); // skip scheme and ':'
         }
     }
-    
-    string Scheme = StringPrefix(*Url, SchemeLength);
-    StringSkip(Url, SchemeLength + 1); // skip scheme and ':'
     
     return Scheme;
 }
@@ -92,9 +58,10 @@ string UrlParseAuthority(string *Url)
 
 string UrlParseHostFromAuthority(string Authority)
 {
-    // authority = [userinfo "@"] host [":" port]
+    // Here square brackets mean optional 
+    // authority = [userinfo "@"] host [":" port] 
     
-    // Enclosed by square brackets
+    // IPv6 addresses are enclosed by square brackets
     if (StringGetChar(Authority, 0) == '[')
     {
         StringSkip(&Authority, 1);
@@ -147,11 +114,11 @@ string UrlParseHost(string Url)
     string Host = {};
     
     // Ensure no invalid spaces in URL
-    if (!StringFindChar(Url, ' '))
+    if (!StringContainsChar(Url, ' '))
     {
         string Scheme = UrlParseScheme(&Url);
-        if (StringEquals(Scheme, StringLiteral("https")) || 
-            StringEquals(Scheme, StringLiteral("http")))
+        if (StringsAreEqual(Scheme, StringLit("https")) || 
+            StringsAreEqual(Scheme, StringLit("http")))
         {
             // URI = scheme ":" ["//" authority] path ["?" query] ["#" fragment]
             // Path may or may not start with slash, or can be empty resulting in two slashes "//"
@@ -207,7 +174,7 @@ u32 GetBit(u32 A, u32 BitIndex)
 app_id GenerateAppID(u32 *CurrentID, app_type AppType)
 {
     Assert(*CurrentID != 0);
-    Assert(*CurrentID < (1 << APP_TYPE_BIT_INDEX));
+    Assert(*CurrentID < APP_TYPE_BIT_MASK);
     
     app_id ID = *CurrentID++;
     if (AppType == app_type::WEBSITE) SetBit(&ID, APP_TYPE_BIT_INDEX); 
@@ -215,7 +182,35 @@ app_id GenerateAppID(u32 *CurrentID, app_type AppType)
     return ID;
 }
 
-app_info GetActiveAppInfo(arena *Arena)
+u32 IndexFromAppID(app_id ID)
+{
+    Assert(ID != 0);
+    
+    // Get bottom 31 bits of id
+    u32 Index = ID & (~APP_TYPE_BIT_MASK);
+    
+    return Index;
+}
+
+bool StringMatchesKeyword(string String, settings *Settings)
+{
+    // O(KeywordCount * KeywordLength * StringLength) 
+    for (u32 i = 0; i < Settings->KeywordCount; ++i)
+    {
+        if (StringContainsSubstr(String, Settings->Keywords[i]))
+        {
+            // TODO: Maybe cache last few keywords, if it doesn't match cache?
+            // maybe shuffle others down to avoid first and last being swapped and re-swapped repeatedly.
+            // However, don't really want to change order of keywords in the settings window. So maybe settings should be able to change it's order but also has a array on index values that it maintains so it can copy into edit_settings in original order.
+            
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+app_info GetActiveAppInfo(arena *Arena, settings *Settings)
 {
     app_info AppInfo = {app_type::NONE};
     
@@ -233,15 +228,24 @@ app_info GetActiveAppInfo(arena *Arena)
                 AppInfo.Type = app_type::PROGRAM;
                 AppInfo.ProgramPath = ProgramPath;
                 
-                if (StringEquals(Filename, StringLiteral("firefox")))
+                keyword_options KeywordOptions = Settings->MiscOptions.KeywordOptions;
+                
+                if (KeywordOptions != KeywordOptions_None && 
+                    StringsAreEqualCaseInsensitive(Filename, StringLit("firefox")))
                 {
                     char *UrlCString = PlatformFirefoxGetUrl(Arena, Window);
                     string Url = MakeString(UrlCString);
                     string Host = UrlParseHost(Url);
                     if (Host.Length > 0)
                     {
-                        AppInfo.Type = app_type::WEBSITE;
-                        AppInfo.WebsiteHost = Host;
+                        if ((KeywordOptions == KeywordOptions_All) ||
+                            ((KeywordOptions == KeywordOptions_Custom) && StringMatchesKeyword(Host, Settings)))
+                        {
+                            // // TODO(mac): URLs are case sensitive but the domain name part is not, not sure if we should store the host non-capitalised, and if we should or shouldn't case insensitive match keywords.
+                            StringToLower(&Host);
+                            AppInfo.Type = app_type::WEBSITE;
+                            AppInfo.WebsiteHost = Host;
+                        }
                     }
                 }
             }
@@ -251,21 +255,21 @@ app_info GetActiveAppInfo(arena *Arena)
     return AppInfo;
 }
 
-app_id GetAppID(arena *Arena, hash_table *AppTable, u32 *CurrentID, app_info Info)
+app_id GetAppID(arena *Arena, string_map *AppNameMap, u32 *CurrentID, app_info Info)
 {
     app_id ID = 0;
     
     // Share hash table
-    hash_node *Slot = AppTable->GetItemSlot(Info.Name);
-    if (!Slot)
+    string_map_entry *Entry = StringMapGet(AppNameMap, Info.Name);
+    if (!Entry)
     {
         // Error no space in hash table (should never realistically happen)
         // Return ID of NULL App?
         Assert(0);
     }
-    else if (AppTable->ItemExists(Slot))
+    else if (StringMapEntryExists(Entry))
     {
-        ID = Slot->Value;
+        ID = Entry->Value;
     }
     else 
     {
@@ -273,7 +277,7 @@ app_id GetAppID(arena *Arena, hash_table *AppTable, u32 *CurrentID, app_info Inf
         
         // Copy string
         string AppName = PushString(Arena, Info.Name);
-        AppTable->AddItem(Slot, AppName, ID);
+        StringMapAdd(AppNameMap, Entry, AppName, ID);
     }
     
     Assert((Info.Type == app_type::PROGRAM && ((ID & (1 << APP_TYPE_BIT_INDEX)) == 0)) ||
@@ -283,9 +287,11 @@ app_id GetAppID(arena *Arena, hash_table *AppTable, u32 *CurrentID, app_info Inf
 }
 
 
-void AddOrUpdateRecord(record *Records, u64 *RecordCount, app_id ID, date::sys_days Date, s64 DurationMicroseconds)
+void UpdateRecords(record *Records, u64 *RecordCount, app_id ID, date::sys_days Date, s64 DurationMicroseconds)
 {
     // Loop backwards searching through Records with passed Date for record marching our ID
+    bool RecordFound = false;
+    
     for (u64 RecordIndex = *RecordCount - 1; 
          RecordIndex != static_cast<u64>(-1); 
          --RecordIndex)
@@ -293,21 +299,25 @@ void AddOrUpdateRecord(record *Records, u64 *RecordCount, app_id ID, date::sys_d
         record *ExistingRecord = Records + RecordIndex;
         if (ExistingRecord->Date != Date)
         {
-            // No matching ID in the Records in this Date
-            record *NewRecord = Records + *RecordCount;
-            NewRecord->ID = ID;
-            NewRecord->Date = Date;
-            NewRecord->DurationMicroseconds = DurationMicroseconds;
-            
-            *RecordCount += 1;
             break;
         }
         
         if (ExistingRecord->ID == ID)
         {
             ExistingRecord->DurationMicroseconds += DurationMicroseconds;
+            RecordFound = true;
             break;
         }
+    }
+    
+    if (!RecordFound)
+    {
+        record *NewRecord = Records + *RecordCount;
+        NewRecord->ID = ID;
+        NewRecord->Date = Date;
+        NewRecord->DurationMicroseconds = DurationMicroseconds;
+        
+        *RecordCount += 1;
     }
 }
 
@@ -324,8 +334,8 @@ void Update(monitor_state *State, s64 dtMicroseconds)
         *State = {};
         
         u32 Alignment = 8;
-        State->PermanentArena = MakeArena(MB(100), Alignment);
-        State->TemporaryArena = MakeArena(KB(64), Alignment);
+        State->PermanentArena = CreateArena(MB(100), GB(1));
+        State->TemporaryArena = CreateArena(KB(64), GB(1));
         
         temp_memory TempMemory = BeginTempArena(&State->TemporaryArena);
         
@@ -338,8 +348,8 @@ void Update(monitor_state *State, s64 dtMicroseconds)
         
         ExeDirectory = StringPrefix(ExeDirectory, StringFindLastSlash(ExeDirectory) + 1);
         
-        string SaveFileName = StringLiteral("savefile.mbf");
-        string TempSaveFileName = StringLiteral("temp_savefile.mbf");
+        string SaveFileName = StringLit("savefile.mbf");
+        string TempSaveFileName = StringLit("temp_savefile.mbf");
         
         // or just pass allocator?
         string_builder FileBuilder = StringBuilder(&State->PermanentArena, ExeDirectory.Length + SaveFileName.Length + 1); 
@@ -388,18 +398,32 @@ void Update(monitor_state *State, s64 dtMicroseconds)
             //add_keyword(settings, "docs.microsoft");
             //add_keyword(settings, "google");
             //add_keyword(settings, "github");
-        }
+            
+        } // NO SAVEFILE DEFAULTS
         
         // We won't have many programs but may have many websites
         // 24 byte entries * 10000 Entries = 240 KB
-        u64 AppTableItemCount = 10000;
-        State->AppTable = MakeHashTable(&State->PermanentArena, AppTableItemCount); 
+        u64 AppItemCount = 10000;
+        State->AppNameMap = CreateStringMap(&State->PermanentArena, AppItemCount); 
         
         State->CurrentID = 1; // Leave ID 0 unused
         
         u64 MaxRecordCount = 100000;
         State->Records = Allocate(&State->PermanentArena, MaxRecordCount, record);
         State->RecordCount = 0;
+        
+        settings *Settings = &State->Settings;
+        *Settings = {};
+        Settings->Arena = &State->PermanentArena;
+        Settings->MiscOptions = DefaultMiscOptions();
+        Settings->Keywords = Allocate(Settings->Arena, MAX_KEYWORD_COUNT, string);
+        Settings->KeywordCount = 0;
+        
+        AddKeyword(Settings, StringLit("google"));
+        AddKeyword(Settings, StringLit("github"));
+        
+        // TODO: Arena is not sorted out correctly
+        State->GUI = CreateGUI();
         
         State->IsInitialised = true;
         
@@ -408,19 +432,54 @@ void Update(monitor_state *State, s64 dtMicroseconds)
     
     temp_memory TempMemory = BeginTempArena(&State->TemporaryArena);
     
-    app_info AppInfo = GetActiveAppInfo(&State->TemporaryArena);
+    app_info AppInfo = GetActiveAppInfo(&State->TemporaryArena, &State->Settings);
     if (AppInfo.Type != NONE)
     {
-        app_id ID = GetAppID(&State->PermanentArena, &State->AppTable, &State->CurrentID, AppInfo);
+        app_id ID = GetAppID(&State->PermanentArena, &State->AppNameMap, &State->CurrentID, AppInfo);
         if (ID)
         {
             u64 MaxRecordCount = 100000;
             Assert(State->RecordCount < MaxRecordCount);
-            AddOrUpdateRecord(State->Records, &State->RecordCount, ID, Date, dtMicroseconds);
+            UpdateRecords(State->Records, &State->RecordCount, ID, Date, dtMicroseconds);
         }
     }
     
     EndTempMemory(TempMemory);
+    
+    // TODO: Make general purpose allocator, give it a block of memory (expanding?)
+    // and alloc and free from it.
+    // Is the best solution to some memory allocation patterns
+    
+    // Could all this inside an UpdateGUI() call
+    // Could pass in windows status that is updated by events rather than querying OS for status every update
+    gui *GUI = &State->GUI;
+    if (PlatformIsWindowHidden())
+    {
+        if (GUI->IsLoaded)
+        {
+            UnloadGUI(GUI);
+        }
+    }
+    else
+    {
+        if (!GUI->IsLoaded)
+        {
+            record *Records = State->Records;
+            
+            // TODO: Make the NULL record with duration = 0, date = 0?, ID = 0
+            date::sys_days OldestDate = date::sys_days{date::year{2012}/date::month{12}/date::day{1}};
+            date::sys_days NewestDate = date::sys_days{date::year{2012}/date::month{12}/date::day{5}};
+            if (State->RecordCount > 0)
+            {
+                OldestDate = Records[0].Date;
+                NewestDate = Records[State->RecordCount - 1].Date;
+            }
+            
+            LoadGUI(GUI, Date, OldestDate, NewestDate);
+        }
+        
+        DrawGUI(State, &State->GUI, &State->Settings);
+    }
     
     CheckArena(&State->PermanentArena);
     CheckArena(&State->TemporaryArena);
@@ -521,163 +580,6 @@ poll_windows(App_List *apps, Settings *settings)
     // If program wasn't a browser, or it was a browser but the url didn't match any keywords, get browser's program id
     return get_local_program_app_id(apps, program_name, full_path);
 }
-
-
-void
-update2(Monitor_State *state, SDL_Window *window, s64 dt_microseconds, Window_Event window_event)
-{
-    ZoneScoped;
-    
-    date::sys_days current_date = get_local_time_day();
-    
-    if (!state->is_initialised)
-    {
-        //create_world_icon_source_file("c:\\dev\\projects\\monitor\\build\\world.png", "c:\\dev\\projects\\monitor\\code\\world_icon.cpp", ICON_SIZE);
-        
-        
-        // Do i need this to construct all vectors etc, as opposed to just zeroed memory?
-        *state = {};
-        
-        // TODO: how to handle clipped path, because path was too long
-        // TODO: Pretty sure strncpy does not guarantee null termination, FIX this
-        platform_get_base_directory(state->savefile_path, array_count(state->savefile_path));
-        size_t remaining_space = array_count(state->savefile_path) - strlen(state->savefile_path);
-        strncat(state->savefile_path, "savefile.mbf", remaining_space);
-        strncat(state->temp_savefile_path, "temp_savefile.mbf", remaining_space);
-        
-        //remove(state->savefile_path);
-        //exit(3);
-        
-        // will be 16ms for 60fps monitor
-        state->accumulated_time = 0;
-        state->refresh_frame_time = (u32)(MILLISECS_PER_SEC / (float)platform_get_monitor_refresh_rate());
-        
-        App_List *apps = &state->apps;
-        Settings *settings = &state->settings;
-        Day_List *day_list = &state->day_list;
-        
-        bool init_state_from_defaults = true;
-        if (platform_file_exists(state->savefile_path))
-        {
-            if (read_from_MBF(apps, day_list, settings, state->savefile_path))
-            {
-                init_state_from_defaults = false;
-            }
-            else 
-            {
-                Assert(0);
-            }
-        }
-        
-        if (init_state_from_defaults)
-        {
-            apps->local_program_ids = std::unordered_map<String, App_Id>(50);
-            apps->website_ids       = std::unordered_map<String, App_Id>(50);
-            apps->local_programs.reserve(50);
-            apps->websites.reserve(50);
-            apps->next_program_id = LOCAL_PROGRAM_ID_START;
-            apps->next_website_id = WEBSITE_ID_START;
-            
-            init_arena(&apps->name_arena, Kilobytes(10), Kilobytes(10));
-            init_arena(&day_list->record_arena, MAX_DAILY_RECORDS_MEMORY_SIZE, MAX_DAILY_RECORDS_MEMORY_SIZE);
-            init_arena(&settings->keyword_arena, MAX_KEYWORD_COUNT * MAX_KEYWORD_SIZE);
-            
-            // add fake days before current_date
-#if FAKE_RECORDS
-            debug_add_records(apps, day_list, current_date);
-#endif
-            start_new_day(day_list, current_date);
-            
-            settings->misc = Misc_Options::default_misc_options();
-            
-            // Keywords must be null terminated when given to platform gui
-            add_keyword(settings, "CITS3003");
-            add_keyword(settings, "youtube");
-            add_keyword(settings, "docs.microsoft");
-            add_keyword(settings, "google");
-            add_keyword(settings, "github");
-        }
-        
-        // will be poll_frequency_milliseconds in release
-        platform_set_sleep_time(16);
-        
-        state->is_initialised = true;
-    }
-    
-    App_List *apps = &state->apps;
-    UI_State *ui = &state->ui;
-    Day_List *day_list = &state->day_list;
-    
-    if (window_event == Window_Closed)
-    {
-        // no need to free stuff or delete textures (as glcontext is deleted)
-        
-        // Creates or overwrites old file
-        if (!write_to_MBF(apps, day_list, &state->settings, state->savefile_path))
-        {
-            Assert(0);
-        }
-    }
-    
-    if (window_event == Window_Hidden)
-    {
-        if (ui->open)
-        {
-            unload_ui(ui);
-            //platform_set_sleep_time(settings->poll_frequency_milliseconds);
-        }
-    }
-    
-    
-    if (current_date != day_list->days.back().date)
-    {
-        start_new_day(day_list, current_date);
-        // Don't really need to unload and reload all icons from GPU as it can easily hold many thousands
-    }
-    
-    if (window_event == Window_Shown)
-    {
-        if (!ui->open)
-        {
-            // These dates used to determine selected and limits to date navigation in picker and calendars
-            date::sys_days oldest_date = day_list->days.front().date;
-            date::sys_days newest_date = day_list->days.back().date;
-            
-            load_ui(ui, apps->local_programs.size(), current_date, oldest_date, newest_date);
-            //platform_set_sleep_time(state->refresh_frame_time);
-        }
-    }
-    
-    state->accumulated_time += dt_microseconds;
-    if (ui->open)
-    {
-        // TODO: Can set the rhs compared variable to 0 when ui closed and we want to poll everytime woken up
-        // state->settings.misc_options.poll_frequency_milliseconds * MICROSECS_PER_MILLISEC;
-        if (state->accumulated_time >= DEFAULT_POLL_FREQUENCY_MILLISECONDS)
-        {
-            App_Id id = poll_windows(apps, &state->settings);
-            if (id) 
-                add_or_update_record(&state->day_list, id, state->accumulated_time);
-            state->accumulated_time = 0;
-        }
-        
-        ui->day_view = get_day_view(day_list); // debug
-        draw_ui_and_update(window, ui, &state->settings, apps, state); // state is just for debug
-        free_day_view(&ui->day_view);
-    }
-    else
-    {
-        // If ui is not open just poll whenever we enter the update function (should usually by the poll frequency after we wakeup from sleep)
-        // This avoids the degenerate case where we repeatedly exit sleep just before our poll frequency mark, and have to do another sleep cycle before polling - effectively halving the experienced poll frequency.
-        
-        App_Id id = poll_windows(apps, &state->settings);
-        if (id) 
-            add_or_update_record(&state->day_list, id, state->accumulated_time);
-        state->accumulated_time = 0;
-    }
-    
-}
-
 
 Icon_Asset *
 get_app_icon_asset(App_List *apps, UI_State *ui, App_Id id)

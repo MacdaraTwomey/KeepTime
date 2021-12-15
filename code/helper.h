@@ -27,7 +27,7 @@ struct Array
 unsigned long djb2(unsigned char *str);
 unsigned long djb2(unsigned char *str, size_t len);
 
-struct hash_node
+struct string_map_entry
 {
     // Programs can use only long name rather than both lond and short, and if needed can have
     // auxillary cache storing program short names if we don't want to re-extract them.
@@ -37,21 +37,22 @@ struct hash_node
 };
 
 // TODO: Do we need deletion
-struct hash_table
+struct string_map
 {
     static constexpr u8 EMPTY = 0;
     static constexpr u8 DELETED = 1; // Needed for open addressing for an Insert to know to keep probing 
     static constexpr u8 OCCUPIED = 2;
     
-    hash_node *Buckets;
+    string_map_entry *Entries;
     u64 Count;
     u64 Size;
     //u8 *Occupancy;
-    
-    hash_node *GetItemSlot(string Key);
-    bool ItemExists(hash_node *Node);
-    void AddItem(hash_node *Node, string Key, u32 Value);
 };
+
+
+string_map_entry *StringMapGet(string_map *Map, string Key);
+bool StringMapEntryExists(string_map_entry *Entry);
+void StringMapAdd(string_map *Map, string_map_entry *Entry, string Key, u32 Value);
 
 // TODO: Do you really need rear index, or is just count enough
 template<typename T>

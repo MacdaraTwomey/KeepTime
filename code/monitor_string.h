@@ -8,14 +8,15 @@
 // and call NullTerminate(), or otherwise make one with it included.
 //
 // TODO: 
-// Correct handling of UTF8 strings
-// e.g. ToUpper
-
+// Correct handling of UTF8 strings (e.g. ToUpper)
 
 struct string
 {
     char *Str;
     u64 Length;
+    
+    string() = default;
+    string(char *StrData, u64 StrLength) : Str(StrData), Length(StrLength) {}
     
     const char &operator[](size_t Index) const
     {
@@ -27,19 +28,121 @@ struct string
         Assert(Index >= 0 && Index < Length);
         return Str[Index];
     }
+    
 };
 
-// It would be nice to be able to pass a c_string to a function expecting a string but NOT
-// be able to pass a string to a function expecting a c_string.
-
-//typedef string c_string; /// c_string means must be null terminated. Good idea?
 struct c_string : public string
 {
-    static constexpr bool IS_C_STRING = true;
-    // use using to make alias to string.Str etc
+    c_string() = default;
+    c_string(char *CStringData, u64 CStringLength) : string(CStringData, CStringLength) {}
 };
 
-#define StringLiteral(lit) string{(lit), sizeof(lit) - 1} // Null terminator not included in Length
+static_assert(sizeof(string) == sizeof(c_string), "");
+static_assert(sizeof(string) == sizeof(char *) + sizeof(u64), "");
+
+#include <type_traits>
+static_assert(std::is_trivial<string>::value, "string should be trivial");
+static_assert(std::is_pod<string>::value, "string should be POD");
+
+static_assert(std::is_trivial<c_string>::value, "c_string should be trivial");
+static_assert(std::is_pod<c_string>::value, "c_string should be POD");
+
+
+#define StringLit(lit) string{(lit), sizeof(lit) - 1} // Null terminator not included in Length
+
+c_string CStringFromString(string String)
+{
+    if (String.Length > 0)
+    {
+        // NOTE: NULL byte counted as part of length
+        Assert(String.Str[String.Length-1] == 0); // Last character is NULL byte
+    } 
+    
+    c_string Result {String.Str, String.Length};
+    return Result;
+}
+
+struct fake_settings
+{
+    string Keywords[2];
+};
+
+struct fake_settings2
+{
+    c_string Keywords[2];
+};
+
+void StrToStr(fake_settings *Settings, string Keyword)
+{
+    Settings->Keywords[0] = Keyword;
+}
+
+void CStrToCStr(fake_settings2 *Settings, c_string Keyword)
+{
+    Settings->Keywords[0] = Keyword;
+    char *Str = Keyword.Str;
+}
+
+void CStrToStr(fake_settings *Settings, c_string Keyword)
+{
+    Settings->Keywords[0] = Keyword;
+    char *Str = Keyword.Str;
+}
+
+void StrToCStr(fake_settings2 *Settings, string Keyword)
+{
+    //Settings->Keywords[0] = Keyword; // Doesn't like
+    char *Str = Keyword.Str;
+}
+
+void TestStrings()
+{
+    fake_settings Settings = {};
+    fake_settings2 Settings2 = {};
+    
+    string String = {};
+    c_string CString = {};
+    StrToStr(&Settings, String);
+    CStrToCStr(&Settings2, CString);
+    CStrToStr(&Settings, CString);
+    StrToCStr(&Settings2, String); // Doesn't like
+    
+    StrToStr(&Settings, CString); // Fine
+    //CStrToCStr(&Settings2, String); // Doesn't like
+    
+    c_string BadCString = CStringFromString(string{"sdd", 4});
+    c_string BadCString2 = CStringFromString(c_string{"sdd", 4});
+    
+    string StringTest{};
+    string StringTest2 = string();
+    string StringTest3("sdfsdf", 3);
+    string StringTest4 = {};
+    string StringTest5 = string{};
+    string StringTest6 = string{"ddfg", 5};
+    
+    c_string CStringTest{};
+    c_string CStringTest2 = c_string();
+    c_string CStringTest3("sdfsdf", 3);
+    c_string CStringTest4 = {};
+    c_string CStringTest5 = c_string{};
+    c_string CStringTest6 = c_string{"ddfg", 5};
+    
+    string ToStringTest{CStringTest};
+    string ToStringTest2 = CStringTest;
+    string ToStringTest3(CStringTest);
+    string ToStringTest4 = {CStringTest};
+    string ToStringTest5 = c_string{CStringTest};
+    string ToStringTest6 = c_string{"ddfg", 5};
+    
+    // Not allowed
+    //c_string ToCStringTest{StringTest};
+    //c_string ToCStringTest2 = c_string(StringTest);
+    //c_string ToCStringTest3(StringTest);
+    //c_string ToCStringTest4 = {StringTest};
+    //c_string ToCStringTest5 = c_string{StringTest};
+    //c_string ToCStringTest6 = c_string{StringTest};
+}
+
 
 char StringGetChar(string String, u64 Index)
 {
@@ -81,32 +184,14 @@ string MakeString(char *StringData, u64 Length)
     return Result;
 }
 
-bool StringEquals(string a, string b)
-{
-    bool Result = (a.Length == b.Length);
-    if (Result)
-    {
-        for (u32 i = 0; i < a.Length; ++i)
-        {
-            if (a.Str[i] != b.Str[i]) 
-            {
-                Result = false;
-                break;
-            }
-        }
-    }
-    
-    return Result;
-}
-
 bool IsUpper(char c)
 {
-    return (c >= 'A' && c <= 'Z');
+    return (('A' <= c) && (c <= 'Z'));
 }
 
 bool IsLower(char c)
 {
-    return (c >= 'a' && c <= 'z');
+    return (('a' <= c) && (c <= 'z'));
 }
 
 bool IsAlpha(char c)
@@ -116,7 +201,7 @@ bool IsAlpha(char c)
 
 bool IsNumeric(char c)
 {
-    return (c >= '0' && c <= '9');
+    return (('0' <= c) && (c <= '9'));
 }
 
 bool IsAlphaNumeric(char c)
@@ -126,12 +211,28 @@ bool IsAlphaNumeric(char c)
 
 char ToUpper(char c)
 {
-    return IsUpper(c) ? c - 32 : c;
+    return IsLower(c) ? c - 32 : c;
 }
 
 char ToLower(char c)
 {
-    return IsLower(c) ? c + 32 : c;
+    return IsUpper(c) ? c + 32 : c;
+}
+
+void StringToLower(string *String)
+{
+    for (u64 i = 0; i < String->Length; ++i)
+    {
+        String->Str[i] = ToLower(String->Str[i]);
+    }
+}
+
+void StringToUpper(string *String)
+{
+    for (u64 i = 0; i < String->Length; ++i)
+    {
+        String->Str[i] = ToUpper(String->Str[i]);
+    }
 }
 
 string StringPrefix(string String, u64 n)
@@ -171,7 +272,7 @@ u64 StringFindChar(string String, char Char)
 u64 StringFindCharReverse(string String, char Char)
 {
     u64 Position = String.Length;
-    for (u64 i = String.Length - 1; i != 0; --i)
+    for (u64 i = String.Length - 1; i != static_cast<u64>(-1); --i)
     {
         if (String.Str[i] == Char)
         {
@@ -183,19 +284,112 @@ u64 StringFindCharReverse(string String, char Char)
     return Position;
 }
 
-s32 StringFindLastSlash(string Path)
+bool StringContainsChar(string String, char Char)
 {
-    u64 Result = Path.Length;
-    for (u64 i = Path.Length - 1; i >= 0; --i)
+    return StringFindChar(String, Char) < String.Length;
+}
+
+bool StringsAreEqual(string A, string B)
+{
+    bool Result = (A.Length == B.Length);
+    if (Result)
     {
-        if (Path.Str[i] == '\\' || Path.Str[i] == '/')
+        for (u64 i = 0; i < A.Length; ++i)
         {
-            Result = i;
-            break;
+            if (A.Str[i] != B.Str[i]) 
+            {
+                Result = false;
+                break;
+            }
         }
     }
     
     return Result;
+}
+
+bool StringsAreEqual(string A, char *B, u64 BLength)
+{
+    bool Result = (A.Length == BLength);
+    if (Result)
+    {
+        for (u64 i = 0; i < A.Length; ++i)
+        {
+            if (A.Str[i] != B[i]) 
+            {
+                Result = false;
+                break;
+            }
+        }
+    }
+    
+    return Result;
+}
+
+bool StringsAreEqualCaseInsensitive(string a, string b)
+{
+    bool Result = (a.Length == b.Length);
+    if (Result)
+    {
+        for (u64 i = 0; i < a.Length; ++i)
+        {
+            if (ToLower(a.Str[i]) != ToLower(b.Str[i])) 
+            {
+                Result = false;
+                break;
+            }
+        }
+    }
+    
+    return Result;
+}
+
+bool StringContainsSubstr(string String, string Substr)
+{
+    bool ContainsSubstr = false;
+    if (Substr.Length > 0) 
+    {
+        u64 LastPossibleCharIndex = String.Length - Substr.Length;
+        for (u64 i = 0; i <= LastPossibleCharIndex; ++i)
+        {
+            if (String.Str[i] == Substr.Str[0])
+            {
+                ContainsSubstr = true;
+                for (u64 j = 1; j < Substr.Length; ++j)
+                {
+                    if (String.Str[i + j] != Substr.Str[j])
+                    {
+                        ContainsSubstr = false;
+                        break;
+                    }
+                }
+                
+                if (ContainsSubstr) break;
+            }
+        }
+    }
+    
+    return ContainsSubstr;
+}
+
+
+bool CharIsSlash(char c)
+{
+    return (c == '\\' || c == '/');
+}
+
+u64 StringFindLastSlash(string Path)
+{
+    u64 Position = Path.Length;
+    for (u64 i = Path.Length - 1; i != static_cast<u64>(-1); --i)
+    {
+        if (CharIsSlash(Path.Str[i]))
+        {
+            Position = i;
+            break;
+        }
+    }
+    
+    return Position;
 }
 
 void StringRemoveExtension(string *File)
@@ -229,12 +423,7 @@ struct string_builder
         u64 Remaining = Capacity - Length;
         if (NewString.Length <= Remaining)
         {
-            char *p = Memory + Length;
-            for (u64 i = 0; i < NewString.Length; ++i)
-            {
-                *p++ = NewString[i];
-            }
-            
+            MemoryCopy(NewString.Length, NewString.Str, Memory + Length);
             Length += NewString.Length;
         }
         else
@@ -247,12 +436,8 @@ struct string_builder
     void NullTerminate()
     {
         Assert(Capacity > Length);
-        
-        if (Memory[Length] != '\0')
-        {
-            Memory[Length] = '\0';
-            Length += 1;
-        }
+        Memory[Length] = '\0';
+        Length += 1;
     }
     
     string GetString()
@@ -269,361 +454,3 @@ string_builder StringBuilder(arena *Arena, u64 Capacity)
     Result.Capacity = Capacity;
     return Result;
 }
-
-#if 0
-// should I say capacity == sizeof(lit)? we can't write to it but can make use of knowledge of null terminator
-// Encode null terminated with type system?
-// Must be a actual string literal not a char *array_of_str[] reference
-
-#define make_fixed_size_string(buf) make_string_size_cap((buf), 0, sizeof((buf)))
-
-
-String
-make_string_size_cap(void *str, i32 size, i32 capacity)
-{
-    String s;
-    s.str      = (char *)str;
-    s.length   = size;
-    s.capacity = capacity;
-    return s;
-}
-
-// Same as make_fixed_sized_string
-template<size_t N>
-String
-make_empty_string(const char (&a)[N])
-{
-    String s;
-    s.str      = (char *)a;
-    s.length   = 0;
-    s.capacity = N;
-    return s;
-}
-
-String
-make_string(void *str, i32 size)
-{
-    String s;
-    s.str      = (char *)str;
-    s.length   = size;
-    s.capacity = size;
-    return s;
-}
-
-
-
-String
-substr(String parent, i32 offset)
-{
-    Assert(offset < parent.length);
-    String s;
-    s.str      = parent.str + offset;
-    s.length   = parent.length - offset;
-    s.capacity = 0;
-    return s;
-}
-
-
-String
-substr_len(String parent, i32 offset, i32 len)
-{
-    Assert(offset < parent.length);
-    String s;
-    s.str      = parent.str + offset;
-    s.length   = (offset + len <= parent.length) ? len : parent.length - offset;
-    s.capacity = 0;
-    return s;
-}
-
-
-
-String
-substr_range(String parent, i32 start, i32 end)
-{
-    // [start, end] inclusive, inclusive
-    
-    // Clipped to parent string's end
-    Assert(start < parent.length && start <= end);
-    i32 len = end - start + 1;
-    return substr_len(parent, start, len);
-}
-
-i32
-search_for_substr(String str, i32 offset, String substr)
-{
-    if (substr.length == 0) return -1;
-    i32 match = -1;
-    
-    i32 last_possible_char = str.length - substr.length;
-    for (i32 i = offset; i <= last_possible_char; ++i)
-    {
-        if (str.str[i] == substr.str[0])
-        {
-            match = i;
-            for (i32 j = 1; j < substr.length; ++j)
-            {
-                if (str.str[i + j] != substr.str[j])
-                {
-                    match = -1;
-                    break;
-                }
-            }
-            
-            if (match != -1) break;
-        }
-    }
-    
-    return match;
-}
-
-// Could template on size of substr, to allow length of string literals to be deduced.
-// Or maybe compilers just optimise this anyway (I think so).
-i32
-search_for_substr(String str, i32 offset, char *substr)
-{
-    size_t substr_length = strlen(substr);
-    if (substr_length == 0) return -1;
-    i32 match = -1;
-    
-    i32 last_possible_char = str.length - substr_length;
-    for (i32 i = offset; i <= last_possible_char; ++i)
-    {
-        if (str.str[i] == substr[0])
-        {
-            match = i;
-            for (i32 j = 1; j < substr_length; ++j)
-            {
-                if (str.str[i + j] != substr[j])
-                {
-                    match = -1;
-                    break;
-                }
-            }
-            
-            if (match != -1) break;
-        }
-    }
-    
-    return match;
-}
-
-
-// Maybe shoudl return new string because might need to keep track of previous position,
-// e.g. to free memory, to make other strings with spaces.
-void
-skip_whitespace(String *str)
-{
-    if (str->length > 0)
-    {
-        i32 i = 0;
-        while (i < str->length && str->str[i] == ' ')
-        {
-            i += 1;
-        }
-        
-        str->str += i;
-        str->length -= i;
-        str->capacity -= i;
-    }
-}
-
-bool
-string_equals(String a, char *b)
-{
-    size_t len = strlen(b);
-    if (a.length != len) return false;
-    
-    for (i32 i = 0; i < len; ++i)
-    {
-        if (a.str[i] != b[i]) return false;
-    }
-    
-    return true;
-}
-
-
-
-
-i32
-reverse_search_for_char(String str, i32 offset, char c)
-{
-    if (offset < str.length)
-    {
-        for (i32 i = offset; i >= 0; --i)
-        {
-            if (str.str[i] == c)
-            {
-                return i;
-            }
-        }
-    }
-    
-    return -1;
-}
-
-
-i32
-search_for_char(String str, i32 offset, char c)
-{
-    for (i32 i = offset; i < str.length; ++i)
-    {
-        if (str.str[i] == c)
-        {
-            return i;
-        }
-    }
-    
-    return -1;
-}
-
-bool
-prefix_match_case_insensitive(String str, String prefix)
-{
-    if (str.length < prefix.length) return false;
-    for (i32 i = 0; i < prefix.length; ++i)
-    {
-        if (to_upper(str.str[i]) != to_upper(prefix.str[i])) return false;
-    }
-    
-    return true;
-}
-
-
-bool
-prefix_match_case_insensitive(String str, char *prefix)
-{
-    size_t prefix_length = strlen(prefix);
-    if (str.length < prefix_length) return false;
-    for (i32 i = 0; i < prefix_length; ++i)
-    {
-        if (to_upper(str.str[i]) != to_upper(prefix[i])) return false;
-    }
-    
-    return true;
-}
-
-void
-string_to_lower(String *s)
-{
-    for (i32 i = 0; i < s->length; ++i)
-    {
-        s->str[i] = to_lower(s->str[i]);
-    }
-}
-
-// String to String copy only copies if there is enough room
-// char * to String copy does a partial copy if there is not enough room and returns false.
-// The same with appends.
-
-bool
-copy_string(String *dest, String source)
-{
-    // If dest capacity is too small the string is not truncated.
-    if (dest->capacity < source.length) return false;
-    
-    for (i32 i = 0; i < source.length; ++i)
-    {
-        dest->str[i] = source.str[i];
-    }
-    
-    dest->length = source.length;
-    return true;
-}
-
-
-bool
-copy_string(String *dest, char *source)
-{
-    // If dest capacity is too small the string is truncated to dest capacity, and false returned.
-    i32 i = 0;
-    for (; source[i]; ++i)
-    {
-        if (i >= dest->capacity) return false;
-        dest->str[i] = source[i];
-    }
-    
-    dest->length = i;
-    return true;
-}
-
-String
-tailstr(String str)
-{
-    String result;
-    result.str = str.str + str.length;
-    result.capacity = str.capacity - str.length;
-    result.length = 0;
-    return result;
-}
-
-bool
-append_string(String *dest, String source)
-{
-    String end = tailstr(*dest);
-    bool result = copy_string(&end, source);
-    // NOTE: This depends on end.size still being 0 if the check failed and no copy occurred.
-    dest->length += end.length;
-    return result;
-}
-
-bool
-append_string(String *dest, char *source)
-{
-    String end = tailstr(*dest);
-    bool result = copy_string(&end, source);
-    dest->length += end.length;
-    return result;
-}
-
-bool
-null_terminate(String *str)
-{
-    bool result = false;
-    if (str->length < str->capacity)
-    {
-        str->str[str->length] = '\0';
-        result = true;
-    }
-    return result;
-}
-
-i32
-last_slash_pos(String path)
-{
-    for (i32 i = path.length-1; i >= 0; --i)
-    {
-        if (path.str[i] == '\\' || path.str[i] == '/')
-        {
-            return i;
-        }
-    }
-    
-    return -1;
-}
-
-
-String
-get_filename_from_path(String path)
-{
-    // Not sure that i love what we do when the path ends with a slash
-    String result;
-    i32 slash_pos = last_slash_pos(path);
-    if (slash_pos == -1)            result = substr(path, 0);
-    if (slash_pos == path.length-1) result = {nullptr, 0, 0};
-    else                            result = substr(path, slash_pos+1);
-    
-    return result;
-}
-
-bool
-string_is_null_terminated(String s)
-{
-    bool is_null_terminated = false;
-    if (s.capacity > s.length)
-    {
-        is_null_terminated = (s.str[s.length] == '\0');
-    }
-    
-    return is_null_terminated;
-}
-#endif

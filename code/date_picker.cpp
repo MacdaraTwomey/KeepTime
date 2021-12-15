@@ -9,48 +9,44 @@ constexpr float DATE_PICKER_CALENDAR_BUTTON_WIDTH = 140;
 
 constexpr ImU32 DISABLED_COLOUR = IM_COL32(185, 185, 185, 255);
 
-
-const char *
-day_suffix(int day)
+const char *DaySuffix(int Day)
 {
-	Assert(day >= 1 && day <= 31);
-	static const char *suffixes[] = { "st", "nd", "rd", "th" };
-	switch (day)
+	Assert(Day >= 1 && Day <= 31);
+	static const char *Suffixes[] = { "st", "nd", "rd", "th" };
+	switch (Day)
 	{
         case 1:
         case 21:
         case 31:
-		return suffixes[0];
+		return Suffixes[0];
 		break;
         
         case 2:
         case 22:
-		return suffixes[1];
+		return Suffixes[1];
 		break;
         
         case 3:
         case 23:
-		return suffixes[2];
+		return Suffixes[2];
 		break;
         
         default:
-		return suffixes[3];
+		return Suffixes[3];
 		break;
 	}
 }
 
-bool 
-is_leap_year(int year)
+bool IsLeapYear(int Year)
 {
-    // if year is a integer multiple of 4 (except for years evenly divisible by 100, which are not leap years unless evenly divisible by 400)
-    return ((year % 4 == 0) && !(year % 100 == 0)) || (year % 400 == 0);
+    // if Year is a integer multiple of 4 (except for years evenly divisible by 100, which are not leap years unless evenly divisible by 400)
+    return ((Year % 4 == 0) && !(Year % 100 == 0)) || (Year % 400 == 0);
 }
 
-int 
-days_in_month(int month, int year)
+int DaysInMonth(int Month, int Year)
 {
-	Assert(month >= 1 && month <= 12);
-    switch (month)
+	Assert(Month >= 1 && Month <= 12);
+    switch (Month)
     {
         case 1: case 3: case 5:
         case 7: case 8: case 10:
@@ -62,7 +58,7 @@ days_in_month(int month, int year)
         return 30;
         
         case 2:
-        if (is_leap_year(year))
+        if (IsLeapYear(Year))
             return 29;
         else
             return 28;
@@ -71,24 +67,22 @@ days_in_month(int month, int year)
     return 0;
 }
 
-const char *
-month_string(int month)
+const char *MonthString(int Month)
 {
-	Assert(month >= 1 && month <= 12);
-	static const char *months[] = { "January","February","March","April","May","June",
+	Assert(Month >= 1 && Month <= 12);
+	static const char *Months[] = { "January","February","March","April","May","June",
 		"July","August","September","October","November","December" };
-	return months[month-1];
+	return Months[Month-1];
 }
 
-bool
-ButtonConditionallyFilled(const char* label, bool not_filled, const ImVec2& size = ImVec2(0, 0))
+bool ButtonConditionallyFilled(const char* Label, bool NotFilled, const ImVec2& Size = ImVec2(0, 0))
 {
-    if (not_filled)
+    if (NotFilled)
     {
         ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(255, 255, 255, 255));
     }
-    bool result = ImGui::Button(label, size);
-    if (not_filled)
+    bool result = ImGui::Button(Label, Size);
+    if (NotFilled)
     {
         ImGui::PopStyleColor();
     }
@@ -96,464 +90,452 @@ ButtonConditionallyFilled(const char* label, bool not_filled, const ImVec2& size
 }
 
 
-bool
-ButtonSpecial(const char* label, bool is_disabled, const ImVec2& size = ImVec2(0, 0))
+bool ButtonSpecial(const char* Label, bool IsDisabled, const ImVec2& Size = ImVec2(0, 0))
 {
-    if (is_disabled)
+    if (IsDisabled)
     {
         ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true); // imgui_internal.h
         ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.5f);
     }
-    bool result = ImGui::Button(label, size);
-    if (is_disabled)
+    bool Result = ImGui::Button(Label, Size);
+    if (IsDisabled)
     {
         ImGui::PopItemFlag(); // imgui_internal.h
         ImGui::PopStyleVar();
     }
-    return result;
+    return Result;
 }
 
-bool 
-calendar_is_backwards_disabled(Calendar *calendar, date::sys_days oldest_date)
+bool CalendarIsBackwardsDisabled(calendar *Calendar, date::sys_days OldestDate)
 {
-    auto oldest_ymd = date::year_month_day{oldest_date};
-    auto prev_month = date::year_month{
-        calendar->first_day_of_month.year(),calendar->first_day_of_month.month()} - date::months{1};
-    return (prev_month < date::year_month{oldest_ymd.year(), oldest_ymd.month()}); 
+    auto OldestYMD = date::year_month_day{OldestDate};
+    auto PrevMonth = date::year_month{
+        Calendar->FirstDayOfMonth.year(),Calendar->FirstDayOfMonth.month()} - date::months{1};
+    return (PrevMonth < date::year_month{OldestYMD.year(), OldestYMD.month()}); 
 }
 
-bool 
-calendar_is_forwards_disabled(Calendar *calendar, date::sys_days newest_date)
+bool CalendarIsForwardsDisabled(calendar *Calendar, date::sys_days NewestDate)
 {
-    auto newest_ymd = date::year_month_day{newest_date};
-    auto next_month = date::year_month{
-        calendar->first_day_of_month.year(), calendar->first_day_of_month.month()} + date::months{1};
-    return (next_month > date::year_month{newest_ymd.year(), newest_ymd.month()}); 
+    auto NewestYmd = date::year_month_day{NewestDate};
+    auto NextMonth = date::year_month{
+        Calendar->FirstDayOfMonth.year(), Calendar->FirstDayOfMonth.month()} + date::months{1};
+    return (NextMonth > date::year_month{NewestYmd.year(), NewestYmd.month()}); 
 }
 
-bool
-do_calendar(Calendar *calendar, date::sys_days oldest_date, date::sys_days newest_date)
+bool DoCalendar(calendar *Calendar, date::sys_days OldestDate, date::sys_days NewestDate)
 {
-    bool selection_made = false;
+    bool SelectionMade = false;
     
-    ImVec2 calendar_size = ImVec2(300,240);
-    ImGui::SetNextWindowSize(calendar_size);
+    ImVec2 CalendarSize = ImVec2(300,240);
+    ImGui::SetNextWindowSize(CalendarSize);
     if (ImGui::BeginPopup("Calendar"))
     {
-        ImGuiStyle& style = ImGui::GetStyle();
-        style.SelectableTextAlign = ImVec2(1.0f, 0.0f); // make calendar numbers right aligned
+        ImGuiStyle& Style = ImGui::GetStyle();
+        Style.SelectableTextAlign = ImVec2(1.0f, 0.0f); // make calendar numbers right aligned
         
-        static char *weekdays[] = {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"};
-        static char *labels[] = {
+        static char *Weekdays[] = {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"};
+        static char *Labels[] = {
             "1","2","3","4","5","6","7","8","9","10",
             "11","12","13","14","15","16","17","18","19","20",
             "21","22","23","24","25","26","27","28","29","30",
             "31"};
         
-        if(ButtonSpecial(ICON_MD_ARROW_BACK, calendar->is_backwards_disabled))
+        if(ButtonSpecial(ICON_MD_ARROW_BACK, Calendar->IsBackwardsDisabled))
         {
             // Have to convert to ymd because subtracting month from ymw may change the day of month
-            auto d = date::year_month_day{calendar->first_day_of_month} - date::months{1};
-            calendar->first_day_of_month = date::year_month_weekday{d};
-            calendar->is_backwards_disabled = calendar_is_backwards_disabled(calendar, oldest_date);
-            calendar->is_forwards_disabled = false;
+            auto d = date::year_month_day{Calendar->FirstDayOfMonth} - date::months{1};
+            Calendar->FirstDayOfMonth = date::year_month_weekday{d};
+            Calendar->IsBackwardsDisabled = CalendarIsBackwardsDisabled(Calendar, OldestDate);
+            Calendar->IsForwardsDisabled = false;
         }
         
         ImGui::SameLine(ImGui::GetWindowWidth() - 40); 
         
-        if(ButtonSpecial(ICON_MD_ARROW_FORWARD, calendar->is_forwards_disabled))
+        if(ButtonSpecial(ICON_MD_ARROW_FORWARD, Calendar->IsForwardsDisabled))
         {
-            auto d = date::year_month_day{calendar->first_day_of_month} + date::months{1};
-            calendar->first_day_of_month = date::year_month_weekday{d};
-            calendar->is_backwards_disabled = false;
-            calendar->is_forwards_disabled = calendar_is_forwards_disabled(calendar, newest_date);
+            auto d = date::year_month_day{Calendar->FirstDayOfMonth} + date::months{1};
+            Calendar->FirstDayOfMonth = date::year_month_weekday{d};
+            Calendar->IsBackwardsDisabled = false;
+            Calendar->IsForwardsDisabled = CalendarIsForwardsDisabled(Calendar, NewestDate);
         }
         
         // Set Month Year text
-        char page_month_year[64];
-        snprintf(page_month_year, 64, "%s %i", 
-                 month_string(unsigned(calendar->first_day_of_month.month())), int(calendar->first_day_of_month.year()));
-        ImVec2 text_size = ImGui::CalcTextSize(page_month_year);
+        char PageMonthYear[64];
+        snprintf(PageMonthYear, 64, "%s %i", 
+                 MonthString(unsigned(Calendar->FirstDayOfMonth.month())), int(Calendar->FirstDayOfMonth.year()));
+        ImVec2 TextSize = ImGui::CalcTextSize(PageMonthYear);
         
         // Centre text
-        ImGui::SameLine(ImGui::GetWindowContentRegionWidth() / 2.0f - (text_size.x / 2.0f)); 
-        ImGui::Text(page_month_year); 
+        ImGui::SameLine(ImGui::GetWindowContentRegionWidth() / 2.0f - (TextSize.x / 2.0f)); 
+        ImGui::Text(PageMonthYear); 
         ImGui::Spacing();
         
-        s32 skipped_spots = calendar->first_day_of_month.weekday().iso_encoding() - 1;
-        s32 days_in_month_count = days_in_month(unsigned(calendar->first_day_of_month.month()), int(calendar->first_day_of_month.year()));
+        s32 SkippedSpots = Calendar->FirstDayOfMonth.weekday().iso_encoding() - 1;
+        s32 DaysInMonthCount = DaysInMonth(unsigned(Calendar->FirstDayOfMonth.month()), int(Calendar->FirstDayOfMonth.year()));
         
-        s32 days_before_oldest = 0;
-        if (calendar->is_backwards_disabled) 
+        s32 DaysBeforeOldest = 0;
+        if (Calendar->IsBackwardsDisabled) 
         {
-            auto oldest_ymd = date::year_month_day{oldest_date};
-            days_before_oldest = unsigned(oldest_ymd.day()) - 1; 
+            auto OldestYmd = date::year_month_day{OldestDate};
+            DaysBeforeOldest = unsigned(OldestYmd.day()) - 1; 
         }
         
-        s32 days_after_newest = 0;
-        if (calendar->is_forwards_disabled) 
+        s32 DaysAfterNewest = 0;
+        if (Calendar->IsForwardsDisabled) 
         {
-            auto newest_ymd = date::year_month_day{newest_date};
-            days_after_newest = days_in_month_count - unsigned(newest_ymd.day()); 
+            auto NewestYmd = date::year_month_day{NewestDate};
+            DaysAfterNewest = DaysInMonthCount - unsigned(NewestYmd.day()); 
         }
         
-        s32 selected_index = -1;
-        auto selected_ymd = date::year_month_day{calendar->selected_date};
-        if (calendar->first_day_of_month.year() == selected_ymd.year() && calendar->first_day_of_month.month() == selected_ymd.month())
+        s32 SelectedIndex = -1;
+        auto SelectedYmd = date::year_month_day{Calendar->SelectedDate};
+        if (Calendar->FirstDayOfMonth.year() == SelectedYmd.year() && Calendar->FirstDayOfMonth.month() == SelectedYmd.month())
         {
-            selected_index = unsigned(selected_ymd.day()) - 1;
+            SelectedIndex = unsigned(SelectedYmd.day()) - 1;
         }
         
         ImGui::Columns(7, "mycolumns", false);  // no border
-        for (int i = 0; i < array_count(weekdays); i++)
+        for (int i = 0; i < ArrayCount(Weekdays); i++)
         {
-            ImGui::Text(weekdays[i]);
+            ImGui::Text(Weekdays[i]);
             ImGui::NextColumn();
         }
         ImGui::Separator();
         
-        for (int i = 0; i < skipped_spots; i++)
+        for (int i = 0; i < SkippedSpots; i++)
         {
             ImGui::NextColumn();
         }
         
-        int label_index = 0;
-        for (int i = 0; i < days_before_oldest; i++, label_index++)
+        int LabelIndex = 0;
+        for (int i = 0; i < DaysBeforeOldest; i++, LabelIndex++)
         {
-            ImGui::Selectable(labels[label_index], false, ImGuiSelectableFlags_Disabled);
+            ImGui::Selectable(Labels[LabelIndex], false, ImGuiSelectableFlags_Disabled);
             ImGui::NextColumn();
         }
         
-        int enabled_days = days_in_month_count - (days_before_oldest + days_after_newest);
-        for (int i = 0; i < enabled_days; i++, label_index++)
+        int EnabledDays = DaysInMonthCount - (DaysBeforeOldest + DaysAfterNewest);
+        for (int i = 0; i < EnabledDays; i++, LabelIndex++)
         {
-            bool selected = (selected_index == label_index);
-            if (ImGui::Selectable(labels[label_index], selected)) 
+            bool Selected = (SelectedIndex == LabelIndex);
+            if (ImGui::Selectable(Labels[LabelIndex], Selected)) 
             {
-                calendar->selected_date = date::sys_days{calendar->first_day_of_month} + date::days{label_index};
-                selection_made = true;
+                Calendar->SelectedDate = date::sys_days{Calendar->FirstDayOfMonth} + date::days{LabelIndex};
+                SelectionMade = true;
             }
             ImGui::NextColumn();
         }
         
-        for (int i = 0; i < days_after_newest; i++, label_index++)
+        for (int i = 0; i < DaysAfterNewest; i++, LabelIndex++)
         {
-            ImGui::Selectable(labels[label_index], false, ImGuiSelectableFlags_Disabled);
+            ImGui::Selectable(Labels[LabelIndex], false, ImGuiSelectableFlags_Disabled);
             ImGui::NextColumn();
         }
         
-        style.SelectableTextAlign = ImVec2(0.0f, 0.0f);
+        Style.SelectableTextAlign = ImVec2(0.0f, 0.0f);
         ImGui::EndPopup();
     }
     
-    return selection_made;
+    return SelectionMade;
 }
 
-void
-init_calendar(Calendar *calendar, date::sys_days selected_date, 
-              date::sys_days oldest_date, date::sys_days newest_date)
+void InitCalendar(calendar *Calendar, date::sys_days SelectedDate, 
+                  date::sys_days OldestDate, date::sys_days NewestDate)
 {
-    calendar->selected_date = selected_date;
+    Calendar->SelectedDate = SelectedDate;
     
     // Want to show the calendar month with our current selected date
-    auto ymd = date::year_month_day{selected_date};
-    auto new_date = ymd.year()/ymd.month()/date::day{1};
-    calendar->first_day_of_month = date::year_month_weekday{new_date};
+    auto ymd = date::year_month_day{SelectedDate};
+    auto NewDate = ymd.year()/ymd.month()/date::day{1};
+    Calendar->FirstDayOfMonth = date::year_month_weekday{NewDate};
     
-    calendar->is_backwards_disabled = calendar_is_backwards_disabled(calendar, oldest_date);
-    calendar->is_forwards_disabled  = calendar_is_forwards_disabled(calendar, newest_date);
+    Calendar->IsBackwardsDisabled = CalendarIsBackwardsDisabled(Calendar, OldestDate);
+    Calendar->IsForwardsDisabled  = CalendarIsForwardsDisabled(Calendar, NewestDate);
     
-    auto d = date::year_month_day{selected_date};
-    snprintf(calendar->button_label, array_count(calendar->button_label), 
+    auto d = date::year_month_day{SelectedDate};
+    snprintf(Calendar->ButtonLabel, ArrayCount(Calendar->ButtonLabel), 
              ICON_MD_DATE_RANGE " %u/%02u/%i", unsigned(d.day()), unsigned(d.month()), int(d.year()));
 }
 
-bool
-do_calendar_button(Calendar *calendar, date::sys_days oldest_date, date::sys_days newest_date)
+bool DoCalendarButton(calendar *Calendar, date::sys_days OldestDate, date::sys_days NewestDate)
 {
-    ImGui::PushID((void *)&calendar->selected_date);
-    if (ImGui::Button(calendar->button_label, ImVec2(DATE_PICKER_CALENDAR_BUTTON_WIDTH, 0)))
+    ImGui::PushID((void *)&Calendar->SelectedDate);
+    if (ImGui::Button(Calendar->ButtonLabel, ImVec2(DATE_PICKER_CALENDAR_BUTTON_WIDTH, 0)))
     {
         // Calendar should be initialised already
         ImGui::OpenPopup("Calendar");
         
         // Show the calendar month with our current selected date
-        auto ymd = date::year_month_day{calendar->selected_date};
-        auto new_date = ymd.year()/ymd.month()/date::day{1};
-        calendar->first_day_of_month = date::year_month_weekday{new_date};
+        auto ymd = date::year_month_day{Calendar->SelectedDate};
+        auto NewDate = ymd.year()/ymd.month()/date::day{1};
+        Calendar->FirstDayOfMonth = date::year_month_weekday{NewDate};
     }
     
-    bool changed_selection = do_calendar(calendar, oldest_date, newest_date);
-    if (changed_selection)
+    bool ChangedSelection = DoCalendar(Calendar, OldestDate, NewestDate);
+    if (ChangedSelection)
     {
-        auto d = date::year_month_day{calendar->selected_date};
-        snprintf(calendar->button_label, array_count(calendar->button_label), ICON_MD_DATE_RANGE " %u/%02u/%i", 
+        auto d = date::year_month_day{Calendar->SelectedDate};
+        snprintf(Calendar->ButtonLabel, ArrayCount(Calendar->ButtonLabel), ICON_MD_DATE_RANGE " %u/%02u/%i", 
                  unsigned(d.day()), unsigned(d.month()), int(d.year()));
     }
     
     ImGui::PopID();
     
-    return changed_selection;
+    return ChangedSelection;
 }
 
 
-void 
-date_picker_update_label(Date_Picker *date_picker, date::sys_days oldest_date, date::sys_days newest_date)
+void DatePickerUpdateLabel(date_picker *DatePicker, date::sys_days OldestDate, date::sys_days NewestDate)
 {
-    if (date_picker->range_type == Range_Type_Daily)
+    if (DatePicker->RangeType == Range_Type_Daily)
     {
-        if (date_picker->start == newest_date)
-            snprintf(date_picker->date_label, array_count(date_picker->date_label), "Today");
-        else if (date_picker->start == newest_date - date::days{1})
-            snprintf(date_picker->date_label, array_count(date_picker->date_label), "Yesterday");
+        if (DatePicker->Start == NewestDate)
+            snprintf(DatePicker->DateLabel, ArrayCount(DatePicker->DateLabel), "Today");
+        else if (DatePicker->Start == NewestDate - date::days{1})
+            snprintf(DatePicker->DateLabel, ArrayCount(DatePicker->DateLabel), "Yesterday");
         else
         {
-            auto d1 = date::year_month_day{date_picker->start};
-            snprintf(date_picker->date_label, array_count(date_picker->date_label), 
-                     "%u %s %i", unsigned(d1.day()), month_string(unsigned(d1.month())), int(d1.year()));
+            auto d1 = date::year_month_day{DatePicker->Start};
+            snprintf(DatePicker->DateLabel, ArrayCount(DatePicker->DateLabel), 
+                     "%u %s %i", unsigned(d1.day()), MonthString(unsigned(d1.month())), int(d1.year()));
         }
     }
-    else if (date_picker->range_type == Range_Type_Weekly || 
-             date_picker->range_type == Range_Type_Custom)
+    else if (DatePicker->RangeType == Range_Type_Weekly || 
+             DatePicker->RangeType == Range_Type_Custom)
     {
-        auto d1 = date::year_month_day{date_picker->start};
-        auto d2 = date::year_month_day{date_picker->end};
-        snprintf(date_picker->date_label, array_count(date_picker->date_label), 
+        auto d1 = date::year_month_day{DatePicker->Start};
+        auto d2 = date::year_month_day{DatePicker->End};
+        snprintf(DatePicker->DateLabel, ArrayCount(DatePicker->DateLabel), 
                  "%u %s %i - %u %s %i", 
-                 unsigned(d1.day()), month_string(unsigned(d1.month())), int(d1.year()),
-                 unsigned(d2.day()), month_string(unsigned(d2.month())), int(d2.year()));
+                 unsigned(d1.day()), MonthString(unsigned(d1.month())), int(d1.year()),
+                 unsigned(d2.day()), MonthString(unsigned(d2.month())), int(d2.year()));
     }
-    else if (date_picker->range_type == Range_Type_Monthly)
+    else if (DatePicker->RangeType == Range_Type_Monthly)
     {
-        auto d1 = date::year_month_day{date_picker->start};
-        snprintf(date_picker->date_label, array_count(date_picker->date_label), 
-                 "%s %i", month_string(unsigned(d1.month())), int(d1.year()));
+        auto d1 = date::year_month_day{DatePicker->Start};
+        snprintf(DatePicker->DateLabel, ArrayCount(DatePicker->DateLabel), 
+                 "%s %i", MonthString(unsigned(d1.month())), int(d1.year()));
     }
 }
 
-void 
-date_picker_clip_and_update(Date_Picker *date_picker, date::sys_days oldest_date, date::sys_days newest_date)
+void DatePickerClipAndUpdate(date_picker *DatePicker, date::sys_days OldestDate, date::sys_days NewestDate)
 {
-    date_picker->start = clamp(date_picker->start, oldest_date, newest_date);
-    date_picker->end = clamp(date_picker->end, oldest_date, newest_date);
+    DatePicker->Start = Clamp(DatePicker->Start, OldestDate, NewestDate);
+    DatePicker->End = Clamp(DatePicker->End, OldestDate, NewestDate);
     
-    Assert(date_picker->start <= date_picker->end);
-    Assert(date_picker->start >= oldest_date);
-    Assert(date_picker->end <= newest_date);
+    Assert(DatePicker->Start <= DatePicker->End);
+    Assert(DatePicker->Start >= OldestDate);
+    Assert(DatePicker->End <= NewestDate);
     
     // If start is clipped then there is always no earlier day/week/month (can't go backwards)
     // Or start is not clipped but is on the oldest date (can't go backwards)
     // If start is not clipped then must be at the beginning of a week or month, so any earlier date (i.e. oldest) would have to be in another week or month (can go backwards)
     
-    date_picker->is_backwards_disabled = (date_picker->start == oldest_date) || date_picker->range_type == Range_Type_Custom;
-    date_picker->is_forwards_disabled = (date_picker->end == newest_date) || date_picker->range_type == Range_Type_Custom;
+    DatePicker->IsBackwardsDisabled = (DatePicker->Start == OldestDate) || DatePicker->RangeType == Range_Type_Custom;
+    DatePicker->IsForwardsDisabled = (DatePicker->End == NewestDate) || DatePicker->RangeType == Range_Type_Custom;
     
-    date_picker_update_label(date_picker, oldest_date, newest_date);
+    DatePickerUpdateLabel(DatePicker, OldestDate, NewestDate);
 }
 
-void
-date_picker_backwards(Date_Picker *date_picker, date::sys_days oldest_date, date::sys_days newest_date) 
+void DatePickerBackwards(date_picker *DatePicker, date::sys_days OldestDate, date::sys_days NewestDate) 
 {
-    if (date_picker->range_type == Range_Type_Daily)
+    if (DatePicker->RangeType == Range_Type_Daily)
     {
-        date_picker->start -= date::days{1};
-        date_picker->end -= date::days{1};
+        DatePicker->Start -= date::days{1};
+        DatePicker->End -= date::days{1};
     }
-    else if (date_picker->range_type == Range_Type_Weekly)
+    else if (DatePicker->RangeType == Range_Type_Weekly)
     {
-        // start end stay on monday and sunday of week unless clipped
-        date_picker->start -= date::days{7};
-        date_picker->end -= date::days{7};
+        // start End stay on monday and sunday of week unless clipped
+        DatePicker->Start -= date::days{7};
+        DatePicker->End -= date::days{7};
         
-        // If end is currently clipped to the newest date then it may not be on sunday, so subtracting 7 days will reduce the date by too much, so need to add days to get back to the weeks sunday
+        // If End is currently clipped to the newest date then it may not be on sunday, so subtracting 7 days will reduce the date by too much, so need to add days to get back to the weeks sunday
         // This is not a problem for the start date if we are going backwards
-        auto day_of_week = date::weekday{date_picker->end};
-        if (day_of_week != date::Sunday)
+        auto DayOfWeek = date::weekday{DatePicker->End};
+        if (DayOfWeek != date::Sunday)
         {
-            auto days_to_next_sunday = date::Sunday - day_of_week;
-            date_picker->end +=  days_to_next_sunday;
+            auto DaysToNextSunday = date::Sunday - DayOfWeek;
+            DatePicker->End +=  DaysToNextSunday;
         }
     }
-    else if (date_picker->range_type == Range_Type_Monthly)
+    else if (DatePicker->RangeType == Range_Type_Monthly)
     {
-        auto d = date::year_month_day{date_picker->start} - date::months{1};
-        date_picker->start = date::sys_days{d.year()/d.month()/1};
-        date_picker->end = date::sys_days{d.year()/d.month()/date::last};
+        auto d = date::year_month_day{DatePicker->Start} - date::months{1};
+        DatePicker->Start = date::sys_days{d.year()/d.month()/1};
+        DatePicker->End = date::sys_days{d.year()/d.month()/date::last};
     }
     
-    date_picker_clip_and_update(date_picker, oldest_date, newest_date);
+    DatePickerClipAndUpdate(DatePicker, OldestDate, NewestDate);
 }
 
-void
-date_picker_forwards(Date_Picker *date_picker, date::sys_days oldest_date, date::sys_days newest_date) 
+void DatePickerForwards(date_picker *DatePicker, date::sys_days OldestDate, date::sys_days NewestDate) 
 {
-    if (date_picker->range_type == Range_Type_Daily)
+    if (DatePicker->RangeType == Range_Type_Daily)
     {
-        date_picker->start += date::days{1};
-        date_picker->end += date::days{1};
+        DatePicker->Start += date::days{1};
+        DatePicker->End += date::days{1};
     }
-    else if (date_picker->range_type == Range_Type_Weekly)
+    else if (DatePicker->RangeType == Range_Type_Weekly)
     {
-        // start end stay on monday and sunday of week unless clipped
-        date_picker->start += date::days{7};
-        date_picker->end += date::days{7};
+        // start End stay on monday and sunday of week unless clipped
+        DatePicker->Start += date::days{7};
+        DatePicker->End += date::days{7};
         
         // If we overshot our monday because start was clipped to a non-monday day, we need to move back
-        auto day_of_week = date::weekday{date_picker->start};
-        if (day_of_week != date::Monday)
+        auto DayOfWeek = date::weekday{DatePicker->Start};
+        if (DayOfWeek != date::Monday)
         {
-            auto days_back_to_monday = day_of_week - date::Monday;
-            date_picker->start -= days_back_to_monday;
+            auto DaysBackToMonday = DayOfWeek - date::Monday;
+            DatePicker->Start -= DaysBackToMonday;
         }
     }
-    else if (date_picker->range_type == Range_Type_Monthly)
+    else if (DatePicker->RangeType == Range_Type_Monthly)
     {
-        auto d = date::year_month_day{date_picker->end} + date::months{1};
-        date_picker->start = date::sys_days{d.year()/d.month()/1};
-        date_picker->end = date::sys_days{d.year()/d.month()/date::last};
+        auto d = date::year_month_day{DatePicker->End} + date::months{1};
+        DatePicker->Start = date::sys_days{d.year()/d.month()/1};
+        DatePicker->End = date::sys_days{d.year()/d.month()/date::last};
     }
     
-    date_picker_clip_and_update(date_picker, oldest_date, newest_date);
+    DatePickerClipAndUpdate(DatePicker, OldestDate, NewestDate);
 }
 
-void
-init_date_picker(Date_Picker *picker, date::sys_days current_date, 
-                 date::sys_days recorded_oldest_date, date::sys_days recorded_newest_date)
+void InitDatePicker(date_picker *DatePicker, date::sys_days CurrentDate, 
+                    date::sys_days RecordedOldestDate, date::sys_days RecordedNewestDate)
 {
     // Current used for selected date of calendar and the picker
     // oldest and newest used for date picker and calendar limits
     
-    // TODO: What if we loaded from a file and have no dates near current_date
+    // TODO: What if we loaded from a file and have no dates near CurrentDate
     // either need get_records_in_date_range to return no records or make date picker
     // initialised within range
     // For now allow zero records to be displayed,  also good is user installed for first time and has no records
     
-    if (current_date > recorded_newest_date) 
+    if (CurrentDate > RecordedNewestDate) 
     {
-        current_date = recorded_newest_date;
+        CurrentDate = RecordedNewestDate;
     }
     
 #if 0
-    picker->range_type = Range_Type_Daily;
-    picker->start = current_date;
-    picker->end = current_date;
+    Datepicker->RangeType = Range_Type_Daily;
+    Datepicker->Start = CurrentDate;
+    Datepicker->End = CurrentDate;
 #else
     // DEBUG: Default to monthly
-    auto ymd = date::year_month_day{current_date};
-    picker->range_type = Range_Type_Monthly;
-    picker->start = date::sys_days{ymd.year()/ymd.month()/1};
-    picker->end   = date::sys_days{ymd.year()/ymd.month()/date::last};
+    auto ymd = date::year_month_day{CurrentDate};
+    DatePicker->RangeType = Range_Type_Monthly;
+    DatePicker->Start = date::sys_days{ymd.year()/ymd.month()/1};
+    DatePicker->End   = date::sys_days{ymd.year()/ymd.month()/date::last};
 #endif
     
     // sets label and if buttons are disabled 
-    date_picker_clip_and_update(picker, recorded_oldest_date, recorded_newest_date);
+    DatePickerClipAndUpdate(DatePicker, RecordedOldestDate, RecordedNewestDate);
     
-    init_calendar(&picker->first_calendar, current_date, recorded_oldest_date, recorded_newest_date);
-    init_calendar(&picker->second_calendar, current_date, recorded_oldest_date, recorded_newest_date);
+    InitCalendar(&DatePicker->FirstCalendar, CurrentDate, RecordedOldestDate, RecordedNewestDate);
+    InitCalendar(&DatePicker->SecondCalendar, CurrentDate, RecordedOldestDate, RecordedNewestDate);
 }
 
-bool
-do_date_select_popup(Date_Picker *date_picker, date::sys_days oldest_date, date::sys_days newest_date)
+bool DoDateSelectPopup(date_picker *DatePicker, date::sys_days OldestDate, date::sys_days NewestDate)
 {
-    bool range_changed = false;
-    ImVec2 pos = ImVec2(ImGui::GetWindowWidth() / 2.0f, ImGui::GetCursorPosY() + 3);
-    ImGui::SetNextWindowPos(pos, true, ImVec2(0.5f, 0)); // centre on x
+    bool RangeChanged = false;
+    ImVec2 Pos = ImVec2(ImGui::GetWindowWidth() / 2.0f, ImGui::GetCursorPosY() + 3);
+    ImGui::SetNextWindowPos(Pos, true, ImVec2(0.5f, 0)); // centre on x
     
     //ImGui::SetNextWindowSize(ImVec2(300,300));
     
     if (ImGui::BeginPopup("Date Select"))
     {
-        char *items[] = {"Day", "Week", "Month", "Custom"};
+        char *Items[] = {"Day", "Week", "Month", "Custom"};
         
-        int prev_range_type = date_picker->range_type;
+        int PrevRangeType = DatePicker->RangeType;
         
 #if 1
-        ImVec2 button_size = ImVec2(DATE_PICKER_RANGE_BUTTON_WIDTH, 0);
+        ImVec2 ButtonSize = ImVec2(DATE_PICKER_RANGE_BUTTON_WIDTH, 0);
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(3.0f, 10.0f));
-        if (ButtonConditionallyFilled(items[0], date_picker->range_type != Range_Type_Daily, button_size))
+        if (ButtonConditionallyFilled(Items[0], DatePicker->RangeType != Range_Type_Daily, ButtonSize))
         {
-            date_picker->range_type = Range_Type_Daily;
+            DatePicker->RangeType = Range_Type_Daily;
         }
         ImGui::SameLine();
-        if (ButtonConditionallyFilled(items[1], date_picker->range_type != Range_Type_Weekly, button_size))
+        if (ButtonConditionallyFilled(Items[1], DatePicker->RangeType != Range_Type_Weekly, ButtonSize))
         {
-            date_picker->range_type = Range_Type_Weekly;
+            DatePicker->RangeType = Range_Type_Weekly;
         }
         ImGui::SameLine();
-        if (ButtonConditionallyFilled(items[2], date_picker->range_type != Range_Type_Monthly, button_size))
+        if (ButtonConditionallyFilled(Items[2], DatePicker->RangeType != Range_Type_Monthly, ButtonSize))
         {
-            date_picker->range_type = Range_Type_Monthly;
+            DatePicker->RangeType = Range_Type_Monthly;
         }
         ImGui::SameLine();
-        if (ButtonConditionallyFilled(items[3], date_picker->range_type != Range_Type_Custom, button_size))
+        if (ButtonConditionallyFilled(Items[3], DatePicker->RangeType != Range_Type_Custom, ButtonSize))
         {
-            date_picker->range_type = Range_Type_Custom;
+            DatePicker->RangeType = Range_Type_Custom;
         }
         ImGui::PopStyleVar();
 #else
-        ImGui::Combo("##picker", (int *)&date_picker->range_type, items, array_count(items));
+        ImGui::Combo("##picker", (int *)&DatePicker->RangeType, Items, ArrayCount(Items));
 #endif
-        if (date_picker->range_type != prev_range_type)
+        if (DatePicker->RangeType != PrevRangeType)
         {
-            range_changed = true;
-            if (date_picker->range_type == Range_Type_Daily)
+            RangeChanged = true;
+            if (DatePicker->RangeType == Range_Type_Daily)
             {
                 // end date stays the same
-                date_picker->start = date_picker->end;
+                DatePicker->Start = DatePicker->End;
             }
-            else if  (date_picker->range_type == Range_Type_Weekly)
+            else if  (DatePicker->RangeType == Range_Type_Weekly)
             {
                 // Select the week that end date was in
-                auto days_to_next_sunday = date::Sunday - date::weekday{date_picker->end};
+                auto DaysToNextSunday = date::Sunday - date::weekday{DatePicker->End};
                 
-                date_picker->end = date_picker->end + days_to_next_sunday;
-                date_picker->start = date_picker->end - date::days{6};
+                DatePicker->End = DatePicker->End + DaysToNextSunday;
+                DatePicker->Start = DatePicker->End - date::days{6};
             }
-            else if  (date_picker->range_type == Range_Type_Monthly)
+            else if  (DatePicker->RangeType == Range_Type_Monthly)
             {
                 // Select the month that end date was in
-                auto ymd = date::year_month_day{date_picker->end};
-                date_picker->start = date::sys_days{ymd.year()/ymd.month()/1};
-                date_picker->end   = date::sys_days{ymd.year()/ymd.month()/date::last};
+                auto ymd = date::year_month_day{DatePicker->End};
+                DatePicker->Start = date::sys_days{ymd.year()/ymd.month()/1};
+                DatePicker->End   = date::sys_days{ymd.year()/ymd.month()/date::last};
             }
-            else if (date_picker->range_type == Range_Type_Custom)
+            else if (DatePicker->RangeType == Range_Type_Custom)
             {
                 // Either calendar can be before other
-                date_picker->start = std::min(date_picker->first_calendar.selected_date, date_picker->second_calendar.selected_date);
-                date_picker->end = std::max(date_picker->first_calendar.selected_date, date_picker->second_calendar.selected_date);
+                DatePicker->Start = std::min(DatePicker->FirstCalendar.SelectedDate, DatePicker->SecondCalendar.SelectedDate);
+                DatePicker->End = std::max(DatePicker->FirstCalendar.SelectedDate, DatePicker->SecondCalendar.SelectedDate);
             }
             else
             {
                 Assert(0);
             }
             
-            date_picker_clip_and_update(date_picker, oldest_date, newest_date);
+            DatePickerClipAndUpdate(DatePicker, OldestDate, NewestDate);
         }
         
-        if (do_calendar_button(&date_picker->first_calendar, oldest_date, newest_date))
+        if (DoCalendarButton(&DatePicker->FirstCalendar, OldestDate, NewestDate))
         {
-            if (date_picker->range_type == Range_Type_Custom)
+            if (DatePicker->RangeType == Range_Type_Custom)
             {
-                range_changed = true;
-                date_picker->start = std::min(date_picker->first_calendar.selected_date, date_picker->second_calendar.selected_date);
-                date_picker->end = std::max(date_picker->first_calendar.selected_date, date_picker->second_calendar.selected_date);
-                date_picker_clip_and_update(date_picker, oldest_date, newest_date);
+                RangeChanged = true;
+                DatePicker->Start = std::min(DatePicker->FirstCalendar.SelectedDate, DatePicker->SecondCalendar.SelectedDate);
+                DatePicker->End = std::max(DatePicker->FirstCalendar.SelectedDate, DatePicker->SecondCalendar.SelectedDate);
+                DatePickerClipAndUpdate(DatePicker, OldestDate, NewestDate);
             }
         } 
         ImGui::SameLine();
-        if (do_calendar_button(&date_picker->second_calendar, oldest_date, newest_date))
+        if (DoCalendarButton(&DatePicker->SecondCalendar, OldestDate, NewestDate))
         {
-            if (date_picker->range_type == Range_Type_Custom)
+            if (DatePicker->RangeType == Range_Type_Custom)
             {
-                range_changed = true;
-                date_picker->start = std::min(date_picker->first_calendar.selected_date, date_picker->second_calendar.selected_date);
-                date_picker->end = std::max(date_picker->first_calendar.selected_date, date_picker->second_calendar.selected_date);
-                date_picker_clip_and_update(date_picker, oldest_date, newest_date);
+                RangeChanged = true;
+                DatePicker->Start = std::min(DatePicker->FirstCalendar.SelectedDate, DatePicker->SecondCalendar.SelectedDate);
+                DatePicker->End = std::max(DatePicker->FirstCalendar.SelectedDate, DatePicker->SecondCalendar.SelectedDate);
+                DatePickerClipAndUpdate(DatePicker, OldestDate, NewestDate);
             }
         }
         
         ImGui::EndPopup();
     }
     
-    return range_changed;
+    return RangeChanged;
 }

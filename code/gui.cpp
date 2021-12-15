@@ -1,6 +1,13 @@
 
-#include "monitor.h"
+#include "misc/freetype/imgui_freetype.h"
+#include "imgui_internal.h"
+#include "imgui.h"
 #include "IconsMaterialDesign.h"
+#include "monitor.h"
+#include "gui.h"
+
+#include "resources/source_code_pro.cpp" // File containing compressed font data
+#include "date_picker.cpp"
 
 constexpr float UI_DEFAULT_BUTTON_WIDTH = 100;
 constexpr ImGuiID UI_KEYWORD_LIST_ID = 800;
@@ -13,29 +20,107 @@ constexpr float DATE_SELECT_WIDTH = 250;
 constexpr float NORMAL_FONT_SIZE = 22.0f;
 constexpr float SMALL_FONT_SIZE = 20.0f;
 
-/// debug
-static u32 g_text_down = 5;
-static u32 g_text_right = 7;
-static float g_bar_height = ICON_SIZE;
-static float g_bar_down = 1;
-static bool g_fullscreen = !MONITOR_DEBUG; 
+static bool GlobalGUIFullscreen = false;
 
-#define SHOW_FREETYPE_OPTIONS_WINDOW (MONITOR_DEBUG && 0)
+#define SHOW_FREETYPE_OPTIONS_WINDOW 1
 
-// from monitor.cpp
-Icon_Asset *get_app_icon_asset(App_List *apps, UI_State *ui, App_Id id);
-String get_app_name(App_List *apps, App_Id id);
-void add_keyword(Settings *settings, char *str);
+#if SHOW_FREETYPE_OPTIONS_WINDOW
+struct FreeTypeTest
+{
+    enum FontBuildMode
+    {
+        FontBuildMode_FreeType,
+        FontBuildMode_Stb
+    };
+    
+    FontBuildMode BuildMode;
+    bool          WantRebuild;
+    float         FontsMultiply;
+    int           FontsPadding;
+    unsigned int  FontsFlags;
+    float font_size;
+    bool first;
+    
+    FreeTypeTest()
+    {
+        BuildMode = FontBuildMode_FreeType;
+        WantRebuild = true;
+        FontsMultiply = 1.0f;
+        FontsPadding = 1;
+        FontsFlags = ImGuiFreeTypeBuilderFlags_LightHinting;
+        font_size = NORMAL_FONT_SIZE;
+        first = true;
+    }
+    
+    // Call _BEFORE_ NewFrame()
+    bool UpdateRebuild()
+    {
+        if (!WantRebuild)
+            return false;
+        ImGuiIO& io = ImGui::GetIO();
+        io.Fonts->TexGlyphPadding = FontsPadding;
+        for (int n = 0; n < io.Fonts->ConfigData.Size; n++)
+        {
+            ImFontConfig* font_config = (ImFontConfig*)&io.Fonts->ConfigData[n];
+            font_config->RasterizerMultiply = FontsMultiply;
+            font_config->SizePixels = font_size;
+        }
+        if (BuildMode == FontBuildMode_FreeType)
+            ImGuiFreeType::BuildFontAtlas(io.Fonts, FontsFlags);
+        else if (BuildMode == FontBuildMode_Stb)
+            io.Fonts->Build();
+        WantRebuild = false;
+        return true;
+    }
+    
+    // Call to draw interface
+    void ShowFreetypeOptionsWindow()
+    {
+        if (first) { ImGui::SetNextWindowPos(ImVec2(900, 0), true); first = false; }
+        
+        ImGui::Begin("FreeType Options");
+        ImGui::ShowFontSelector("Fonts");
+        WantRebuild |= ImGui::RadioButton("FreeType", (int*)&BuildMode, FontBuildMode_FreeType);
+        ImGui::SameLine();
+        WantRebuild |= ImGui::RadioButton("Stb (Default)", (int*)&BuildMode, FontBuildMode_Stb);
+        WantRebuild |= ImGui::DragFloat("Multiply", &FontsMultiply, 0.001f, 0.0f, 2.0f);
+        WantRebuild |= ImGui::DragInt("Padding", &FontsPadding, 0.1f, 0, 16);
+        
+        ImGui::SetCursorPosY(300);
+        ImGui::PushItemWidth(200);
+        WantRebuild |= ImGui::InputFloat("Size", &font_size, 1.0f, 0.0f, "%.2f");
+        ImGui::PopItemWidth();
+        
+        if (BuildMode == FontBuildMode_FreeType)
+        {
+            WantRebuild |= ImGui::CheckboxFlags("NoHinting",     &FontsFlags, ImGuiFreeTypeBuilderFlags_NoHinting);
+            WantRebuild |= ImGui::CheckboxFlags("NoAutoHint",    &FontsFlags, ImGuiFreeTypeBuilderFlags_NoAutoHint);
+            WantRebuild |= ImGui::CheckboxFlags("ForceAutoHint", &FontsFlags, ImGuiFreeTypeBuilderFlags_ForceAutoHint);
+            WantRebuild |= ImGui::CheckboxFlags("LightHinting",  &FontsFlags, ImGuiFreeTypeBuilderFlags_LightHinting);
+            WantRebuild |= ImGui::CheckboxFlags("MonoHinting",   &FontsFlags, ImGuiFreeTypeBuilderFlags_MonoHinting);
+            WantRebuild |= ImGui::CheckboxFlags("Bold",          &FontsFlags, ImGuiFreeTypeBuilderFlags_Bold);
+            WantRebuild |= ImGui::CheckboxFlags("Oblique",       &FontsFlags, ImGuiFreeTypeBuilderFlags_Oblique);
+            WantRebuild |= ImGui::CheckboxFlags("Monochrome",    &FontsFlags, ImGuiFreeTypeBuilderFlags_Monochrome);
+        }
+        ImGui::End();
+    }
+};
+
+FreeTypeTest freetype_test;
+#endif
 
 
-void
-init_imgui_fonts_and_style(ImFont **small_font)
+ImFont *InitImguiFontsAndStyle()
 {
     ImGuiIO& io = ImGui::GetIO(); 
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
     io.IniFilename = NULL; // Disable imgui.ini filecreation
     
     ImGui::StyleColorsLight();
+    
+    
+    //ImVec4* colors = ImGui::GetStyle().Colors;
+    //colors[ImGuiCol_FrameBg] = ImVec4(255, 255, 255, 255.00f);
     
 #if 0
     colors[ImGuiCol_PopupBg]                = ImVec4(0.94f, 0.94f, 0.94f, 1.00f);
@@ -52,8 +137,15 @@ init_imgui_fonts_and_style(ImFont **small_font)
     colors[ImGuiCol_ButtonActive]           = dark_grey;
 #endif
     
-    ImVec4* colors = ImGui::GetStyle().Colors;
-    //colors[ImGuiCol_FrameBg] = ImVec4(255, 255, 255, 255.00f);
+    
+    ImGuiStyle& Style = ImGui::GetStyle();
+    Style.FrameRounding = 0.0f; // 0 to 12 ? 
+    Style.WindowBorderSize = 1.0f; // or 1.0
+    Style.GrabRounding = Style.FrameRounding; // Make GrabRounding always the same value as FrameRounding
+    Style.FrameBorderSize = 1.0f;
+    Style.PopupBorderSize = 1.0f;
+    Style.ChildBorderSize = 1.0f;
+    Style.WindowRounding = 0.0f;
     
 #if 0    
     static const ImWchar basic_latin[] = {
@@ -62,7 +154,7 @@ init_imgui_fonts_and_style(ImFont **small_font)
     };
 #endif
     
-    static const ImWchar icon_range[] = {
+    static const ImWchar IconRange[] = {
         0xe8b8, 0xe8b8, // settings
         0xe916, 0xe916, // data range
         0xe5c8, 0xe5c8, // arrow forward
@@ -70,50 +162,597 @@ init_imgui_fonts_and_style(ImFont **small_font)
         0,
     };
     
-    ImFontConfig config; 
-    config.MergeMode = true; 
-    config.PixelSnapH = true;
-    config.GlyphOffset = ImVec2(0, 4); // move icon glyphs down or else they render too high
+    io.Fonts->Clear(); // Delete default font
     
-    ImFont *normal_font = io.Fonts->AddFontFromMemoryCompressedTTF(SourceSansProRegular_compressed_data, SourceSansProRegular_compressed_size, NORMAL_FONT_SIZE, nullptr);
+    //ImFont *MainFont = io.Fonts->AddFontFromFileTTF("c:\\dev\\projects\\keeptime\\build\\fonts\\SourceSansPro-Regular.ttf", NORMAL_FONT_SIZE);
+    
+    // NOTE: FreeType assumes blending in linear space rather than gamma space. See FreeType note for FT_Render_Glyph. For correct results you need to be using sRGB and convert to linear space in the pixel shader output. The default Dear ImGui styles will be impacted by this change (alpha values will need tweaking).
+    
+    ImFontConfig MainFontConfig; 
+    MainFontConfig.FontBuilderFlags = ImGuiFreeTypeBuilderFlags_LightHinting;
+    
+    // Step 1. Load font primarily used in GUI
+    ImFont *MainFont = io.Fonts->AddFontFromMemoryCompressedTTF(SourceSansProRegularCompressedData, SourceSansProRegularCompressedSize, NORMAL_FONT_SIZE, nullptr);
+    
+    // Step 2. Merge icon font with it
+    ImFontConfig IconFontConfig; 
+    IconFontConfig.MergeMode = true; 
+    IconFontConfig.PixelSnapH = true;
+    IconFontConfig.GlyphOffset = ImVec2(0, 4); // move icon glyphs down or else they render too high
     
     // This adds 56000 IndexAdvanceX floats because it is based off the max codepoint so unused glyph indexes just have default advance
-    io.Fonts->AddFontFromFileTTF("c:\\dev\\projects\\keeptime\\build\\fonts\\MaterialIcons-Regular.ttf", NORMAL_FONT_SIZE, &config, icon_range);
+    io.Fonts->AddFontFromFileTTF("c:\\dev\\projects\\keeptime\\build\\fonts\\MaterialIcons-Regular.ttf", NORMAL_FONT_SIZE, &IconFontConfig, IconRange);
+    
+    // Step 3. Load a second font for some parts of GUI
+    ImFont *SmallFont = io.Fonts->AddFontFromMemoryCompressedTTF(SourceSansProRegularCompressedData, SourceSansProRegularCompressedSize, SMALL_FONT_SIZE, nullptr);
+    
+    // Turn into texture atlas
+    io.Fonts->Build();
+    
+    // Reload texture on GPU
+    // TODO:  Hoist this into platform layer
+    ImGui_ImplOpenGL3_DestroyFontsTexture();
+    ImGui_ImplOpenGL3_CreateFontsTexture();
     
     // Subset is 2K instead of 126K not a buig deal (before compression)
     // https://transfonter.org/
     // "c:\\dev\\projects\\keeptime\\build\\fonts\\subset-MaterialIcons-Regular.ttf"
     
-    ImFont *loaded_small_font = io.Fonts->AddFontFromMemoryCompressedTTF(SourceSansProRegular_compressed_data, SourceSansProRegular_compressed_size, SMALL_FONT_SIZE, nullptr);
+    return SmallFont;
+}
+
+gui CreateGUI()
+{
+    gui GUI = {};
+    GUI.IsLoaded = false;
+    GUI.SmallFont = InitImguiFontsAndStyle();
+    return GUI;
+}
+
+// TODO: Make the rest of IMGUI get loaded and unloaded
+void LoadGUI(gui *GUI, date::sys_days CurrentDate, date::sys_days OldestDate, date::sys_days NewestDate)
+{
+    GUI->Arena = BootstrapArena(MB(5), MB(500));
     
+    //ui->icon_indexes.reserve(app_count + 200); 
+    //ui->icon_indexes.assign(app_count, -1); // set size and fill with -1
+    //ui->icons.reserve(200);
     
-    // NOTE: FreeType assumes blending in linear space rather than gamma space. See FreeType note for FT_Render_Glyph. For correct results you need to be using sRGB and convert to linear space in the pixel shader output. The default Dear ImGui styles will be impacted by this change (alpha values will need tweaking).
-    // NOTE: Freetype is an additional dependency/dll ...
-#if 1
-    // for freetype: call before Build or GetTexDataAsRGBA32 
-    unsigned font_flags = ImGuiFreeType::LightHinting;
-    for (int n = 0; n < io.Fonts->ConfigData.Size; n++)
+    //ui->icon_bitmap_storage = (u32 *)xalloc(sizeof(u32)*ICON_SIZE*ICON_SIZE);
+    
+    //load_default_icon_assets(ui->icons);
+    
+    //ui->day_view = get_day_view(&state->day_list); 
+    
+    // TODO: Get oldest and newest date from day_view associated with current ui instance
+    // TODO: Don't reset this so it is on same range when user opens ui again
+    InitDatePicker(&GUI->DatePicker, CurrentDate, OldestDate, NewestDate);
+    
+    //ui->date_range_changed = true; // so record array is made the first time
+    
+    GUI->IsLoaded = true;
+}
+
+void UnloadGUI(gui *GUI)
+{
+    FreeArena(GUI->Arena);
+    GUI->Arena = nullptr;
+    GUI->IsLoaded = false;
+}
+
+u32 DeduplicateAndMakeContiguousKeywords(string *NewKeywords, char **OldKeywords, u32 OldKeywordCountMax)
+{
+    // NewKeywords will always have enough space for capacity keywords
+    u32 NewKeywordCount = 0;
+    
+    for (u32 KeywordIndex = 0; KeywordIndex < OldKeywordCountMax; ++KeywordIndex)
     {
-        ImFontConfig* font_config = (ImFontConfig*)&io.Fonts->ConfigData[n];
-        font_config->RasterizerFlags = font_flags;
+        char *OldKeyword = OldKeywords[KeywordIndex];
+        u64 Length = StringLength(OldKeyword);
+        if (Length > 0)
+        {
+            bool NoMatches = true;
+            for (u32 i = 0; i < NewKeywordCount; ++i)
+            {
+                if (StringsAreEqual(NewKeywords[i], OldKeyword, Length))
+                {
+                    NoMatches = false;
+                    break;
+                }
+            }
+            
+            if (NoMatches)
+            {
+                NewKeywords[NewKeywordCount].Str = OldKeyword;
+                NewKeywords[NewKeywordCount].Length = Length;
+                NewKeywordCount += 1;
+            }
+        }
     }
-    ImGuiFreeType::BuildFontAtlas(io.Fonts, font_flags);
-#else
-    // for stb:
-    //io.Fonts->Build();
+    
+    return NewKeywordCount;
+}
+
+void HelpMarker(const char* Description)
+{
+    ImGui::TextDisabled("(?)");
+    if (ImGui::IsItemHovered())
+    {
+        ImGui::BeginTooltip();
+        ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.0f);
+        ImGui::TextUnformatted(Description);
+        ImGui::PopTextWrapPos();
+        ImGui::EndTooltip();
+    }
+}
+
+void DoMiscOptions(misc_options *Options)
+{
+    //ImGui::PushItemWidth(ImGui::GetWindowWidth() * 0.30f);
+    
+    if (ImGui::Button("About"))
+    {
+        ImGui::OpenPopup("About " PROGRAM_NAME);
+    }
+    
+    bool AboutOpen = true;
+    ImGui::SetNextWindowSize(ImVec2(ImGui::GetWindowWidth() * 0.5, 0));
+    if (ImGui::BeginPopupModal("About " PROGRAM_NAME, &AboutOpen, ImGuiWindowFlags_NoResize|ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        ImGui::Text(PROGRAM_NAME);
+        ImGui::Text("Version " VERSION_STRING);
+        ImGui::Text("Made by " NAME_STRING);
+        ImGui::Text(LICENSE_STRING);
+        
+        ImGui::NewLine();
+        if (ImGui::Button("OK", ImVec2(UI_DEFAULT_BUTTON_WIDTH, 0)))
+        {
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+    
+#if 0    
+    char *Times[] = {
+        "12:00 AM",
+        "12:15 AM",
+        "12:30 AM",
+        "etc..."
+    };
+    // So late night usage still counts towards previous day
+    if (ImGui::Combo("New day start time", &EditSettings->day_start_time_item, Times, array_count(Times)))
+    {
+        EditSettings->misc_options.day_start_time = EditSettings->day_start_time_item * 15;
+    }
+    if (ImGui::Combo("Start tracking time", &EditSettings->poll_start_time_item, Times, array_count(Times)))
+    {
+        EditSettings->misc_options.poll_start_time = EditSettings->poll_start_time_item * 15;
+    }
+    if (ImGui::Combo("Finish tracking time", &EditSettings->poll_end_time_item, Times, array_count(Times)))
+    {
+        EditSettings->misc_options.poll_end_time = EditSettings->poll_end_time_item * 15;
+    }
 #endif
     
-    *small_font = loaded_small_font;
+}
+
+void DoKeywordInputList(edit_settings *EditSettings)
+{
+    ImGui::RadioButton("All", (int *)&EditSettings->MiscOptions.KeywordOptions, KeywordOptions_All); 
+    ImGui::SameLine();
+    ImGui::RadioButton("Custom", (int *)&EditSettings->MiscOptions.KeywordOptions, KeywordOptions_Custom);
+    ImGui::SameLine();
+    ImGui::RadioButton("None", (int *)&EditSettings->MiscOptions.KeywordOptions, KeywordOptions_None);
+    
+    constexpr float ADD_BUTTON_WIDTH = 80;
+    ImGui::SameLine(ImGui::GetWindowWidth() - ADD_BUTTON_WIDTH);
+    
+    u32 FocusKeywordIndex = static_cast<u32>(-1);
+    
+    bool DisableKeywords = EditSettings->MiscOptions.KeywordOptions != KeywordOptions_Custom;
+    
+    if (ButtonSpecial("Add...", DisableKeywords, ImVec2(ADD_BUTTON_WIDTH, 0)))
+    {
+        // Give focus to first free text box
+        bool AllBoxesFull = true;
+        for (u32 i = 0; i < MAX_KEYWORD_COUNT; ++i)
+        {
+            // First character of keyword is null byte (no input text)
+            if (EditSettings->Keywords[i][0] == 0)
+            {
+                FocusKeywordIndex = i;
+                AllBoxesFull = false;
+                break;
+            }
+        }
+        
+        if (AllBoxesFull)
+        {
+            // All boxes full
+            EditSettings->KeywordLimitError = true;
+            EditSettings->KeywordDisabledCharacterError = false;
+        }
+    }
+    
+    // Need to do this before potentially setting error, to avoid immediately clearing error, when the mouse click to add button is pressed, TODO: Is this true?
+    if (EditSettings->KeywordLimitError || EditSettings->KeywordDisabledCharacterError) 
+    {
+        ImGui::SameLine();
+        ImGui::TextColored(ImVec4(200,0,0,255), EditSettings->KeywordLimitError ? 
+                           "   * Maximum number of keywords reached (100)" : 
+                           "   * Valid characters are A-Z a-z 0-9 . -");
+        
+        // clear error message on click 
+        if (ImGui::IsAnyMouseDown())
+        {
+            EditSettings->KeywordLimitError = false;
+            EditSettings->KeywordDisabledCharacterError = false;
+        }
+    }
+    
+    u32 IndexOfLastKeyword = 0;
+    for (u32 i = 0; i < MAX_KEYWORD_COUNT; ++i)
+    {
+        // Keyword is not empty (first character would be null byte)
+        if (EditSettings->Keywords[i][0] != 0)
+        {
+            IndexOfLastKeyword = i;
+        }
+    }
+    
+    // show more input boxes past our last used box
+    u32 NumberOfBoxes = Minimum(IndexOfLastKeyword + 8, MAX_KEYWORD_COUNT);
+    
+    float ListWidth = ImGui::GetWindowWidth();
+    ImGui::BeginChild(UI_KEYWORD_LIST_ID, ImVec2(ListWidth, 0), true);
+    {
+        // If I use WindowDrawList must subtract padding or else lines are obscured by below text input box
+        // can use ForegroundDrawList but this is not clipped to keyword child window
+        ImDrawList* DrawList = ImGui::GetWindowDrawList();
+        //ImDrawList* DrawList = ImGui::GetForeGroundDrawList();
+        
+        b32 EnteredDisabledCharacter = false;
+        
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0); // remove input box frame
+        ImGui::PushItemWidth(ListWidth*0.95);
+        
+        for (u32 i = 0; i < NumberOfBoxes; ++i)
+        {
+            if ((!EditSettings->KeywordLimitError) && (i == FocusKeywordIndex))
+            {
+                ImGui::SetKeyboardFocusHere();
+            }
+            
+            auto Filter = [](ImGuiInputTextCallbackData *Data) -> int {
+                // Domain names only allow alphanumeric and hyphen, and dots to separate subdomains
+                // No UTF-8 allowed to be pasted either
+                ImWchar c = Data->EventChar;
+                if (IsAlphaNumeric(c) || c == '-' || c == '.')
+                {
+                    return 0; // allow
+                }
+                else
+                {
+                    b32 *PtrToEnteredDisabledCharacter = (b32 *)Data->UserData;
+                    *PtrToEnteredDisabledCharacter = true;
+                    return 1;
+                }
+            };
+            
+            ImU32 LineColour = IM_COL32(150, 150, 150, 255);
+            
+            char *Keyword = EditSettings->Keywords[i];
+            
+            if (DisableKeywords) {
+                ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true); // imgui_internal.h
+                ImGui::PushStyleColor(ImGuiCol_Text, DISABLED_COLOUR);
+                LineColour = DISABLED_COLOUR;
+            }
+            
+            ImGui::PushID(i);
+            ImGui::InputText("", Keyword, MAX_KEYWORD_LENGTH + 1, ImGuiInputTextFlags_CallbackCharFilter, Filter, &EnteredDisabledCharacter);
+            ImGui::PopID();
+            
+            if (DisableKeywords) {
+                ImGui::PopItemFlag();
+                ImGui::PopStyleColor();
+            }
+            
+            float padding = 3;
+            ImVec2 pos = ImGui::GetCursorScreenPos();
+            pos.y -= padding;
+            DrawList->AddLine(pos, ImVec2(pos.x + ListWidth, pos.y), LineColour, 1.0f);
+        }
+        ImGui::PopItemWidth();
+        ImGui::PopStyleVar();
+        
+        if (EnteredDisabledCharacter)
+        {
+            EditSettings->KeywordDisabledCharacterError = true;
+            EditSettings->KeywordLimitError = false;
+        }
+    }
+    ImGui::EndChildFrame();
+}
+
+void AddKeyword(settings *Settings, string Keyword)
+{
+    Assert(Settings->Keywords);
+    Assert(Keyword.Length <= MAX_KEYWORD_LENGTH); 
+    Settings->Keywords[Settings->KeywordCount] = PushString(Settings->Arena, Keyword);
+    Settings->KeywordCount += 1;
+}
+
+void BeginEditSettings(arena *Arena, edit_settings *EditSettings, settings *Settings)
+{
+    Assert(Settings->KeywordCount < MAX_KEYWORD_COUNT);
+    
+    const u32 KeywordBufferSize = MAX_KEYWORD_LENGTH + 1; 
+    
+    *EditSettings = {};
+    EditSettings->TempMemory = BeginTempArena(Arena);
+    EditSettings->MiscOptions = Settings->MiscOptions;
+    EditSettings->Keywords = Allocate(EditSettings->TempMemory.Arena, MAX_KEYWORD_COUNT, char *); 
+    EditSettings->Buffer = Allocate(EditSettings->TempMemory.Arena, MAX_KEYWORD_COUNT * KeywordBufferSize, char); 
+    
+    for (u32 i = 0; i < Settings->KeywordCount; ++i)
+    {
+        string *SourceKeyword = &Settings->Keywords[i];
+        Assert(SourceKeyword->Length < KeywordBufferSize); 
+        
+        // Already null terminated because buffer is cleared to zero
+        char *DestKeywordBuffer = EditSettings->Buffer + (i * KeywordBufferSize);
+        EditSettings->Keywords[i] = DestKeywordBuffer;
+        
+        MemoryCopy(SourceKeyword->Length, SourceKeyword->Str, EditSettings->Keywords[i]); 
+        Assert(DestKeywordBuffer[KeywordBufferSize-1] == 0);
+    }
+}
+
+void EndEditSettings(edit_settings *EditSettings, settings *Settings)
+{
+    EndTempMemory(EditSettings->TempMemory);
+    *EditSettings = {};
+}
+
+void UpdateSettings(settings *Settings, edit_settings *EditSettings)
+{
+    string *NewKeywords = Allocate(EditSettings->TempMemory.Arena, MAX_KEYWORD_COUNT, string);
+    u32 NewKeywordCount =  DeduplicateAndMakeContiguousKeywords(NewKeywords, EditSettings->Keywords, MAX_KEYWORD_COUNT);
+    
+    // TODO: Free old setttings keyword strings
+    // TODO: dont really need to reallocate string array
+    Settings->MiscOptions = EditSettings->MiscOptions;
+    Settings->Keywords = Allocate(Settings->Arena, NewKeywordCount, string); 
+    Settings->KeywordCount = 0;
+    
+    for (u32 i = 0; i < NewKeywordCount; ++i)
+    {
+        AddKeyword(Settings, NewKeywords[i]);
+    }
+}
+
+bool DoEditSettingsPopup(settings *Settings, edit_settings *EditSettings, ImFont *SmallFont)
+{
+    bool RequireSettingsUpdate = false;
+    bool Open = true;
+    
+    ImGui::SetNextWindowPos(ImVec2(ImGui::GetWindowWidth() / 2, ImGui::GetWindowHeight() / 2), ImGuiCond_Appearing, ImVec2(0.5, 0.5));
+    ImGui::SetNextWindowSize(ImVec2(ImGui::GetWindowWidth() * 0.6, ImGui::GetWindowHeight() * 0.8));
+    if (ImGui::BeginPopupModal("Settings", &Open, ImGuiWindowFlags_AlwaysAutoResize|ImGuiWindowFlags_NoMove))
+    {
+        
+        ImGui::BeginChild(UI_SETTINGS_ID, ImVec2(0,ImGui::GetWindowHeight() * 0.85), false);
+        {
+            ImGuiTabBarFlags TabBarFlags = ImGuiTabBarFlags_None;
+            if (ImGui::BeginTabBar("MyTabBar", TabBarFlags))
+            {
+                if (ImGui::BeginTabItem("UI"))
+                {
+                    ImGui::PushFont(SmallFont);
+                    DoMiscOptions(&EditSettings->MiscOptions);
+                    ImGui::EndTabItem();
+                    ImGui::PopFont();
+                }
+                if (ImGui::BeginTabItem("Website keywords"))
+                {
+                    ImGui::PushFont(SmallFont);
+                    DoKeywordInputList(EditSettings);
+                    ImGui::EndTabItem();
+                    ImGui::PopFont();
+                }
+                ImGui::EndTabBar();
+            }
+            
+            
+            ImGui::EndChild();
+        }
+        
+        if (ImGui::Button("OK", ImVec2(UI_DEFAULT_BUTTON_WIDTH, 0)))
+        {
+            RequireSettingsUpdate = true;
+            ImGui::CloseCurrentPopup();
+            Open = false;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel", ImVec2(UI_DEFAULT_BUTTON_WIDTH, 0)))
+        {
+            ImGui::CloseCurrentPopup();
+            Open = false;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Apply", ImVec2(UI_DEFAULT_BUTTON_WIDTH, 0)))
+        {
+            RequireSettingsUpdate = true;
+        }
+        
+        ImGui::EndPopup(); // only close if BeginPopupModal returns true
+    }
+    
+    if (RequireSettingsUpdate)
+    {
+        // NOTE: EditSettings->KeywordCount is not used
+        UpdateSettings(Settings, EditSettings);
+    }
+    
+    return !Open;
+}
+
+void DrawGUI(monitor_state *State, gui *GUI, settings *Settings)
+{
+    Assert(GUI->IsLoaded);
+    
+#if SHOW_FREETYPE_OPTIONS_WINDOW
+    // Light hinting with freetype looks better than stb font renderer (at least at size 22 pixels)
+    if (freetype_test.UpdateRebuild())
+    {
+        // REUPLOAD FONT TEXTURE TO GPU
+        ImGui_ImplOpenGL3_DestroyDeviceObjects();
+        ImGui_ImplOpenGL3_CreateDeviceObjects();
+    }
+#endif
+    
+    ImGui::NewFrame();
+    
+#if MONITOR_DEBUG
+    bool ShowDemoWindow = true;
+    ImGui::ShowDemoWindow(&ShowDemoWindow);
+    
+    {
+        ImGuiIO& io = ImGui::GetIO();
+        // TODO: This may need to be a different index rather than 'D'
+        if (io.KeysDown['D'] && io.KeyCtrl)
+        {
+            ImGui::SetNextWindowFocus();
+        }
+        
+        void DebugUiOptions(monitor_state *State);
+        DebugUiOptions(State);
+    }
+#endif
+    
+#if SHOW_FREETYPE_OPTIONS_WINDOW
+    ImGui::SetNextWindowPos(ImVec2(900, 0), true);
+    freetype_test.ShowFreetypeOptionsWindow();
+#endif
+    
+    ImGuiWindowFlags Flags =
+        ImGuiWindowFlags_NoTitleBar
+        | ImGuiWindowFlags_NoMove
+        | ImGuiWindowFlags_NoScrollbar
+        | ImGuiWindowFlags_NoCollapse
+        | ImGuiWindowFlags_NoSavedSettings
+        | ImGuiWindowFlags_NoResize;
+    
+    ImGui::SetNextWindowPos(ImVec2(0, 0), true);
+    
+    ImGuiIO& io = ImGui::GetIO();
+    if (GlobalGUIFullscreen)
+        ImGui::SetNextWindowSize(io.DisplaySize); 
+    else
+        ImGui::SetNextWindowSize(ImVec2(850, 690), true);
+    
+    ImGui::Begin("Main window", nullptr, Flags);
+    
+    // Date Picker
+    {
+        // Centre date navigation bar
+        // Padding is 8
+        ImGui::SetCursorPosX(((ImGui::GetWindowWidth() - (SMALL_BUTTON_WIDTH * 2 + DATE_SELECT_WIDTH)) / 2) - 8);
+        
+        date_picker *DatePicker = &GUI->DatePicker;
+        
+        record *Records = State->Records;
+        
+        // TODO: Make the NULL record with duration = 0, date = 0?, ID = 0
+        date::sys_days OldestDate = {};
+        date::sys_days NewestDate = {};
+        if (State->RecordCount > 0)
+        {
+            OldestDate = Records[0].Date;
+            NewestDate = Records[State->RecordCount - 1].Date;
+        }
+        
+        if (ButtonSpecial(ICON_MD_ARROW_BACK, DatePicker->IsBackwardsDisabled))
+        {
+            GUI->DateRangeChanged = true;
+            DatePickerBackwards(DatePicker, OldestDate, NewestDate);
+        }
+        
+        ImGui::SameLine();
+        if (ImGui::Button(DatePicker->DateLabel, ImVec2(DATE_SELECT_WIDTH, 0))) 
+        {
+            ImGui::OpenPopup("Date Select");
+        }
+        ImGui::SameLine();
+        
+        if (ButtonSpecial(ICON_MD_ARROW_FORWARD, DatePicker->IsForwardsDisabled))
+        {
+            GUI->DateRangeChanged = true;
+            DatePickerForwards(DatePicker, OldestDate, NewestDate);
+        }
+        
+        if (DoDateSelectPopup(DatePicker, OldestDate, NewestDate))
+        {
+            GUI->DateRangeChanged = true;
+        }
+        
+        
+#if 0
+        ImDrawList* DrawList = ImGui::GetForegroundDrawList();
+        float centre_x = ImGui::GetWindowWidth()/2;
+        DrawList->AddLine({centre_x,0}, {centre_x, 300}, IM_COL32_BLACK, 1.0f);
+        DrawList->AddLine({centre_x - (DATE_SELECT_WIDTH / 2), 20}, 
+                          {centre_x, 20}, IM_COL32_BLACK, 1.0f);
+        DrawList->AddLine({centre_x, 20}, 
+                          {centre_x + (DATE_SELECT_WIDTH / 2), 20}, IM_COL32_BLACK, 1.0f);
+#endif
+    }
     
     ImGuiStyle& style = ImGui::GetStyle();
-    style.FrameRounding = 0.0f; // 0 to 12 ? 
-    style.WindowBorderSize = 1.0f; // or 1.0
-    style.GrabRounding = style.FrameRounding; // Make GrabRounding always the same value as FrameRounding
-    style.FrameBorderSize = 1.0f;
-    style.PopupBorderSize = 1.0f;
-    style.ChildBorderSize = 1.0f;
-    style.WindowRounding = 0.0f;
+    ImGui::SameLine(ImGui::GetWindowWidth() - (SMALL_BUTTON_WIDTH + style.WindowPadding.x));
+    
+    // Settings
+    {
+        if (ImGui::Button(ICON_MD_SETTINGS))
+        {
+            BeginEditSettings(GUI->Arena, &GUI->EditSettings, Settings);
+            ImGui::OpenPopup("Settings");
+        }
+        
+        bool Exited = DoEditSettingsPopup(Settings, &GUI->EditSettings, GUI->SmallFont);
+        if (Exited)
+        {
+            // TODO: does this get called every time the settings popup is not open?
+            EndEditSettings(&GUI->EditSettings, Settings);
+        }
+    }
+    
+    
+    ImGui::End();
+    
+    ImGui::Render(); 
+    
 }
+
+
+#if 0
+
+
+/// debug
+static u32 g_text_down = 5;
+static u32 g_text_right = 7;
+static float g_bar_height = ICON_SIZE;
+static float g_bar_down = 1;
+static bool g_fullscreen = !MONITOR_DEBUG; 
+
+#define SHOW_FREETYPE_OPTIONS_WINDOW (MONITOR_DEBUG && 0)
+
+// from monitor.cpp
+Icon_Asset *get_app_icon_asset(App_List *apps, UI_State *ui, App_Id id);
+String get_app_name(App_List *apps, App_Id id);
+void add_keyword(Settings *settings, char *str);
+
 
 void
 load_ui(UI_State *ui, u32 app_count, 
@@ -457,7 +1096,7 @@ do_keyword_input_list(Edit_Settings *edit_settings)
         ImDrawList* draw_list = ImGui::GetWindowDrawList();
         //ImDrawList* draw_list = ImGui::GetForeGroundDrawList();
         
-        b32 entered_disabled_character = false;
+        b32 EnteredDisabledCharacter = false;
         
         ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0); // remove input box frame
         ImGui::PushItemWidth(list_width*0.95);
@@ -482,8 +1121,8 @@ do_keyword_input_list(Edit_Settings *edit_settings)
                 }
                 else
                 {
-                    b32 *ptr_to_entered_disabled_character = (b32 *)data->UserData;
-                    *ptr_to_entered_disabled_character = true;
+                    b32 *ptr_to_EnteredDisabledCharacter = (b32 *)data->UserData;
+                    *ptr_to_EnteredDisabledCharacter = true;
                     return 1;
                 }
             };
@@ -537,8 +1176,8 @@ do_settings_popup(Settings *settings, Edit_Settings *edit_settings, ImFont *smal
         ImGui::BeginChild(UI_SETTINGS_ID, ImVec2(0,ImGui::GetWindowHeight() * 0.85), false);
         {
             
-            ImGuiTabBarFlags tab_bar_flags = ImGuiTabBarFlags_None;
-            if (ImGui::BeginTabBar("MyTabBar", tab_bar_flags))
+            ImGuiTabBarFlags TabBarFlags = ImGuiTabBarFlags_None;
+            if (ImGui::BeginTabBar("MyTabBar", TabBarFlags))
             {
                 if (ImGui::BeginTabItem("UI"))
                 {
@@ -721,15 +1360,14 @@ get_records_in_date_range(Day_View *day_view, u32 *record_count,
     return result;
 }
 
-
 //@main
 void 
-draw_ui_and_update(SDL_Window *window, UI_State *ui, Settings *settings, App_List *apps, Monitor_State *state)
+draw_ui_and_update()
 {
     ZoneScoped;
     
-    ImGui_ImplOpenGL3_NewFrame();
-    ImGui_ImplSDL2_NewFrame(window);
+    //ImGui_ImplOpenGL3_NewFrame();
+    //ImGui_ImplSDL2_NewFrame(window);
     
 #if SHOW_FREETYPE_OPTIONS_WINDOW
     // Light hinting with freetype looks better than stb font renderer (at least at size 22 pixels)
@@ -792,7 +1430,7 @@ draw_ui_and_update(SDL_Window *window, UI_State *ui, Settings *settings, App_Lis
         date::sys_days oldest_date = ui->day_view.days.front().date;
         date::sys_days newest_date = ui->day_view.days.back().date;
         
-        if (ButtonSpecial(ICON_MD_ARROW_BACK, date_picker->is_backwards_disabled))
+        if (ButtonSpecial(ICON_MD_ARROW_BACK, date_picker->IsBackwardsDisabled))
         {
             ui->date_range_changed = true;
             date_picker_backwards(date_picker, oldest_date, newest_date);
@@ -805,7 +1443,7 @@ draw_ui_and_update(SDL_Window *window, UI_State *ui, Settings *settings, App_Lis
         }
         ImGui::SameLine();
         
-        if (ButtonSpecial(ICON_MD_ARROW_FORWARD, date_picker->is_forwards_disabled))
+        if (ButtonSpecial(ICON_MD_ARROW_FORWARD, date_picker->IsForwardsDisabled))
         {
             ui->date_range_changed = true;
             date_picker_forwards(date_picker, oldest_date, newest_date);
@@ -960,7 +1598,7 @@ draw_ui_and_update(SDL_Window *window, UI_State *ui, Settings *settings, App_Lis
         glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
         glClear(GL_COLOR_BUFFER_BIT);
         
-        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData()); 
+        //ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData()); 
     }
 }
 
@@ -1210,3 +1848,4 @@ do_debug_window_button(Monitor_State *state)
     } // if debug_menu_open
 }
 
+#endif

@@ -18,12 +18,14 @@
 
 #include "resource.h" // ID_MAIN_ICON
 
+// TODO: Don't include headers here (except monitor.h)
 #include "base.h"
 #include "platform.h"
 #include "monitor_string.h"
 #include "helper.h"
 #include "helper.cpp"
 #include "base.cpp"
+#include "gui.cpp"
 #include "monitor.cpp"
 
 #define ID_TRAY_APP_ICON 1001
@@ -32,7 +34,6 @@
 #define CUSTOM_WM_TRAY_ICON (WM_APP + 1)
 #define CUSTOM_WM_SHOW_WINDOW (WM_APP + 2)
 
-#define PROGRAM_NAME "Keeptime"
 #define WINDOW_CLASS_NAME "Keeptime2WindowClass"
 
 struct win32_ui_automation
@@ -70,6 +71,7 @@ typedef BOOL WINAPI wgl_swap_interval_ext(int interval);
 // TODO:
 // PLATFORM_ERROR_MESSAGE to make message box
 //
+// SHQueryUserNotificationState to query if user is in quiet mode, away, busy?
 
 char *UTF8FromUTF16(arena *Arena, wchar_t *String16, u32 String16Length)
 {
@@ -93,7 +95,6 @@ wchar_t *UTF16FromUTF8(arena *Arena, char *String8, int String8Length)
     int Capacity = (String8Length * 2) + 2;
     wchar_t *Buffer = Allocate(Arena, Capacity, wchar_t);
     
-    // Can be used with temp_arena or arena
     int CharacterCount = MultiByteToWideChar(CP_UTF8, 0, 
                                              String8, String8Length, 
                                              Buffer, Capacity);
@@ -1102,7 +1103,7 @@ Win32GetDefaultIcon(u32 DesiredSize, bitmap *Bitmap)
     if (IconHandle )
     {
         // TODO: Not sure how exactly to handle platform icon getting with checking sizes, resizing, allocating
-        u32 *AllocatedPixels = (u32 *)calloc(1, 4*ICON_SIZE*ICON_SIZE);
+        u32 *AllocatedPixels = (u32 *)calloc(1, 4*PLATFORM_ICON_SIZE*PLATFORM_ICON_SIZE);
         if (Win32GetBitmapDataFromHICON(IconHandle, DesiredSize, AllocatedPixels))
         {
             Bitmap->Width = DesiredSize;
@@ -1164,6 +1165,7 @@ PlatformGetIconFromExecutable(char *Path, u32 DesiredSize, bitmap *Bitmap, u32 *
 //-
 // File API
 
+// TODO: THis function!
 // Returns null terminated string
 // Returns NULL on error (or maybe sets PlatformError = true?)
 // May be prefixed with \? stuff
@@ -1267,33 +1269,34 @@ PlatformReadEntireFile(char *FileName)
     return Result;
 }
 
-// It is possible to reserve and commit at once on windows
-
 void *PlatformMemoryReserve(u64 Size)
 {
-    void *Memory = VirtualAlloc(0, Size, MEM_RESERVE, PAGE_READWRITE);
+    void *Memory = VirtualAlloc(0, Size, MEM_RESERVE, PAGE_NOACCESS);
     return Memory;
 }
 
-void *PlatformMemoryCommit(void *Address, u64 Size)
+bool PlatformMemoryCommit(void *Address, u64 Size)
 {
-    void *Memory = VirtualAlloc(0, Size, MEM_COMMIT, PAGE_READWRITE);
-    return Memory;
+    // Can succeed even if Address is NULL
+    // Does not fail if you try to commit an already commited page
+    // Actual physical pages are not allocated until they are accessed
+    // Zeros the commited pages
+    bool Success = (VirtualAlloc(Address, Size, MEM_COMMIT, PAGE_READWRITE) != 0);
+    return Success;
 }
 
 // Frees all pages with a byte in the range from Address to Address+Size
 void PlatformMemoryDecommit(void *Address, u64 Size)
 {
+    // Does not fail if you try to decommit an uncommited page
     VirtualFree(Address, Size, MEM_DECOMMIT);
 }
 
+// Decommits all commited pages and releases reserved memory region
 void PlatformMemoryFree(void *Address)
 {
     VirtualFree(Address, 0, MEM_RELEASE);
 }
-
-//-
-
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine, int nCmdShow)
 {
@@ -1398,13 +1401,16 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine,
     ImGui_ImplWin32_Init(Window);
     ImGui_ImplOpenGL3_Init("#version 130"); // GLSL 130 (OpenGL 3.0)
     
+    monitor_state MonitorState = {};
+    
     HDC DeviceContext = GetDC(Window);
     
     // TODO: Get monitor refresh rate
     static constexpr f32 UPDATES_PER_SECOND_WINDOW_VISIBLE = 60.0f; 
     static constexpr f32 UPDATES_PER_SECOND_BACKGROUND = 1.0f;
     
-    f32 UpdatesPerSecond = 0.0f;
+    f32 SecondsPerUpdate = 1.0f / UPDATES_PER_SECOND_WINDOW_VISIBLE;
+    
     auto SecondsToMilliseconds = [](f32 Seconds) { return (u32)(Seconds * 1000.0f); };
     
     s64 OldTime = 0;
@@ -1412,42 +1418,30 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine,
     GlobalAppRunning = true;
     while (GlobalAppRunning)
     {
-        // Uses last frames update time
-        f32 SecondsPerUpdate = 1.0f / UpdatesPerSecond; // TODO: BUG! UpdatesPerSecond = 0
-        Win32WaitMessageWithTimeout(SecondsToMilliseconds(SecondsPerUpdate)); 
+        Win32WaitMessageWithTimeout(SecondsToMilliseconds(SecondsPerUpdate));
         Win32PumpMessages();
         
         bool WindowHidden = PlatformIsWindowHidden();
-        UpdatesPerSecond = WindowHidden ? UPDATES_PER_SECOND_BACKGROUND : UPDATES_PER_SECOND_WINDOW_VISIBLE;
+        f32 UpdatesPerSecond = WindowHidden ? UPDATES_PER_SECOND_BACKGROUND : UPDATES_PER_SECOND_WINDOW_VISIBLE;
+        SecondsPerUpdate = 1.0f / UpdatesPerSecond;
         
         ImGui_ImplWin32_NewFrame();
         ImGui_ImplOpenGL3_NewFrame();
-        
-        // ------------
-        // Non-platform stuff
         
         s64 NewTime = Win32GetTime();
         s64 dt  = Win32GetMicrosecondsElaped(OldTime, NewTime); 
         OldTime = NewTime;
         
-        
-        // Update(dt);
-        
-        
-        ImGui::NewFrame();
-        ImGui::Render();
-        
-        ImGuiIO& io = ImGui::GetIO();
-        ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
-        // Using Windows OpenGL bindings
-        glViewport(0, 0, (int)io.DisplaySize.x, (int)io.DisplaySize.y);
-        glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
-        glClear(GL_COLOR_BUFFER_BIT);
-        
-        // ------------
+        Update(&MonitorState, dt);
         
         if (!WindowHidden)
         {
+            ImGuiIO& io = ImGui::GetIO();
+            glViewport(0, 0, (int)io.DisplaySize.x, (int)io.DisplaySize.y);
+            ImVec4 ClearColor = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+            glClearColor(ClearColor.x, ClearColor.y, ClearColor.z, ClearColor.w);
+            glClear(GL_COLOR_BUFFER_BIT);
+            
             ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData()); 
             SwapBuffers(DeviceContext);
         }

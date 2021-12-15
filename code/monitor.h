@@ -1,36 +1,64 @@
 #pragma once
 
-#include "date.h"
-#include "graphics.h"
-#include "helper.h"
+#include "base.h"
 #include "monitor_string.h"
-#include "apps.h"
-#include "ui.h"
-
-#include <unordered_map>
-#include <chrono>
+#include "date.h"
+#include "helper.h"
+#include "gui.h"
 
 #define PROGRAM_NAME "KeepTime"
 #define VERSION_STRING "0.0.1"
 #define NAME_STRING "Mac"
 #define LICENSE_STRING "MIT Licence"
 
-// TODO: make a malloc failure routine that maybe writes to savefile, and frees stuff and maybe exits gracefully
-struct
-Monitor_State
+typedef u32 app_id;
+
+enum app_type
 {
-    UI_State ui;
+    NONE = 0,
+    PROGRAM = 1, // Program IDs do not have the most significant bit set
+    WEBSITE = 2, // Website IDs have the most significant bit set
+};
+
+constexpr u32 APP_TYPE_BIT_INDEX = 31;
+constexpr u32 APP_TYPE_BIT_MASK = 1 << 31;
+
+struct app_info
+{
+    app_type Type;
+    union
+    {
+        string ProgramPath; 
+        string WebsiteHost;
+        string Name; // For referencing app's path or host in a non-specific way
+    };
+};
+
+struct record
+{
+    app_id ID;
+    date::sys_days Date; // days since 2000 or something...
+    u64 DurationMicroseconds; 
+};
+
+static_assert(sizeof(record) == 16, "");
+
+static_assert(sizeof(date::sys_days) == 4, ""); // check size
+
+struct monitor_state
+{
+    bool IsInitialised;
     
-    s64 accumulated_time; // microsecs
-    u32 refresh_frame_time; // in milliseconds
-    char savefile_path[512]; // TODO: find how big to make, MAX_PATH?
-    char temp_savefile_path[512]; // TODO: find how big to make, MAX_PATH? not sure how exactly i plan to make writes safer yet
+    arena PermanentArena;
+    arena TemporaryArena;
     
-    // Just allocate 100 days + days we already have to stop repeated allocs and potential failure
-    // Also say we can have max of 1000 daily records or so, so we can just alloc a 1000 record chunk from arena per day to easily ensure it will be contiguous.
-    Day_List day_list;
-    App_List apps;
-    Settings settings;
+    string_map AppNameMap;
+    u32 CurrentID;
     
-    bool is_initialised;
+    record *Records;
+    u64 RecordCount;
+    
+    settings Settings;
+    
+    gui GUI;
 };
