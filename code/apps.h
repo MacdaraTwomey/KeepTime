@@ -2,8 +2,48 @@
 #ifndef APPS_H
 #define APPS_H
 
-#include <unordered_map>
-#include <vector>
+#include "base.h"
+#include "monitor_string.h"
+
+typedef u32 app_id;
+
+enum app_type
+{
+    NONE = 0,
+    PROGRAM = 1, // Program IDs do not have the most significant bit set
+    WEBSITE = 2, // Website IDs have the most significant bit set
+};
+
+constexpr u32 APP_TYPE_BIT_INDEX = 31;
+constexpr u32 APP_TYPE_BIT_MASK = 1 << 31;
+
+struct app_info
+{
+    app_type Type;
+    union
+    {
+        string ProgramPath; 
+        string WebsiteHost;
+        string Name; // For referencing app's path or host in a non-specific way
+    };
+};
+
+struct record
+{
+    app_id ID;
+    date::sys_days Date; // Could use days since 2000 or something...
+    u64 DurationMicroseconds; 
+};
+
+static_assert(sizeof(record) == 16, "");
+static_assert(sizeof(date::sys_days) == 4, ""); // check size
+
+struct record_slice
+{
+    record *Records;
+    u64 Count;
+};
+
 
 constexpr s32 MAX_KEYWORD_COUNT = 100;
 constexpr s32 MAX_KEYWORD_LENGTH = 100; // Not including null byte
@@ -29,7 +69,7 @@ struct misc_options
 misc_options DefaultMiscOptions()
 {
     misc_options Misc;
-    Misc.KeywordOptions= KeywordOptions_Custom;
+    Misc.KeywordOptions = KeywordOptions_Custom;
     return Misc;
 }
 // Free list allocator just for strings because these are the most transient
@@ -40,6 +80,5 @@ struct settings
     string *Keywords; // Null terminated, NULL byte not counted in Length (because GUI wants them that way)
     u32 KeywordCount;
 };
-
 
 #endif //APPS_H

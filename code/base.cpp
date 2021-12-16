@@ -126,7 +126,7 @@ void *PushSize(arena *Arena, u64 Size)
 // It is not really necessary to properly align allocations on modern x64 processors (unless you are doing SIMD)
 // It may be undefined behaviour to access an unaligned type, but we are already ignoring strict aliasing.
 // So it would be nice to disable this assuming alignment behaviour.
-void *PushSize(arena *Arena, u64 Size, u32 Alignment, u8 ArenaPushFlags)
+void *PushSize_(arena *Arena, u64 Size, u32 Alignment, u8 ArenaPushFlags)
 {
     Assert(Size != 0);
     
@@ -169,9 +169,9 @@ void *PushSize(arena *Arena, u64 Size, u32 Alignment, u8 ArenaPushFlags)
 }
 
 // Defaults to alignment of 4 bytes 
-void *PushCopy(arena *Arena, void *Source, u64 Size)
+void *PushCopy_(arena *Arena, void *Source, u64 Size, u32 Alignment)
 {
-    void *Memory = PushSize(Arena, Size, 4, ArenaPushFlags_None);
+    void *Memory = PushSize_(Arena, Size, Alignment, ArenaPushFlags_None);
     MemoryCopy(Size, Source, Memory);
     return Memory;
 }
@@ -179,33 +179,24 @@ void *PushCopy(arena *Arena, void *Source, u64 Size)
 char *PushCString(arena *Arena, char *String)
 {
     u64 Length = StringLength(String) + 1;
-    char *Memory = (char *)PushCopy(Arena, String, Length);
+    char *Memory = (char *)PushCopy_(Arena, String, Length, 1);
     return Memory;
 }
 
 string PushString(arena *Arena, string String)
 {
-    char *StringData = (char *)PushCopy(Arena, String.Str, String.Length);
+    char *StringData = (char *)PushCopy_(Arena, String.Str, String.Length, 1);
     return MakeString(StringData, String.Length);
 }
 
 // Make a new null terminated string
-string PushStringNullTerminated(arena *Arena, string String)
+c_string PushStringNullTerminated(arena *Arena, string String)
 {
     u64 Length = String.Length;
-    char *StringData = (char *)PushSize(Arena, Length + 1, 4, ArenaPushFlags_None);
+    char *StringData = (char *)PushSize_(Arena, Length + 1, 1, ArenaPushFlags_None);
     MemoryCopy(Length, String.Str, StringData);
     StringData[Length] = 0;
-    return MakeString(StringData, String.Length);
-}
-
-// TODO:
-void PopSize(arena *Arena, u64 Pos)
-{
-    if (Pos < Arena->Pos)
-    {
-        // If more than xxx still committed is unused then decommit
-    }
+    return MakeCString(StringData, String.Length);
 }
 
 temp_memory BeginTempMemory(arena *Arena)
@@ -227,6 +218,16 @@ void EndTempMemory(temp_memory TempMemory)
     Assert(Arena->TempCount > 0);
     
     Arena->Pos = TempMemory.StartPos;
+    Arena->TempCount -= 1;
+    
+    Assert(Arena->TempCount == 0); // Assume this until I find a good way to have multiple
+}
+
+void KeepTempMemory(temp_memory TempMemory)
+{
+    arena *Arena = TempMemory.Arena;
+    Assert(Arena->TempCount > 0);
+    
     Arena->TempCount -= 1;
     
     Assert(Arena->TempCount == 0); // Assume this until I find a good way to have multiple

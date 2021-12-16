@@ -176,20 +176,17 @@ arena_push_flags NoClear()
     return Flags;
 }
 
-void *PushSize(arena *Arena, u64 Size, u32 Alignment, u8 ArenaPushFlags = DefaultArenaPushFlags());
+// TODO: These declarations needed?
+void *PushSize_(arena *Arena, u64 Size, u32 Alignment, u8 ArenaPushFlags = DefaultArenaPushFlags());
+void *PushCopy_(arena *Arena, void *Source, u64 Size, u32 Alignment);
 void MemoryCopy(u64 Size, void *Source, void *Dest);
 void MemoryZero(u64 Size, void *Memory);
-void *CheckTypeAlignment(void *Ptr, u32 Alignment); 
 
 
-#if MONITOR_DEBUG
-// May need to prefix the varargs with '##' (e.g. " ##__VA_ARGS__") this removes comma if there are no arguments)
-#define Allocate(Arena, Size, Type, ...) \
-(Type *)CheckTypeAlignment(PushSize((Arena), (Size)*sizeof(Type), alignof(Type), __VA_ARGS__), \
-alignof(Type)) 
-#else
-#define Allocate(Arena, Size, Type, ...) (Type *)PushSize((Arena), (Size)*sizeof(Type), alignof(Type),  __VA_ARGS__)
-#endif
+// May need to write ##__VA_ARGS__ to remove comma that is placed if varargs is empty
+#define Allocate(Arena, Count, Type, ...) (Type *)PushSize_((Arena), (Count)*sizeof(Type), alignof(Type),  __VA_ARGS__)
+
+#define PushCopy(Arena, Source, Count, Type) (Type *)PushCopy_((Arena), (void *)(Source), (Count)*sizeof(Type), alignof(Type))
 
 
 

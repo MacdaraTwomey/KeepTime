@@ -1,13 +1,10 @@
 
-//#include "monitor.h"
-
 #include "helper.h"
 
-#include <stdlib.h>
-#include <stdarg.h>
-#include <stdio.h>
-
-#include <algorithm>
+//#include <stdlib.h>
+//#include <stdarg.h>
+//#include <stdio.h>
+//#include <algorithm>
 
 
 //c 16 * 2 * 10000 = 320K for 10000 element hash table

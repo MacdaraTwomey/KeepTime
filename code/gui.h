@@ -1,26 +1,25 @@
-#ifndef UI_H
-#define UI_H
+#ifndef GUI_H
+#define GUI_H
 
-#include "imgui.h" // ImFont
+#include "base.h"
 #include "date.h"
 #include "apps.h"
 
-#include <vector>
+struct ImFont;
 
 // Seems that all sizes work except 16 and except larger sizes (64 works though)
-constexpr u32 ICON_SIZE = 32;
+static constexpr u32 ICON_SIZE = 32;
 
-constexpr u32 DEFAULT_LOCAL_PROGRAM_ICON_INDEX = 0;
-constexpr u32 DEFAULT_WEBSITE_ICON_INDEX = 1;
+static constexpr u32 DEFAULT_PROGRAM_ICON_INDEX = 0;
+static constexpr u32 DEFAULT_WEBSITE_ICON_INDEX = DEFAULT_PROGRAM_ICON_INDEX; // TODO: fixup
+static constexpr u32 MAX_ICON_COUNT = 10000;
 
-struct Record;
-struct Day;
-
-struct Icon_Asset
+struct icon_asset
 {
-    u32 texture_handle;
-    int width;
-    int height;
+    u32 TextureHandle;
+    s32 Width;
+    s32 Height;
+    bool Loaded;
 };
 
 struct calendar
@@ -76,6 +75,11 @@ struct gui
     //std::vector<Icon_Asset> icons;
     //u32 *icon_bitmap_storage;
     
+    // Icons make sense as a fixed size pool allocator (or we could just never free the icon memory)
+    // TODO: These are always a fixed size right? so do we need to store width height
+    icon_asset *Icons;
+    u64 IconCount;
+    
     arena Arena; 
     
     date_picker DatePicker;
@@ -85,9 +89,12 @@ struct gui
     ImFont *SmallFont;
     bool DateRangeChanged;
     
+    record *SortedRecords;
+    u64 SortedRecordCount;
+    
     bool IsLoaded;
 };
 
 
 
-#endif //UI_H
+#endif //GUI_H

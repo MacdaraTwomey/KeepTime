@@ -1,6 +1,13 @@
 
-date::sys_days
-get_local_time_day()
+#include "date.h"
+#include "base.h"
+#include "platform.h"
+#include "monitor_string.h"
+#include "helper.h"
+#include "monitor.h"
+#include "apps.h"
+
+date::sys_days GetLocalTime()
 {
     time_t rawtime;
     time( &rawtime );
@@ -14,201 +21,216 @@ get_local_time_day()
     return now;
 }
 
-void
-start_new_day(Day_List *day_list, date::sys_days date)
+void SetBit(u32 *A, u32 BitIndex)
 {
-    // day points to next free space
-    Day new_day = {};
-    new_day.record_count = 0;
-    new_day.date = date;
-    new_day.records = (Record *)push_size(&day_list->record_arena, MAX_DAILY_RECORDS * sizeof(Record));
-    
-    day_list->days.push_back(new_day);
+    Assert(BitIndex < 32);
+    *A |= (1 << BitIndex);
 }
 
-void
-add_or_update_record(Day_List *day_list, App_Id id, s64 dt)
+app_id GenerateAppID(u32 *CurrentID, app_type AppType)
 {
-    // Assumes a day's records are sequential in memory
-    Assert(id != 0);
-    Assert(day_list->days.size() > 0);
+    Assert(*CurrentID != 0);
+    Assert(*CurrentID < APP_TYPE_BIT_MASK);
     
-    Day *cur_day = &day_list->days.back();
-    for (u32 i = 0; i < cur_day->record_count; ++i)
+    app_id ID = *CurrentID++;
+    if (AppType == app_type::WEBSITE) SetBit(&ID, APP_TYPE_BIT_INDEX); 
+    
+    return ID;
+}
+
+u32 IndexFromAppID(app_id ID)
+{
+    Assert(ID != 0);
+    
+    // Get bottom 31 bits of id
+    u32 Index = ID & (~APP_TYPE_BIT_MASK);
+    
+    return Index;
+}
+
+bool IsWebsite(app_id ID)
+{
+    return ID & (1 << APP_TYPE_BIT_INDEX);
+}
+
+bool IsProgram(app_id ID)
+{
+    return !IsWebsite(ID);
+}
+
+
+#define GLCheck(x) GLClearError(); x; GLLogCall(#x, __FILE__, __LINE__)
+
+void
+GLClearError()
+{
+    while (glGetError() != GL_NO_ERROR);
+}
+
+bool
+GLLogCall(const char *function, const char *file, int line)
+{
+    while (GLenum error = glGetError())
     {
-        if (id == cur_day->records[i].id)
+        printf("[OpenGL Error] (%u) %s %s: Line %i\n", error, function, file, line);
+        return false;
+    }
+    
+    return true;
+}
+
+u32 OpenGLCreateTexture(bitmap Bitmap)
+{
+#define GL_BGRA                           0x80E1
+    
+    GLuint ImageTexture;
+    GLCheck(glGenTextures(1, &ImageTexture)); // I think this can fail if out of texture mem
+    
+    GLCheck(glBindTexture(GL_TEXTURE_2D, ImageTexture));
+    
+    GLCheck(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
+    GLCheck(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
+    
+    // Can be PACK for glReadPixels or UNPCK GL_UNPACK_ROW_LENGTH
+    
+    // This sets the number of pixels in the row for the glTexImage2D to expect, good 
+    //glPixelStorei(GL_UNPACK_ROW_LENGTH, 24);
+    
+    // Alignment of the first pixel in each row
+    GLCheck(glPixelStorei(GL_UNPACK_ALIGNMENT, 1));
+    
+    // You create storage for a Texture and upload pixels to it with glTexImage2D (or similar functions, as appropriate to the type of texture). If your program crashes during the upload, or diagonal lines appear in the resulting image, this is because the alignment of each horizontal line of your pixel array is not multiple of 4. This typically happens to users loading an image that is of the RGB or BGR format (for example, 24 BPP images), depending on the source of your image data. 
+    
+    GLCheck(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, Bitmap.Width, Bitmap.Height, 0, GL_BGRA, GL_UNSIGNED_BYTE, Bitmap.Pixels));
+    
+    return ImageTexture;
+}
+
+icon_asset *GetAppIconAsset(monitor_state *State, gui *GUI, app_id ID)
+{
+    if (IsWebsite(ID))
+    {
+        //get_favicon_from_website(url);
+        
+        icon_asset *DefaultIcon = &GUI->Icons[DEFAULT_WEBSITE_ICON_INDEX];
+        Assert(DefaultIcon->TextureHandle != 0);
+        return DefaultIcon;
+    }
+    
+    if (IsProgram(ID))
+    {
+        u32 Index = IndexFromAppID(ID);
+        
+        bool IconNotLoaded = Index >= GUI->IconCount;
+        if (IconNotLoaded)
         {
-            cur_day->records[i].duration += dt;
-            return;
+            string Path = State->ProgramPaths[Index];
+            Assert(Path.Length > 0);
+            
+            bitmap Bitmap = {};
+            bool Success = PlatformGetIconFromExecutable(&GUI->Arena, Path.Str, ICON_SIZE, &Bitmap);
+            if (Success)
+            {
+                // TODO: Maybe mark old paths that couldn't get correct icon for deletion or to stop trying to get icon, or assign a default invisible icon
+                icon_asset *Icon = &GUI->Icons[Index];
+                
+                Icon->TextureHandle = OpenGLCreateTexture(Bitmap);
+                Icon->Width = Bitmap.Width; // unnecessary
+                Icon->Height = Bitmap.Height; // unnecessary
+                Icon->Loaded = true;
+                
+                GUI->IconCount += 1;
+                
+                return Icon;
+            }
+        }
+        else
+        {
+            // Icon already loaded
+            icon_asset *Icon = &GUI->Icons[Index];
+            Assert(Icon->TextureHandle != 0);
+            return Icon;
         }
     }
     
-    if (cur_day->record_count < MAX_DAILY_RECORDS)
+    icon_asset *DefaultIcon = &GUI->Icons[DEFAULT_PROGRAM_ICON_INDEX];
+    Assert(DefaultIcon->TextureHandle != 0);
+    return DefaultIcon;
+}
+
+
+app_id GetAppID(arena *Arena, 
+                string_map *AppNameMap, 
+                c_string *ProgramPaths, u32 *ProgramCount, 
+                u32 *CurrentID, app_info Info)
+{
+    app_id ID = 0;
+    
+    // Share hash table
+    string_map_entry *Entry = StringMapGet(AppNameMap, Info.Name);
+    if (!Entry)
     {
-        // Add new record to block
-        cur_day->records[cur_day->record_count] = Record{ id, dt };
-        cur_day->record_count += 1;
-    }
-    else
-    {
-        // TODO: in release we will just not add record if above daily limit (which is extremely high)
+        // Error no space in hash table (should never realistically happen)
+        // Return ID of NULL App?
         Assert(0);
     }
-}
-
-Day_View
-get_day_view(Day_List *day_list)
-{
-    // TODO: Handle zero day in day_list
-    // (are we handling zero records in list?)
-    
-    // TODO: This should not default to daily, but keep the alst used range, even if the records are updated
-    
-    Day_View day_view = {};
-    
-    // If no records this might allocate 0 bytes (probably fine)
-    Day *cur_day = &day_list->days.back();
-    day_view.copy_of_current_days_records = (Record *)calloc(1, cur_day->record_count * sizeof(Record));
-    memcpy(day_view.copy_of_current_days_records, cur_day->records, cur_day->record_count * sizeof(Record));
-    
-    // copy vector
-    day_view.days = day_list->days;
-    day_view.days.back().records = day_view.copy_of_current_days_records;
-    
-    return day_view;
-}
-
-void
-free_day_view(Day_View *day_view)
-{
-    if (day_view->copy_of_current_days_records)
+    else if (StringMapEntryExists(Entry))
     {
-        free(day_view->copy_of_current_days_records);
+        ID = Entry->Value;
+    }
+    else 
+    {
+        ID = GenerateAppID(CurrentID, Info.Type);
+        
+        // Copy string
+        c_string AppName = PushStringNullTerminated(Arena, Info.Name);
+        
+        StringMapAdd(AppNameMap, Entry, AppName, ID);
+        
+        if (Info.Type == app_type::PROGRAM)
+        {
+            ProgramPaths[IndexFromAppID(ID)] = AppName;
+            *ProgramCount += 1;
+        }
     }
     
-    // TODO: Should I deallocate day_view->days vector memory? (probably)
-    *day_view = {};
+    Assert((Info.Type == app_type::PROGRAM && IsProgram(ID)) ||
+           (Info.Type == app_type::WEBSITE && IsWebsite(ID)));
+    
+    return ID;
 }
 
-App_Id 
-make_local_program_id(App_List *apps)
-{
-    App_Id id = apps->next_program_id;
-    apps->next_program_id += 1;
-    Assert(is_local_program(id));
-    return id;
-}
 
-App_Id 
-make_website_id(App_List *apps)
+void UpdateRecords(record *Records, u64 *RecordCount, app_id ID, date::sys_days Date, s64 DurationMicroseconds)
 {
-    App_Id id = apps->next_website_id;
-    apps->next_website_id += 1;
-    Assert(is_website(id));
-    return id;
-}
-
-void
-add_local_program(App_List *apps, App_Id id, String short_name, String full_name)
-{
-    Local_Program_Info info;
-    info.full_name = push_string(&apps->name_arena, full_name); 
-    info.short_name = push_string(&apps->name_arena, short_name); // string intern this from fullname maybe, but would have to make non-null terminated (which it currently is)
+    // Loop backwards searching through Records with passed Date for record marching our ID
+    bool RecordFound = false;
     
-    apps->local_programs.push_back(info);
-    
-    // TODO: Make this share short_name given to above functions
-    String key_copy = push_string(&apps->name_arena, short_name);
-    apps->local_program_ids.insert({key_copy, id});
-}
-
-void
-add_website(App_List *apps, App_Id id, String short_name)
-{
-    Website_Info info;
-    info.short_name = push_string(&apps->name_arena, short_name); 
-    
-    apps->websites.push_back(info);
-    
-    String key_copy = push_string(&apps->name_arena, short_name);
-    apps->website_ids.insert({key_copy, id});
-}
-
-App_Id
-get_local_program_app_id(App_List *apps, String short_name, String full_name)
-{
-    // TODO: String of shortname can point into string of full_name for paths
-    // imgui can use non null terminated strings so interning a string is fine
-    
-    // if using custom hash table impl can use open addressing, and since nothing is ever deleted don't need a occupancy flag or whatever can just use id == 0 or string == null to denote empty.
-    
-    App_Id result = 0;
-    
-    if (apps->local_program_ids.count(short_name) == 0)
+    for (u64 RecordIndex = *RecordCount - 1; 
+         RecordIndex != static_cast<u64>(-1); 
+         --RecordIndex)
     {
-        App_Id new_id = make_local_program_id(apps);
-        add_local_program(apps, new_id, short_name, full_name);
-        result = new_id;
-    }
-    else
-    {
-        // if for some reason this is not here this should return 0 (default for an integer)
-        result = apps->local_program_ids[short_name];
+        record *ExistingRecord = Records + RecordIndex;
+        if (ExistingRecord->Date != Date)
+        {
+            break;
+        }
+        
+        if (ExistingRecord->ID == ID)
+        {
+            ExistingRecord->DurationMicroseconds += DurationMicroseconds;
+            RecordFound = true;
+            break;
+        }
     }
     
-    return result;
+    if (!RecordFound)
+    {
+        record *NewRecord = Records + *RecordCount;
+        NewRecord->ID = ID;
+        NewRecord->Date = Date;
+        NewRecord->DurationMicroseconds = DurationMicroseconds;
+        
+        *RecordCount += 1;
+    }
 }
-
-App_Id
-get_website_app_id(App_List *apps, String short_name)
-{
-    App_Id result = 0;
-    
-    if (apps->website_ids.count(short_name) == 0)
-    {
-        App_Id new_id = make_website_id(apps);
-        add_website(apps, new_id, short_name);
-        result = new_id;
-    }
-    else
-    {
-        result = apps->website_ids[short_name];
-    }
-    
-    return result;
-}
-
-String 
-get_app_name(App_List *apps, App_Id id)
-{
-    String result;
-    
-    u32 index = index_from_id(id);
-    if (is_local_program(id))
-    {
-        result = apps->local_programs[index].short_name;
-    }
-    else if (is_website(id))
-    {
-        result = apps->websites[index].short_name;
-    }
-    else
-    {
-        // Should never happen
-        Assert(0);
-        result = make_string_from_literal(" ");
-    }
-    
-    return result;
-}
-
-#if 0
-s32 
-get_app_count(App_List *apps)
-{
-    s32 count = apps->local_programs.size() + apps->websites.size();
-    Assert(count == (index_from_id(apps->next_website_id) + index_from_id(apps->next_program_id)));
-    
-    return count;
-}
-#endif

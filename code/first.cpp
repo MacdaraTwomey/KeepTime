@@ -25,6 +25,7 @@
 #include "helper.h"
 #include "helper.cpp"
 #include "base.cpp"
+#include "apps.cpp"
 #include "gui.cpp"
 #include "monitor.cpp"
 
@@ -1117,11 +1118,8 @@ Win32GetDefaultIcon(u32 DesiredSize, bitmap *Bitmap)
     return Success;
 }
 
-bool
-PlatformGetIconFromExecutable(char *Path, u32 DesiredSize, bitmap *Bitmap, u32 *AllocatedBitmapMemory)
+bool PlatformGetIconFromExecutable(arena *Arena, char *Path, u32 DesiredSize, bitmap *Bitmap)
 {
-    Assert(AllocatedBitmapMemory);
-    
     // path must be null terminated
     // If icon is not desired size returns false
     // Pass in memory to write icon bitmap to
@@ -1136,14 +1134,18 @@ PlatformGetIconFromExecutable(char *Path, u32 DesiredSize, bitmap *Bitmap, u32 *
         return false;
     }
     
+    temp_memory TempMemory = BeginTempMemory(Arena);
+    
+    u32 *BitmapPixels = Allocate(Arena, DesiredSize * DesiredSize, u32);
+    
     bool Success = false;
     if (IconHandle)
     {
-        Success = Win32GetBitmapDataFromHICON(IconHandle, DesiredSize, AllocatedBitmapMemory);
+        Success = Win32GetBitmapDataFromHICON(IconHandle, DesiredSize, BitmapPixels);
     }
     else if (SmallIconHandle)
     {
-        Success = Win32GetBitmapDataFromHICON(SmallIconHandle, DesiredSize, AllocatedBitmapMemory);
+        Success = Win32GetBitmapDataFromHICON(SmallIconHandle, DesiredSize, BitmapPixels);
     }
     
     // NOTE: Don't need to destroy LoadIcon icons I'm pretty sure, but SHDefExtractIconA does need to be destroyed
@@ -1155,7 +1157,13 @@ PlatformGetIconFromExecutable(char *Path, u32 DesiredSize, bitmap *Bitmap, u32 *
         Bitmap->Width = DesiredSize;
         Bitmap->Height = DesiredSize;
         Bitmap->Pitch = DesiredSize*4;
-        Bitmap->Pixels = AllocatedBitmapMemory;
+        Bitmap->Pixels = BitmapPixels;
+        
+        KeepTempMemory(TempMemory);
+    }
+    else
+    {
+        EndTempMemory(TempMemory);
     }
     
     return Success;

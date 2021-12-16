@@ -144,54 +144,6 @@ string UrlParseHost(string Url)
     return Host;
 }
 
-date::sys_days
-GetLocalTime()
-{
-    time_t rawtime;
-    time( &rawtime );
-    
-    // Looks in TZ database, not threadsafe
-    struct tm *info;
-    info = localtime( &rawtime );
-    auto now = date::sys_days{
-        date::month{(unsigned)(info->tm_mon + 1)}/date::day{(unsigned)info->tm_mday}/date::year{info->tm_year + 1900}};
-    
-    return now;
-}
-
-void SetBit(u32 *A, u32 BitIndex)
-{
-    Assert(BitIndex < 32);
-    *A |= (1 << BitIndex);
-}
-
-u32 GetBit(u32 A, u32 BitIndex)
-{
-    Assert(BitIndex < 32);
-    return A & (1 << BitIndex);
-}
-
-app_id GenerateAppID(u32 *CurrentID, app_type AppType)
-{
-    Assert(*CurrentID != 0);
-    Assert(*CurrentID < APP_TYPE_BIT_MASK);
-    
-    app_id ID = *CurrentID++;
-    if (AppType == app_type::WEBSITE) SetBit(&ID, APP_TYPE_BIT_INDEX); 
-    
-    return ID;
-}
-
-u32 IndexFromAppID(app_id ID)
-{
-    Assert(ID != 0);
-    
-    // Get bottom 31 bits of id
-    u32 Index = ID & (~APP_TYPE_BIT_MASK);
-    
-    return Index;
-}
-
 bool StringMatchesKeyword(string String, settings *Settings)
 {
     // O(KeywordCount * KeywordLength * StringLength) 
@@ -255,71 +207,6 @@ app_info GetActiveAppInfo(arena *Arena, settings *Settings)
     return AppInfo;
 }
 
-app_id GetAppID(arena *Arena, string_map *AppNameMap, u32 *CurrentID, app_info Info)
-{
-    app_id ID = 0;
-    
-    // Share hash table
-    string_map_entry *Entry = StringMapGet(AppNameMap, Info.Name);
-    if (!Entry)
-    {
-        // Error no space in hash table (should never realistically happen)
-        // Return ID of NULL App?
-        Assert(0);
-    }
-    else if (StringMapEntryExists(Entry))
-    {
-        ID = Entry->Value;
-    }
-    else 
-    {
-        ID = GenerateAppID(CurrentID, Info.Type);
-        
-        // Copy string
-        string AppName = PushString(Arena, Info.Name);
-        StringMapAdd(AppNameMap, Entry, AppName, ID);
-    }
-    
-    Assert((Info.Type == app_type::PROGRAM && ((ID & (1 << APP_TYPE_BIT_INDEX)) == 0)) ||
-           (Info.Type == app_type::WEBSITE && ((ID & (1 << APP_TYPE_BIT_INDEX)) != 0)));
-    
-    return ID;
-}
-
-
-void UpdateRecords(record *Records, u64 *RecordCount, app_id ID, date::sys_days Date, s64 DurationMicroseconds)
-{
-    // Loop backwards searching through Records with passed Date for record marching our ID
-    bool RecordFound = false;
-    
-    for (u64 RecordIndex = *RecordCount - 1; 
-         RecordIndex != static_cast<u64>(-1); 
-         --RecordIndex)
-    {
-        record *ExistingRecord = Records + RecordIndex;
-        if (ExistingRecord->Date != Date)
-        {
-            break;
-        }
-        
-        if (ExistingRecord->ID == ID)
-        {
-            ExistingRecord->DurationMicroseconds += DurationMicroseconds;
-            RecordFound = true;
-            break;
-        }
-    }
-    
-    if (!RecordFound)
-    {
-        record *NewRecord = Records + *RecordCount;
-        NewRecord->ID = ID;
-        NewRecord->Date = Date;
-        NewRecord->DurationMicroseconds = DurationMicroseconds;
-        
-        *RecordCount += 1;
-    }
-}
 
 void Update(monitor_state *State, s64 dtMicroseconds)
 {
@@ -401,12 +288,15 @@ void Update(monitor_state *State, s64 dtMicroseconds)
             
         } // NO SAVEFILE DEFAULTS
         
-        // We won't have many programs but may have many websites
+        // We won't have many programs but may have lots of websites (so is this enough?)
         // 24 byte entries * 10000 Entries = 240 KB
         u64 AppItemCount = 10000;
         State->AppNameMap = CreateStringMap(&State->PermanentArena, AppItemCount); 
         
         State->CurrentID = 1; // Leave ID 0 unused
+        
+        State->ProgramPaths = Allocate(&State->PermanentArena, AppItemCount, c_string);
+        State->ProgramCount = 0;
         
         u64 MaxRecordCount = 100000;
         State->Records = Allocate(&State->PermanentArena, MaxRecordCount, record);
@@ -423,7 +313,8 @@ void Update(monitor_state *State, s64 dtMicroseconds)
         AddKeyword(Settings, StringLit("github"));
         
         // TODO: Arena is not sorted out correctly
-        State->GUI = CreateGUI();
+        gui *GUI = &State->GUI;
+        *GUI = CreateGUI();
         
         State->IsInitialised = true;
         
@@ -435,7 +326,9 @@ void Update(monitor_state *State, s64 dtMicroseconds)
     app_info AppInfo = GetActiveAppInfo(&State->TemporaryArena, &State->Settings);
     if (AppInfo.Type != NONE)
     {
-        app_id ID = GetAppID(&State->PermanentArena, &State->AppNameMap, &State->CurrentID, AppInfo);
+        app_id ID = GetAppID(&State->PermanentArena, &State->AppNameMap, 
+                             State->ProgramPaths, &State->ProgramCount, 
+                             &State->CurrentID, AppInfo);
         if (ID)
         {
             u64 MaxRecordCount = 100000;
@@ -485,153 +378,7 @@ void Update(monitor_state *State, s64 dtMicroseconds)
     CheckArena(&State->TemporaryArena);
 }
 
-
 #if 0
-
-#include <unordered_map>
-
-#include "cian.h"
-#include "monitor_string.h"
-#include "graphics.h"
-#include "icon.h"
-#include "helper.h"
-
-#include "date.h"
-
-#include "monitor.h"
-#include "platform.h"
-
-#include "resources/source_code_pro.cpp"
-#include "resources/world_icon.cpp"
-
-#include "helper.cpp"
-#include "bitmap.cpp"
-#include "apps.cpp"
-#include "file.cpp"
-#include "date_picker.cpp"
-#include "icon.cpp" 
-#include "ui.cpp"
-
-
-
-App_Id
-poll_windows(App_List *apps, Settings *settings)
-{
-    // Returns 0 if we return early
-    
-    ZoneScoped;
-    
-    char buf[PLATFORM_MAX_PATH_LEN];
-    size_t len = 0;
-    
-    Platform_Window window = platform_get_active_window();
-    if (!window.is_valid) 
-        return 0;
-    
-    // If this failed it might be a desktop or other things like alt-tab screen or something
-    bool got_path = platform_get_program_from_window(window, buf, &len);
-    if (!got_path) 
-        return 0;
-    
-    String full_path = make_string_size_cap(buf, len, array_count(buf));
-    String program_name = get_filename_from_path(full_path);
-    if (program_name.length == 0) 
-        return 0;
-    
-    remove_extension(&program_name);
-    if (program_name.length == 0) 
-        return 0;
-    
-    // string_to_lower(&program_name);
-    
-    bool program_is_firefox = string_equals(program_name, "firefox");
-    if (program_is_firefox && settings->misc.keyword_status != Settings_Misc_Keyword_None)
-    {
-        // TODO: Maybe cache last url to quickly get record without comparing with keywords
-        char url_buf[PLATFORM_MAX_URL_LEN];
-        size_t url_len = 0;
-        
-        if (platform_firefox_get_url(window, url_buf, &url_len))
-        {
-            String url = make_string(url_buf, url_len);
-            if (url.length > 0)
-            {
-                String domain_name = extract_domain_name(url);
-                if (domain_name.length > 0)
-                {
-                    Assert(settings->misc.keyword_status >= Settings_Misc_Keyword_All && settings->misc.keyword_status <= Settings_Misc_Keyword_None);
-                    if (settings->misc.keyword_status == Settings_Misc_Keyword_All)
-                    {
-                        return get_website_app_id(apps, domain_name);
-                    }
-                    else
-                    {
-                        // Custom
-                        if (string_matches_keyword(domain_name, settings->keywords))
-                        {
-                            return get_website_app_id(apps, domain_name);
-                        }
-                    }
-                }
-            }
-        }
-    }
-    
-    // If program wasn't a browser, or it was a browser but the url didn't match any keywords, get browser's program id
-    return get_local_program_app_id(apps, program_name, full_path);
-}
-
-Icon_Asset *
-get_app_icon_asset(App_List *apps, UI_State *ui, App_Id id)
-{
-    if (is_website(id))
-    {
-        //get_favicon_from_website(url);
-        
-        Icon_Asset *default_icon = &ui->icons[DEFAULT_WEBSITE_ICON_INDEX];
-        Assert(default_icon->texture_handle != 0);
-        return default_icon;
-    }
-    
-    if (is_local_program(id))
-    {
-        u32 id_index = index_from_id(id);
-        if (id_index >= ui->icon_indexes.size())
-        {
-            ui->icon_indexes.resize(id_index + 1, -1); // insert -1 at the end of array to n=id_index+1 slots
-        }
-        
-        s32 *icon_index = &ui->icon_indexes[id_index];
-        if (*icon_index == -1)
-        {
-            String path = apps->local_programs[id_index].full_name;
-            Assert(path.length > 0);
-            
-            Bitmap bitmap = {};
-            bool success = platform_get_icon_from_executable(path.str, ICON_SIZE, &bitmap, ui->icon_bitmap_storage);
-            if (success)
-            {
-                // TODO: Maybe mark old paths that couldn't get correct icon for deletion or to stop trying to get icon, or assign a default invisible icon
-                *icon_index = load_icon_asset(ui->icons, bitmap);
-                Assert(*icon_index > 1);
-                return &ui->icons[*icon_index];
-            }
-        }
-        else
-        {
-            // Icon already loaded
-            Assert(*icon_index < ui->icons.size());
-            Icon_Asset *icon = &ui->icons[*icon_index];
-            Assert(icon->texture_handle != 0);
-            return icon;
-        }
-    }
-    
-    Icon_Asset *default_icon = &ui->icons[DEFAULT_LOCAL_PROGRAM_ICON_INDEX];
-    Assert(default_icon->texture_handle != 0);
-    return default_icon;
-}
-
 
 void
 debug_add_records(App_List *apps, Day_List *day_list, date::sys_days cur_date)

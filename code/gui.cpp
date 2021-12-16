@@ -22,6 +22,12 @@ constexpr float SMALL_FONT_SIZE = 20.0f;
 
 static bool GlobalGUIFullscreen = false;
 
+/// debug
+static u32 g_text_down = 5;
+static u32 g_text_right = 7;
+static float g_bar_height = ICON_SIZE;
+static float g_bar_down = 1;
+
 #define SHOW_FREETYPE_OPTIONS_WINDOW 1
 
 #if SHOW_FREETYPE_OPTIONS_WINDOW
@@ -213,6 +219,9 @@ gui CreateGUI()
 void LoadGUI(gui *GUI, date::sys_days CurrentDate, date::sys_days OldestDate, date::sys_days NewestDate)
 {
     GUI->Arena = CreateArena(MB(5), MB(500));
+    
+    GUI->Icons = Allocate(&GUI->Arena, MAX_ICON_COUNT, icon_asset);
+    GUI->IconCount = 0;
     
     //ui->icon_indexes.reserve(app_count + 200); 
     //ui->icon_indexes.assign(app_count, -1); // set size and fill with -1
@@ -597,6 +606,113 @@ bool DoEditSettingsPopup(settings *Settings, edit_settings *EditSettings, ImFont
     return !Open;
 }
 
+record_slice GetRecordsInDateRange(record *Records, u64 RecordCount,  
+                                   date::sys_days OldestDate,  date::sys_days NewestDate)
+{
+    Assert(NewestDate >= OldestDate);
+    
+    record_slice Result = {};
+    
+    u64 NewestIndex = RecordCount;
+    u64 OldestIndex = RecordCount;
+    
+    //                                        NewestDate = 105
+    //                                        v
+    // Records -> Older 0 1 3 4 ... 100 103 104 120 121 Newer
+    for (u64 RecordIndex = RecordCount - 1; RecordIndex != static_cast<u64>(-1); --RecordIndex)
+    {
+        if (Records[RecordIndex].Date <= NewestDate)
+        {
+            NewestIndex = RecordIndex;
+            break;
+        }
+    }
+    
+    //                      Oldest date = 2
+    //                      v                  
+    // Records -> Older 0 1 4 9 12 ... 100 103 Newer
+    for (u64 RecordIndex = 0; RecordIndex < RecordCount; ++RecordIndex)
+    {
+        if (Records[RecordIndex].Date >= OldestDate)
+        {
+            OldestIndex = RecordIndex;
+            break;
+        }
+    }
+    
+    if (OldestIndex < RecordCount && NewestIndex < RecordCount)
+    {
+        Assert(OldestIndex <= NewestIndex);
+        
+        Result.Records = Records + OldestIndex;
+        Result.Count = NewestIndex - OldestIndex + 1;
+    }
+    
+    return Result;
+}
+
+s64 Partition(record *Records, s64 Low, s64 High, s64 MIN_INDEX, s64 MAX_INDEX)
+{
+    auto Swap = [](record *Records, s64 A, s64 B){ 
+        record Temp = Records[A];
+        Records[A] = Records[B];
+        Records[B] = Temp;
+    };
+    
+    // Choose middle element as pivot, move to end of array
+    s64 Count = High - Low + 1;
+    s64 Middle = Low + (Count / 2);
+    
+    Assert(Low >= MIN_INDEX && Low <= MAX_INDEX);
+    Assert(High >= MIN_INDEX && High <= MAX_INDEX);
+    Assert(Middle >= MIN_INDEX && Middle <= MAX_INDEX);
+    
+    Swap(Records, Middle, High);
+    s64 Pivot = High;
+    
+    Assert(Pivot >= MIN_INDEX && Pivot <= MAX_INDEX);
+    
+    s64 NewPivotIndex = Low;
+    for (s64 Current = Low; Current < High; ++Current)
+    {
+        if (Records[Current].DurationMicroseconds < Records[Pivot].DurationMicroseconds)
+        {
+            Assert(NewPivotIndex >= MIN_INDEX && NewPivotIndex <= MAX_INDEX);
+            
+            Swap(Records, NewPivotIndex, Current);
+            NewPivotIndex += 1;
+        }
+    }
+    
+    Assert(NewPivotIndex >= MIN_INDEX && NewPivotIndex <= MAX_INDEX);
+    
+    Swap(Records, NewPivotIndex, Pivot);
+    
+    return NewPivotIndex;
+};
+
+void QuickSort(record *Records, s64 Low, s64 High, s64 MIN_INDEX, s64 MAX_INDEX)
+{
+    
+    if (Low < High)
+    {
+        s64 Pivot = Partition(Records, Low, High, MIN_INDEX, MAX_INDEX);
+        QuickSort(Records, Low, Pivot - 1, MIN_INDEX, MAX_INDEX);
+        QuickSort(Records, Pivot + 1, High, MIN_INDEX, MAX_INDEX);
+    }
+}
+
+void SortRecordsByDuration(record *Records, u64 Count)
+{
+    const s64 MIN_INDEX = 0;
+    const s64 MAX_INDEX = Count - 1;
+    
+    if (Count > 0 && Count < INT64_MAX)
+    {
+        QuickSort(Records, 0, (s64)Count - 1, MIN_INDEX, MAX_INDEX);
+    }
+}
+
 void DrawGUI(monitor_state *State, gui *GUI, settings *Settings)
 {
     Assert(GUI->IsLoaded);
@@ -706,7 +822,7 @@ void DrawGUI(monitor_state *State, gui *GUI, settings *Settings)
         DrawList->AddLine({centre_x, 20}, 
                           {centre_x + (DATE_SELECT_WIDTH / 2), 20}, IM_COL32_BLACK, 1.0f);
 #endif
-    }
+    } // Date Picker End
     
     ImGuiStyle& style = ImGui::GetStyle();
     ImGui::SameLine(ImGui::GetWindowWidth() - (SMALL_BUTTON_WIDTH + style.WindowPadding.x));
@@ -727,6 +843,103 @@ void DrawGUI(monitor_state *State, gui *GUI, settings *Settings)
         }
     }
     
+    // Barplot
+    ImGui::BeginChildFrame(UI_BARPLOT_ID, {0,0});
+    {
+        ImDrawList* DrawList = ImGui::GetWindowDrawList();
+        
+        // debug
+        GUI->DateRangeChanged = true;
+        
+        // TODO: Consider doing this elsewhere
+        if (GUI->DateRangeChanged)
+        {
+            //free(GUI->sorted_records);
+            //GUI->SortedRecords = nullptr;
+            
+            record_slice RecordsInRange = GetRecordsInDateRange(State->Records, State->RecordCount, GUI->DatePicker.Start, GUI->DatePicker.End);
+            
+            GUI->SortedRecords = PushCopy(&GUI->Arena, RecordsInRange.Records, RecordsInRange.Count, record);
+            GUI->SortedRecordCount = RecordsInRange.Count;
+            SortRecordsByDuration(GUI->SortedRecords, GUI->SortedRecordCount);
+            
+            GUI->DateRangeChanged = false;
+        }
+        
+        s64 MaxDuration = (GUI->SortedRecordCount > 0) ? GUI->SortedRecords[0].DurationMicroseconds: 1;
+        float MaxBarWidth = ImGui::GetWindowWidth() * 0.9f;
+        float PixelsPerDuration = MaxBarWidth / MaxDuration;
+        
+        for (u64 i = 0; i < GUI->SortedRecordCount; ++i)
+        {
+            record *Record = &GUI->SortedRecords[i];
+            
+            if (Record->ID == 0) continue;
+            
+            if (i != 0)
+            {
+                ImVec2 Pos = ImGui::GetCursorScreenPos();
+                Pos.y -= g_text_down; 
+                ImGui::SetCursorScreenPos(Pos);
+            }
+            
+            icon_asset *Icon = GetAppIconAsset(State, GUI, Record->ID);
+            if (Icon)
+            {
+                auto Border = ImVec4(0,0,0,255);
+                ImGui::Image((ImTextureID)(intptr_t)Icon->TextureHandle, ImVec2((float)Icon->Width, (float)Icon->Height));
+                //ImGui::Image((ImTextureID)(intptr_t)Icon->TextureHandle, ImVec2((float)Icon->bitmap.width, (float)Icon->bitmap.height),{0,0},{1,1},{1,1,1,1}, Border);
+            }
+            
+            // To start rect where text start
+            ImGui::SameLine();
+            
+            // TODO: make sure colours stay with their record, in order of records.
+            // ... But we probably won't have a live display, so colour change probably not be noticed between
+            // separete openings of the ui, when the ordering of records can change.
+            // The only thing is seeing the same app in different weeks/days etc with a different colour, which probably does mean each app needs a assigned colour per ui run. Can maybe put this in Icon_Asset and call it UI_Asset
+            ImU32 Colours[] = {
+                IM_COL32(255, 154, 162, 255),
+                IM_COL32(255, 183, 178, 255),
+                IM_COL32(255, 218, 193, 255),
+                IM_COL32(226, 240, 203, 255),
+                IM_COL32(181, 234, 215, 255),
+                IM_COL32(199, 206, 234, 255),
+                //
+                IM_COL32(250, 237, 203, 255),
+                IM_COL32(201, 228, 222, 255),
+                IM_COL32(198, 222, 241, 255),
+                IM_COL32(219, 205, 240, 255),
+                IM_COL32(242, 198, 222, 255),
+            };
+            
+            float BarWidth = floorf(PixelsPerDuration * (float)Record->DurationMicroseconds);
+            if (BarWidth > 5)
+            {
+                ImVec2 Bar0 = ImGui::GetCursorScreenPos();
+                Bar0.x += 1;
+                Bar0.y += g_bar_down; // prabably wants to be 1
+                ImVec2 Bar1 = ImVec2(Bar0.x + BarWidth - 1, Bar0.y + g_bar_height - 1);
+                ImVec2 Outline0 = ImVec2(Bar0.x-1, Bar0.y-1);
+                ImVec2 Outline1 = ImVec2(Bar1.x+1, Bar1.y+1);
+                
+                DrawList->AddRect(Outline0, Outline1, IM_COL32_BLACK);
+                DrawList->AddRectFilled(Bar0, Bar1, Colours[i % ArrayCount(Colours)]);                    
+            }
+            
+            ImVec2 Pos = ImGui::GetCursorScreenPos();
+            Pos.x += g_text_right;
+            Pos.y += g_text_down;
+            ImGui::SetCursorScreenPos(Pos);
+            
+            //draw_record_time_text(record.duration);
+            //ImGui::SameLine();
+            
+            //string Name = get_app_name(apps, Record.ID);
+            //ImGui::TextUnformatted(Name.Str, Name.Str + Name.Length);
+        }
+    } // Barplot End
+    ImGui::EndChild();
     
     ImGui::End();
     
@@ -773,7 +986,7 @@ load_ui(UI_State *ui, u32 app_count,
     // TODO: Don't reset this so it is on same range when user opens ui again
     init_date_picker(&ui->date_picker, current_date, oldest_date, newest_date);
     
-    ui->date_range_changed = true; // so record array is made the first time
+    ui->DateRangeChanged = true; // so record array is made the first time
     ui->open = true;
 }
 
@@ -785,7 +998,7 @@ unload_ui(UI_State *ui)
     ui->date_picker = {}; // TODO: Don't reset this so it is on same range when user opens ui again
     
     ui->record_count = 0;
-    free(ui->sorted_records);
+    free(ui->SortedRecords);
     
     unload_all_icon_assets(ui);
     if (ui->edit_settings)
@@ -903,19 +1116,19 @@ remove_duplicate_and_empty_keyword_strings(Keyword_Array keywords)
         }
     }
     
-	// Try to add words from pending keywords into keywords array (not adding duplicates)
+    // Try to add words from pending keywords into keywords array (not adding duplicates)
     memset(keywords, 0, MAX_KEYWORD_COUNT*MAX_KEYWORD_SIZE);
     s32 total_count = 0;
-	for (s32 i = 0; i < pending_keywords.count; ++i)
-	{
+    for (s32 i = 0; i < pending_keywords.count; ++i)
+    {
         bool no_matches_in_keywords = true;
-		for (s32 j = i + 1; j < total_count; ++j)
-		{
-			if (string_equals(pending_keywords[i], keywords[j]))
-			{
+        for (s32 j = i + 1; j < total_count; ++j)
+        {
+            if (string_equals(pending_keywords[i], keywords[j]))
+            {
                 no_matches_in_keywords = false;
                 break;
-			}
+            }
         }
         
         if (no_matches_in_keywords)
@@ -923,11 +1136,11 @@ remove_duplicate_and_empty_keyword_strings(Keyword_Array keywords)
             strcpy(keywords[total_count], pending_keywords[i].str);
             total_count += 1;
         }
-	}
+    }
     
     free_arena(&scratch);
     
-	return total_count;
+    return total_count;
 }
 
 void 
@@ -1092,8 +1305,8 @@ do_keyword_input_list(Edit_Settings *edit_settings)
         
         // If I use WindowDrawList must subtract padding or else lines are obscured by below text input box
         // can use ForegroundDrawList but this is not clipped to keyword child window
-        ImDrawList* draw_list = ImGui::GetWindowDrawList();
-        //ImDrawList* draw_list = ImGui::GetForeGroundDrawList();
+        ImDrawList* DrawList = ImGui::GetWindowDrawList();
+        //ImDrawList* DrawList = ImGui::GetForeGroundDrawList();
         
         b32 EnteredDisabledCharacter = false;
         
@@ -1146,7 +1359,7 @@ do_keyword_input_list(Edit_Settings *edit_settings)
             float padding = 3;
             ImVec2 pos = ImGui::GetCursorScreenPos();
             pos.y -= padding;
-            draw_list->AddLine(pos, ImVec2(pos.x + list_width, pos.y), line_colour, 1.0f);
+            DrawList->AddLine(pos, ImVec2(pos.x + list_width, pos.y), line_colour, 1.0f);
         }
         ImGui::PopItemWidth();
         ImGui::PopStyleVar();
@@ -1431,7 +1644,7 @@ draw_ui_and_update()
         
         if (ButtonSpecial(ICON_MD_ARROW_BACK, date_picker->IsBackwardsDisabled))
         {
-            ui->date_range_changed = true;
+            ui->DateRangeChanged = true;
             date_picker_backwards(date_picker, oldest_date, newest_date);
         }
         
@@ -1444,23 +1657,23 @@ draw_ui_and_update()
         
         if (ButtonSpecial(ICON_MD_ARROW_FORWARD, date_picker->IsForwardsDisabled))
         {
-            ui->date_range_changed = true;
+            ui->DateRangeChanged = true;
             date_picker_forwards(date_picker, oldest_date, newest_date);
         }
         
         if (do_date_select_popup(date_picker, oldest_date, newest_date))
         {
-            ui->date_range_changed = true;
+            ui->DateRangeChanged = true;
         }
         
 #if 0
-        ImDrawList* draw_list = ImGui::GetForegroundDrawList();
+        ImDrawList* DrawList = ImGui::GetForegroundDrawList();
         float centre_x = ImGui::GetWindowWidth()/2;
-        draw_list->AddLine({centre_x,0}, {centre_x, 300}, IM_COL32_BLACK, 1.0f);
-        draw_list->AddLine({centre_x - (DATE_SELECT_WIDTH / 2), 20}, 
-                           {centre_x, 20}, IM_COL32_BLACK, 1.0f);
-        draw_list->AddLine({centre_x, 20}, 
-                           {centre_x + (DATE_SELECT_WIDTH / 2), 20}, IM_COL32_BLACK, 1.0f);
+        DrawList->AddLine({centre_x,0}, {centre_x, 300}, IM_COL32_BLACK, 1.0f);
+        DrawList->AddLine({centre_x - (DATE_SELECT_WIDTH / 2), 20}, 
+                          {centre_x, 20}, IM_COL32_BLACK, 1.0f);
+        DrawList->AddLine({centre_x, 20}, 
+                          {centre_x + (DATE_SELECT_WIDTH / 2), 20}, IM_COL32_BLACK, 1.0f);
 #endif
     }
     
@@ -1500,25 +1713,25 @@ draw_ui_and_update()
         ImDrawList* draw_list = ImGui::GetWindowDrawList();
         
         // debug
-        ui->date_range_changed = true;
+        ui->DateRangeChanged = true;
         
         // TODO: Consider doing this elsewhere
-        if (ui->date_range_changed)
+        if (ui->DateRangeChanged)
         {
-            free(ui->sorted_records);
-            ui->sorted_records = nullptr;
-            ui->sorted_records = get_records_in_date_range(&ui->day_view, &ui->record_count, 
-                                                           ui->date_picker.start, ui->date_picker.end);
-            ui->date_range_changed = false;
+            free(ui->SortedRecords);
+            ui->SortedRecords = nullptr;
+            ui->SortedRecords = get_records_in_date_range(&ui->day_view, &ui->record_count, 
+                                                          ui->date_picker.start, ui->date_picker.end);
+            ui->DateRangeChanged = false;
         }
         
-        s64 max_duration = (ui->sorted_records != nullptr) ? ui->sorted_records[0].duration : 1;
+        s64 max_duration = (ui->SortedRecords != nullptr) ? ui->SortedRecords[0].duration : 1;
         float max_bar_width = ImGui::GetWindowWidth() * 0.9f;
         float pixels_per_duration = max_bar_width / max_duration;
         
         for (i32 i = 0; i < ui->record_count; ++i)
         {
-            Record &record = ui->sorted_records[i];
+            Record &record = ui->SortedRecords[i];
             
             if (record.id == 0) continue;
             

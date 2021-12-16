@@ -4,57 +4,11 @@
 //#include "icon.h"
 #include "graphics.h"
 
-#define GLCheck(x) GLClearError(); x; GLLogCall(#x, __FILE__, __LINE__)
-
-void
-GLClearError()
-{
-    while (glGetError() != GL_NO_ERROR);
-}
-
-bool
-GLLogCall(const char *function, const char *file, int line)
-{
-    while (GLenum error = glGetError())
-    {
-        printf("[OpenGL Error] (%u) %s %s: Line %i\n", error, function, file, line);
-        return false;
-    }
-    
-    return true;
-}
-
-u32
-opengl_create_texture(Bitmap bitmap)
-{
-    GLuint image_texture;
-    GLCheck(glGenTextures(1, &image_texture)); // I think this can fail if out of texture mem
-    
-    GLCheck(glBindTexture(GL_TEXTURE_2D, image_texture));
-    
-    GLCheck(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
-    GLCheck(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
-    
-    // Can be PACK for glReadPixels or UNPCK GL_UNPACK_ROW_LENGTH
-    
-    // This sets the number of pixels in the row for the glTexImage2D to expect, good 
-    //glPixelStorei(GL_UNPACK_ROW_LENGTH, 24);
-    
-    // Alignment of the first pixel in each row
-    GLCheck(glPixelStorei(GL_UNPACK_ALIGNMENT, 1));
-    
-    // You create storage for a Texture and upload pixels to it with glTexImage2D (or similar functions, as appropriate to the type of texture). If your program crashes during the upload, or diagonal lines appear in the resulting image, this is because the alignment of each horizontal line of your pixel array is not multiple of 4. This typically happens to users loading an image that is of the RGB or BGR format (for example, 24 BPP images), depending on the source of your image data. 
-    
-    GLCheck(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, bitmap.width, bitmap.height, 0, GL_BGRA, GL_UNSIGNED_BYTE, bitmap.pixels));
-    
-    return image_texture;
-}
-
 s32
 load_icon_asset(std::vector<Icon_Asset> &icons, Bitmap bitmap)
 {
     Icon_Asset icon;
-    icon.texture_handle = opengl_create_texture(bitmap); 
+    icon.texture_handle = OpenglCreateTexture(bitmap); 
     icon.width = bitmap.width;
     icon.height = bitmap.height;
     

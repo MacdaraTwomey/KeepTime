@@ -35,7 +35,7 @@ char *PlatformGetProgramFromWindow(arena *Arena, platform_window_handle WindowHa
 char *PlatformFirefoxGetUrl(arena *Arena, platform_window_handle WindowHandle);
 bool PlatformIsWindowHidden();
 bool PlatformGetDefaultIcon(u32 DesiredSize, bitmap * Bitmap);
-bool PlatformGetIconFromExecutable(char * Path, u32 DesiredSize, bitmap * Bitmap, u32 * AllocatedBitmapMemory);
+bool PlatformGetIconFromExecutable(arena *Arena, char * Path, u32 DesiredSize, bitmap * Bitmap);
 char *PlatformGetExecutablePath(arena *Arena);
 bool PlatformFileExists(arena *Arena, char * Filename);
 s64 PlatformGetFileSize(FILE * file);

@@ -184,6 +184,15 @@ string MakeString(char *StringData, u64 Length)
     return Result;
 }
 
+// Length does not include null terminator but we are guaranteed that the string is null terminated
+c_string MakeCString(char *StringData, u64 Length)
+{
+    c_string Result;
+    Result.Str = StringData;
+    Result.Length = Length;
+    return Result;
+}
+
 bool IsUpper(char c)
 {
     return (('A' <= c) && (c <= 'Z'));
