@@ -337,7 +337,7 @@ void Update(monitor_state *State, s64 dtMicroseconds)
         State->PermanentArena = CreateArena(MB(100), GB(1));
         State->TemporaryArena = CreateArena(KB(64), GB(1));
         
-        temp_memory TempMemory = BeginTempArena(&State->TemporaryArena);
+        temp_memory TempMemory = BeginTempMemory(&State->TemporaryArena);
         
         char *ExecutablePath = PlatformGetExecutablePath(&State->TemporaryArena );
         string ExeDirectory = MakeString(ExecutablePath);
@@ -430,7 +430,7 @@ void Update(monitor_state *State, s64 dtMicroseconds)
         EndTempMemory(TempMemory);
     }
     
-    temp_memory TempMemory = BeginTempArena(&State->TemporaryArena);
+    temp_memory TempMemory = BeginTempMemory(&State->TemporaryArena);
     
     app_info AppInfo = GetActiveAppInfo(&State->TemporaryArena, &State->Settings);
     if (AppInfo.Type != NONE)

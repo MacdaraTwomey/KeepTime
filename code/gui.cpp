@@ -212,7 +212,7 @@ gui CreateGUI()
 // TODO: Make the rest of IMGUI get loaded and unloaded
 void LoadGUI(gui *GUI, date::sys_days CurrentDate, date::sys_days OldestDate, date::sys_days NewestDate)
 {
-    GUI->Arena = BootstrapArena(MB(5), MB(500));
+    GUI->Arena = CreateArena(MB(5), MB(500));
     
     //ui->icon_indexes.reserve(app_count + 200); 
     //ui->icon_indexes.assign(app_count, -1); // set size and fill with -1
@@ -235,8 +235,8 @@ void LoadGUI(gui *GUI, date::sys_days CurrentDate, date::sys_days OldestDate, da
 
 void UnloadGUI(gui *GUI)
 {
-    FreeArena(GUI->Arena);
-    GUI->Arena = nullptr;
+    FreeArena(&GUI->Arena);
+    GUI->Arena = {};
     GUI->IsLoaded = false;
 }
 
@@ -247,14 +247,13 @@ u32 DeduplicateAndMakeContiguousKeywords(string *NewKeywords, char **OldKeywords
     
     for (u32 KeywordIndex = 0; KeywordIndex < OldKeywordCountMax; ++KeywordIndex)
     {
-        char *OldKeyword = OldKeywords[KeywordIndex];
-        u64 Length = StringLength(OldKeyword);
-        if (Length > 0)
+        string OldKeyword = MakeString(OldKeywords[KeywordIndex]);
+        if (OldKeyword.Length > 0)
         {
             bool NoMatches = true;
             for (u32 i = 0; i < NewKeywordCount; ++i)
             {
-                if (StringsAreEqual(NewKeywords[i], OldKeyword, Length))
+                if (StringsAreEqual(NewKeywords[i], OldKeyword))
                 {
                     NoMatches = false;
                     break;
@@ -263,8 +262,7 @@ u32 DeduplicateAndMakeContiguousKeywords(string *NewKeywords, char **OldKeywords
             
             if (NoMatches)
             {
-                NewKeywords[NewKeywordCount].Str = OldKeyword;
-                NewKeywords[NewKeywordCount].Length = Length;
+                NewKeywords[NewKeywordCount] = OldKeyword;
                 NewKeywordCount += 1;
             }
         }
@@ -490,22 +488,23 @@ void BeginEditSettings(arena *Arena, edit_settings *EditSettings, settings *Sett
     const u32 KeywordBufferSize = MAX_KEYWORD_LENGTH + 1; 
     
     *EditSettings = {};
-    EditSettings->TempMemory = BeginTempArena(Arena);
+    EditSettings->TempMemory = BeginTempMemory(Arena);
     EditSettings->MiscOptions = Settings->MiscOptions;
     EditSettings->Keywords = Allocate(EditSettings->TempMemory.Arena, MAX_KEYWORD_COUNT, char *); 
-    EditSettings->Buffer = Allocate(EditSettings->TempMemory.Arena, MAX_KEYWORD_COUNT * KeywordBufferSize, char); 
+    
+    for (u32 i = 0; i < MAX_KEYWORD_COUNT; ++i)
+    {
+        EditSettings->Keywords[i] = Allocate(EditSettings->TempMemory.Arena, KeywordBufferSize, char); 
+    }
     
     for (u32 i = 0; i < Settings->KeywordCount; ++i)
     {
         string *SourceKeyword = &Settings->Keywords[i];
-        Assert(SourceKeyword->Length < KeywordBufferSize); 
+        Assert(SourceKeyword->Length < KeywordBufferSize);  // Because need space for null terminator
         
         // Already null terminated because buffer is cleared to zero
-        char *DestKeywordBuffer = EditSettings->Buffer + (i * KeywordBufferSize);
-        EditSettings->Keywords[i] = DestKeywordBuffer;
-        
         MemoryCopy(SourceKeyword->Length, SourceKeyword->Str, EditSettings->Keywords[i]); 
-        Assert(DestKeywordBuffer[KeywordBufferSize-1] == 0);
+        Assert(EditSettings->Keywords[i][KeywordBufferSize-1] == 0);
     }
 }
 
@@ -523,7 +522,7 @@ void UpdateSettings(settings *Settings, edit_settings *EditSettings)
     // TODO: Free old setttings keyword strings
     // TODO: dont really need to reallocate string array
     Settings->MiscOptions = EditSettings->MiscOptions;
-    Settings->Keywords = Allocate(Settings->Arena, NewKeywordCount, string); 
+    Settings->Keywords = (NewKeywordCount > 0) ? Allocate(Settings->Arena, NewKeywordCount, string) : nullptr; 
     Settings->KeywordCount = 0;
     
     for (u32 i = 0; i < NewKeywordCount; ++i)
@@ -547,7 +546,7 @@ bool DoEditSettingsPopup(settings *Settings, edit_settings *EditSettings, ImFont
             ImGuiTabBarFlags TabBarFlags = ImGuiTabBarFlags_None;
             if (ImGui::BeginTabBar("MyTabBar", TabBarFlags))
             {
-                if (ImGui::BeginTabItem("UI"))
+                if (ImGui::BeginTabItem("Options"))
                 {
                     ImGui::PushFont(SmallFont);
                     DoMiscOptions(&EditSettings->MiscOptions);
@@ -716,7 +715,7 @@ void DrawGUI(monitor_state *State, gui *GUI, settings *Settings)
     {
         if (ImGui::Button(ICON_MD_SETTINGS))
         {
-            BeginEditSettings(GUI->Arena, &GUI->EditSettings, Settings);
+            BeginEditSettings(&GUI->Arena, &GUI->EditSettings, Settings);
             ImGui::OpenPopup("Settings");
         }
         

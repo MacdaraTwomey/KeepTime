@@ -307,24 +307,6 @@ bool StringsAreEqual(string A, string B)
     return Result;
 }
 
-bool StringsAreEqual(string A, char *B, u64 BLength)
-{
-    bool Result = (A.Length == BLength);
-    if (Result)
-    {
-        for (u64 i = 0; i < A.Length; ++i)
-        {
-            if (A.Str[i] != B[i]) 
-            {
-                Result = false;
-                break;
-            }
-        }
-    }
-    
-    return Result;
-}
-
 bool StringsAreEqualCaseInsensitive(string a, string b)
 {
     bool Result = (a.Length == b.Length);

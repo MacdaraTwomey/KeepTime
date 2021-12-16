@@ -60,7 +60,7 @@ u64 AlignUp(u64 Value, u64 Align)
 
 arena CreateArena(u64 CommitSize, u64 ReserveSize)
 {
-    Assert(CommitSize >= ReserveSize);
+    Assert(CommitSize <= ReserveSize);
     
     u64 AlignedCommitSize = AlignUp(CommitSize, PAGE_SIZE);
     u64 AlignedReserveSize = AlignUp(ReserveSize, PAGE_SIZE);
@@ -86,32 +86,6 @@ void FreeArena(arena *Arena)
 {
     PlatformMemoryFree(Arena->Base);
     *Arena = {};
-}
-
-arena *BootstrapArena(u64 CommitSize, u64 ReserveSize)
-{
-    arena *Arena = nullptr;
-    
-    Assert(CommitSize >= sizeof(Arena));
-    
-    u64 AlignedCommitSize = AlignUp(CommitSize, PAGE_SIZE);
-    u64 AlignedReserveSize = AlignUp(ReserveSize, PAGE_SIZE);
-    
-    // To reserve 1 GB it takes about 2 MB of memory for the page tables.
-    void *Memory = PlatformMemoryReserve(AlignedReserveSize);
-    Assert(Memory);
-    
-    if (PlatformMemoryCommit(Memory, AlignedCommitSize))
-    {
-        Arena = (arena *)Memory;
-        Arena->Base = (u8 *)Memory;
-        Arena->Pos = sizeof(arena);
-        Arena->Commit = AlignedCommitSize;
-        Arena->Capacity = AlignedReserveSize;
-        Arena->TempCount = 0;
-    }
-    
-    return Arena;
 }
 
 void *CheckTypeAlignment(void *Ptr, u32 Alignment)
@@ -234,7 +208,7 @@ void PopSize(arena *Arena, u64 Pos)
     }
 }
 
-temp_memory BeginTempArena(arena *Arena)
+temp_memory BeginTempMemory(arena *Arena)
 {
     Assert(Arena->TempCount == 0); // Assume this until I find a good way to have multiple
     

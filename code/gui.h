@@ -64,7 +64,6 @@ struct edit_settings
     misc_options MiscOptions;
     
     char **Keywords;
-    char *Buffer;
     
     bool KeywordLimitError;
     bool KeywordDisabledCharacterError;
@@ -77,7 +76,7 @@ struct gui
     //std::vector<Icon_Asset> icons;
     //u32 *icon_bitmap_storage;
     
-    arena *Arena; // Used by settings (others?) TODO: Need to allocate a temp arena for GUI out of perm arena
+    arena Arena; 
     
     date_picker DatePicker;
     
